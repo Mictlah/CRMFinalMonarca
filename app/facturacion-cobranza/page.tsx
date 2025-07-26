@@ -887,7 +887,6 @@ export default function FacturacionCobranzaPage() {
         ),
       )
 
-      alert("Tipo de servicio actualizado exitosamente")
     } catch (error) {
       console.error("Error:", error)
       alert("Error al actualizar el tipo de servicio")
@@ -1603,6 +1602,286 @@ export default function FacturacionCobranzaPage() {
     console.log("Exportando datos de cliente:", datosExportacion)
     alert("Datos de cliente exportados exitosamente (simulado)")
   }
+
+// Función para generar análisis de operadores
+const generarAnalisisOperadores = async () => {
+  try {
+    console.log("Generando análisis de operadores...")
+    
+    // Construir filtros de fecha
+    const fechaInicio = fechaInicioAnalisis ? new Date(fechaInicioAnalisis) : new Date("2024-01-01")
+    const fechaFin = fechaFinAnalisis ? new Date(fechaFinAnalisis) : new Date()
+    
+    // Filtrar embarques por período
+    const embarquesFiltrados = embarquesAsignados.filter((embarque) => {
+      const fechaEmbarque = new Date(embarque.fechaAsignacion)
+      const coincideFecha = fechaEmbarque >= fechaInicio && fechaEmbarque <= fechaFin
+      const coincideOperador = filtroAnalisisOperador === "todos" || embarque.operadorAsignado?.nombre === filtroAnalisisOperador
+      return coincideFecha && coincideOperador && embarque.estado_facturacion !== "archivado"
+    })
+
+    // Procesar embarques y calcular pagos
+    const embarquesConPagos = embarquesFiltrados.map((embarque) => {
+      // Buscar tipo de servicio para calcular pago
+      const tipoServicio = tiposServicio.find(t => t.id === embarque.tipo_servicio_id)
+      const pagoOperador = tipoServicio?.pago_operador || tipoServicio?.precio_base || embarque.precioFlete || 0
+      
+      return {
+        ...embarque,
+        pagoOperador,
+        tipoServicioNombre: tipoServicio?.nombre || "Sin especificar"
+      }
+    })
+
+    // Agrupar por operador
+    const operadoresMap = new Map()
+    
+    embarquesConPagos.forEach((embarque) => {
+      const operadorNombre = embarque.operadorAsignado?.nombre || "Sin asignar"
+      
+      if (!operadoresMap.has(operadorNombre)) {
+        operadoresMap.set(operadorNombre, {
+          nombre: operadorNombre,
+          embarques: [],
+          totalEmbarques: 0,
+          embarquesContingencia: 0,
+          totalPagar: 0,
+          promedioPorEmbarque: 0
+        })
+      }
+      
+      const operadorData = operadoresMap.get(operadorNombre)
+      operadorData.embarques.push(embarque)
+      operadorData.totalEmbarques++
+      operadorData.totalPagar += embarque.pagoOperador
+      
+      if (embarque.modificadoPorEmergencia) {
+        operadorData.embarquesContingencia++
+      }
+    })
+
+    // Calcular promedios
+    const analisisPorOperador = Array.from(operadoresMap.values()).map(operador => ({
+      ...operador,
+      promedioPorEmbarque: operador.totalEmbarques > 0 ? Math.round(operador.totalPagar / operador.totalEmbarques) : 0
+    }))
+
+    // Calcular resumen general
+    const resumenGeneral = {
+      totalOperadores: analisisPorOperador.length,
+      totalEmbarques: embarquesConPagos.length,
+      totalPagarMXN: analisisPorOperador.reduce((sum, op) => sum + op.totalPagar, 0),
+      casosContingencia: embarquesConPagos.filter(e => e.modificadoPorEmergencia).length
+    }
+
+    // Actualizar estado
+    setAnalisisData({
+      analisisPorOperador,
+      embarquesFiltradosAnalisis: embarquesConPagos,
+      resumenGeneral
+    })
+
+    console.log("Análisis generado exitosamente:", { analisisPorOperador, resumenGeneral })
+    
+  } catch (error) {
+    console.error("Error generando análisis:", error)
+    alert("Error al generar el análisis de operadores")
+  }
+}
+
+// Función para exportar análisis a Excel
+const exportarAnalisisExcel = () => {
+  try {
+    const datosExportacion = {
+      fecha_exportacion: new Date().toISOString(),
+      periodo: `${fechaInicioAnalisis || "Inicio"} - ${fechaFinAnalisis || "Fin"}`,
+      operador_filtro: filtroAnalisisOperador,
+      resumen_general: analisisData.resumenGeneral,
+      analisis_por_operador: analisisData.analisisPorOperador,
+      embarques_detallados: analisisData.embarquesFiltradosAnalisis?.map(embarque => ({
+        folio: embarque.folio,
+        cliente: embarque.clienteNombre,
+        operador: embarque.operadorAsignado?.nombre,
+        fecha: embarque.fechaAsignacion,
+        tipo_servicio: embarque.tipoServicioNombre,
+        pago_operador: embarque.pagoOperador,
+        contingencia: embarque.modificadoPorEmergencia ? "Sí" : "No",
+        motivo_modificacion: embarque.motivoModificacion || ""
+      })),
+      casos_contingencia: Object.entries(operadoresContingencia).map(([embarqueId, division]) => ({
+        embarque_id: embarqueId,
+        pago_original: division.original,
+        pago_reemplazo: division.reemplazo,
+        total: division.original + division.reemplazo
+      }))
+    }
+
+    console.log("Exportando análisis a Excel:", datosExportacion)
+    alert("Análisis exportado a Excel exitosamente (simulado)")
+    
+    // Aquí se implementaría la generación real del Excel
+    // usando una librería como xlsx o similar
+    
+  } catch (error) {
+    console.error("Error exportando a Excel:", error)
+    alert("Error al exportar el análisis")
+  }
+}
+
+// Función para imprimir reporte de operadores
+const imprimirReporteOperadores = () => {
+  try {
+    const contenidoImpresion = `
+      REPORTE DE ANÁLISIS DE OPERADORES
+      ===================================
+      
+      Período: ${fechaInicioAnalisis || "Inicio"} - ${fechaFinAnalisis || "Fin"}
+      Operador: ${filtroAnalisisOperador === "todos" ? "Todos los operadores" : filtroAnalisisOperador}
+      Fecha de generación: ${new Date().toLocaleDateString("es-MX")}
+      
+      RESUMEN GENERAL:
+      - Total de operadores: ${analisisData.resumenGeneral?.totalOperadores || 0}
+      - Total de embarques: ${analisisData.resumenGeneral?.totalEmbarques || 0}
+      - Total a pagar: $${analisisData.resumenGeneral?.totalPagarMXN?.toLocaleString() || 0} MXN
+      - Casos de contingencia: ${analisisData.resumenGeneral?.casosContingencia || 0}
+      
+      DETALLE POR OPERADOR:
+      ${analisisData.analisisPorOperador?.map(operador => `
+      ${operador.nombre}:
+      - Embarques: ${operador.totalEmbarques}
+      - Casos contingencia: ${operador.embarquesContingencia}
+      - Total a pagar: $${operador.totalPagar.toLocaleString()}
+      - Promedio por embarque: $${operador.promedioPorEmbarque.toLocaleString()}
+      `).join('\n') || 'No hay datos disponibles'}
+    `
+
+    // Crear ventana de impresión
+    const ventanaImpresion = window.open('', '_blank')
+    if (ventanaImpresion) {
+      ventanaImpresion.document.write(`
+        <html>
+          <head>
+            <title>Reporte de Operadores</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 20px; }
+              pre { white-space: pre-wrap; font-size: 12px; }
+            </style>
+          </head>
+          <body>
+            <pre>${contenidoImpresion}</pre>
+          </body>
+        </html>
+      `)
+      ventanaImpresion.document.close()
+      ventanaImpresion.print()
+    }
+    
+  } catch (error) {
+    console.error("Error imprimiendo reporte:", error)
+    alert("Error al imprimir el reporte")
+  }
+}
+
+// Función para guardar configuración de contingencia
+const guardarConfiguracionContingencia = async () => {
+  try {
+    console.log("Guardando configuración de contingencia:", operadoresContingencia)
+    
+    // Guardar en localStorage
+    localStorage.setItem("operadoresContingencia", JSON.stringify(operadoresContingencia))
+    
+    // Aquí se podría guardar en la base de datos
+    // const { error } = await supabase
+    //   .from("configuracion_contingencia")
+    //   .upsert(Object.entries(operadoresContingencia).map(([embarqueId, config]) => ({
+    //     embarque_id: embarqueId,
+    //     pago_operador_original: config.original,
+    //     pago_operador_reemplazo: config.reemplazo,
+    //     fecha_configuracion: new Date().toISOString()
+    //   })))
+    
+    alert("Configuración de contingencia guardada exitosamente")
+    
+  } catch (error) {
+    console.error("Error guardando configuración:", error)
+    alert("Error al guardar la configuración de contingencia")
+  }
+}
+
+// Función para generar recibos de operadores
+const generarRecibosOperadores = () => {
+  try {
+    if (!analisisData.analisisPorOperador || analisisData.analisisPorOperador.length === 0) {
+      alert("No hay datos de análisis disponibles. Genera el análisis primero.")
+      return
+    }
+
+    analisisData.analisisPorOperador.forEach((operador, index) => {
+      setTimeout(() => {
+        const pagoContingencia = Object.values(operadoresContingencia)
+          .filter(caso => caso.reemplazo > 0)
+          .reduce((sum, caso) => sum + caso.reemplazo, 0)
+        
+        const totalFinal = operador.totalPagar + pagoContingencia
+
+        const contenidoRecibo = `
+          RECIBO DE PAGO - OPERADOR
+          ========================
+          
+          Operador: ${operador.nombre}
+          Período: ${fechaInicioAnalisis || "Inicio"} - ${fechaFinAnalisis || "Fin"}
+          Fecha de emisión: ${new Date().toLocaleDateString("es-MX")}
+          
+          DETALLE DE PAGOS:
+          - Embarques normales: ${operador.totalEmbarques - operador.embarquesContingencia}
+          - Pago por embarques normales: $${(operador.totalPagar - (operador.embarquesContingencia * (operador.totalPagar / operador.totalEmbarques))).toLocaleString()}
+          - Casos de contingencia: ${operador.embarquesContingencia}
+          - Pago por contingencia: $${pagoContingencia.toLocaleString()}
+          
+          TOTAL A PAGAR: $${totalFinal.toLocaleString()} MXN
+          
+          EMBARQUES DETALLADOS:
+          ${operador.embarques?.map(embarque => `
+          - ${embarque.folio} | ${embarque.clienteNombre} | $${embarque.pagoOperador?.toLocaleString()} | ${embarque.modificadoPorEmergencia ? 'CONTINGENCIA' : 'NORMAL'}
+          `).join('') || 'No hay embarques disponibles'}
+        `
+
+        const ventanaRecibo = window.open('', '_blank')
+        if (ventanaRecibo) {
+          ventanaRecibo.document.write(`
+            <html>
+              <head>
+                <title>Recibo - ${operador.nombre}</title>
+                <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  pre { white-space: pre-wrap; font-size: 12px; }
+                  .header { text-align: center; margin-bottom: 20px; }
+                  .total { font-weight: bold; font-size: 16px; }
+                </style>
+              </head>
+              <body>
+                <div class="header">
+                  <h2>TRANSPORTES MONARCA</h2>
+                  <p>Recibo de Pago - Operador</p>
+                </div>
+                <pre>${contenidoRecibo}</pre>
+                <div style="margin-top: 40px; text-align: center;">
+                  <button onclick="window.print()">Imprimir</button>
+                  <button onclick="window.close()">Cerrar</button>
+                </div>
+              </body>
+            </html>
+          `)
+          ventanaRecibo.document.close()
+        }
+      }, index * 500) // Delay para evitar bloqueo del navegador
+    })
+    
+  } catch (error) {
+    console.error("Error generando recibos:", error)
+    alert("Error al generar los recibos de operadores")
+  }
+}
 
   // Create helper RPC function if it doesn't exist
   useEffect(() => {
@@ -2974,352 +3253,388 @@ export default function FacturacionCobranzaPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Modal para facturación */}
-        <Dialog open={showFacturacionModal} onOpenChange={setShowFacturacionModal}>
-          <DialogContent className="max-w-2xl">
+        {/* Modal para análisis de operadores - VERSIÓN COMPLETA */}
+        <Dialog open={showAnalisisOperadoresModal} onOpenChange={setShowAnalisisOperadoresModal}>
+          <DialogContent className="max-w-7xl max-h-[95vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Gestión de Facturación - {embarqueFacturacion?.folio}</DialogTitle>
-              <DialogDescription>Registrar información de facturación y seguimiento de pagos</DialogDescription>
-            </DialogHeader>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="numero-factura-1">Número de Factura 1:</Label>
-                  <Input
-                    id="numero-factura-1"
-                    value={facturacionData.numeroFactura1}
-                    onChange={(e) => setFacturacionData((prev) => ({ ...prev, numeroFactura1: e.target.value }))}
-                    placeholder="Ej: FAC-001"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="numero-factura-2">Número de Factura 2:</Label>
-                  <Input
-                    id="numero-factura-2"
-                    value={facturacionData.numeroFactura2}
-                    onChange={(e) => setFacturacionData((prev) => ({ ...prev, numeroFactura2: e.target.value }))}
-                    placeholder="Ej: FAC-002"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="numero-factura-3">Número de Factura 3:</Label>
-                  <Input
-                    id="numero-factura-3"
-                    value={facturacionData.numeroFactura3}
-                    onChange={(e) => setFacturacionData((prev) => ({ ...prev, numeroFactura3: e.target.value }))}
-                    placeholder="Ej: FAC-003"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="fecha-envio-cliente">Fecha de Envío al Cliente:</Label>
-                  <Input
-                    type="date"
-                    id="fecha-envio-cliente"
-                    value={facturacionData.fechaEnvioCliente}
-                    onChange={(e) => setFacturacionData((prev) => ({ ...prev, fechaEnvioCliente: e.target.value }))}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="fecha-pago-cliente">Fecha de Pago del Cliente:</Label>
-                  <Input
-                    type="date"
-                    id="fecha-pago-cliente"
-                    value={facturacionData.fechaPagoCliente}
-                    onChange={(e) => setFacturacionData((prev) => ({ ...prev, fechaPagoCliente: e.target.value }))}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="referencia-pago">Referencia de Pago:</Label>
-                <Input
-                  id="referencia-pago"
-                  value={facturacionData.referenciaPago}
-                  onChange={(e) => setFacturacionData((prev) => ({ ...prev, referenciaPago: e.target.value }))}
-                  placeholder="Número de transferencia, cheque, etc."
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="observaciones-facturacion-modal">Observaciones:</Label>
-                <Textarea
-                  id="observaciones-facturacion-modal"
-                  value={facturacionData.observacionesFacturacion}
-                  onChange={(e) =>
-                    setFacturacionData((prev) => ({ ...prev, observacionesFacturacion: e.target.value }))
-                  }
-                  placeholder="Observaciones adicionales sobre la facturación..."
-                  rows={3}
-                />
-              </div>
-
-              {embarqueFacturacion && (
-                <div className="bg-gray-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-gray-700 mb-2">Resumen del Embarque</h4>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p>
-                        <strong>Cliente:</strong> {embarqueFacturacion.clienteNombre}
-                      </p>
-                      <p>
-                        <strong>Operador:</strong> {embarqueFacturacion.operadorAsignado.nombre}
-                      </p>
-                    </div>
-                    <div>
-                      <p>
-                        <strong>Monto:</strong> $
-                        {(embarqueFacturacion.precioFlete || embarqueFacturacion.montoFacturado || 0).toLocaleString()}{" "}
-                        {embarqueFacturacion.moneda_flete || "MXN"}
-                      </p>
-                      <p>
-                        <strong>Load:</strong> {embarqueFacturacion.numeroLoad}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button variant="outline" onClick={() => setShowFacturacionModal(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={guardarDatosFacturacion}>Guardar Información</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal para confirmar archivado */}
-        <Dialog open={showArchivarModal} onOpenChange={setShowArchivarModal}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Confirmar Archivado</DialogTitle>
+              <DialogTitle>Análisis de Operadores - Pagos y Rendimiento</DialogTitle>
               <DialogDescription>
-                ¿Estás seguro de que deseas archivar este embarque? Esta acción moverá el registro a la sección de
-                archivados.
+                Consultar embarques asignados por operador, calcular pagos por tipo de servicio y gestionar casos de contingencia
               </DialogDescription>
             </DialogHeader>
 
-            {embarqueParaArchivar && (
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <h4 className="font-medium text-gray-700 mb-2">Embarque a Archivar</h4>
-                <div className="text-sm space-y-1">
-                  <p>
-                    <strong>Folio:</strong> {embarqueParaArchivar.folio}
-                  </p>
-                  <p>
-                    <strong>Cliente:</strong> {embarqueParaArchivar.clienteNombre}
-                  </p>
-                  <p>
-                    <strong>Operador:</strong> {embarqueParaArchivar.operadorAsignado.nombre}
-                  </p>
-                  <p>
-                    <strong>Monto:</strong> $
-                    {(embarqueParaArchivar.precioFlete || embarqueParaArchivar.montoFacturado || 0).toLocaleString()}{" "}
-                    {embarqueParaArchivar.moneda_flete || "MXN"}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end space-x-2 mt-6">
-              <Button variant="outline" onClick={() => setShowArchivarModal(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={archivarEmbarque} variant="destructive">
-                Archivar Embarque
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
-        {/* Modal para registros archivados */}
-        <Dialog open={showRegistrosArchivadosModal} onOpenChange={setShowRegistrosArchivadosModal}>
-          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Registros Archivados</DialogTitle>
-              <DialogDescription>Consultar embarques archivados y exportar información histórica</DialogDescription>
-            </DialogHeader>
-
             <div className="space-y-6">
-              {/* Filtros para registros archivados */}
-              <div className="flex flex-wrap items-end gap-4">
-                <div className="flex-1 max-w-md">
-                  <Label htmlFor="buscar-archivos">Buscar:</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-gray-400" />
-                    <Input
-                      id="buscar-archivos"
-                      placeholder="Buscar por folio, cliente, operador..."
-                      value={searchTermArchivos}
-                      onChange={(e) => setSearchTermArchivos(e.target.value)}
-                      className="pl-8"
-                    />
-                  </div>
+              {/* Filtros principales */}
+              <div className="flex flex-wrap items-end gap-4 bg-gray-50 p-4 rounded-lg">
+                <div className="flex-1 min-w-[200px]">
+                  <Label htmlFor="operador-analisis">Operador:</Label>
+                  <Select value={filtroAnalisisOperador} onValueChange={setFiltroAnalisisOperador}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar operador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los operadores</SelectItem>
+                      {operadoresUnicos.map((operador) => (
+                        <SelectItem key={operador.id} value={operador.nombre}>
+                          {operador.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex-1 min-w-[150px]">
-                  <Label htmlFor="fecha-archivo-desde">Fecha Archivo Desde:</Label>
-                  <Input
-                    type="date"
-                    id="fecha-archivo-desde"
-                    value={filtroFechaArchivo}
-                    onChange={(e) => setFiltroFechaArchivo(e.target.value)}
-                  />
+                <div className="flex-1 min-w-[180px]">
+                  <Label htmlFor="periodo-analisis">Período:</Label>
+                  <Select value={periodoSeleccionado} onValueChange={handlePeriodoChange}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="mes-actual">Mes Actual</SelectItem>
+                      <SelectItem value="mes-anterior">Mes Anterior</SelectItem>
+                      <SelectItem value="dos-meses">Últimos 2 Meses</SelectItem>
+                      <SelectItem value="tres-meses">Últimos 3 Meses</SelectItem>
+                      <SelectItem value="seis-meses">Últimos 6 Meses</SelectItem>
+                      <SelectItem value="personalizado">Personalizado</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
-                <div className="flex-1 min-w-[150px]">
-                  <Label htmlFor="fecha-archivo-hasta">Fecha Archivo Hasta:</Label>
-                  <Input
-                    type="date"
-                    id="fecha-archivo-hasta"
-                    value={filtroFechaArchivoHasta}
-                    onChange={(e) => setFiltroFechaArchivoHasta(e.target.value)}
-                  />
-                </div>
-                <Button onClick={exportarRegistrosArchivados} variant="outline">
+                {periodoSeleccionado === "personalizado" && (
+                  <>
+                    <div className="flex-1 min-w-[150px]">
+                      <Label htmlFor="fecha-inicio-analisis">Fecha Inicio:</Label>
+                      <Input
+                        type="date"
+                        id="fecha-inicio-analisis"
+                        value={fechaInicioAnalisis}
+                        onChange={(e) => setFechaInicioAnalisis(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[150px]">
+                      <Label htmlFor="fecha-fin-analisis">Fecha Fin:</Label>
+                      <Input
+                        type="date"
+                        id="fecha-fin-analisis"
+                        value={fechaFinAnalisis}
+                        onChange={(e) => setFechaFinAnalisis(e.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+                <Button onClick={generarAnalisisOperadores}>
+                  Generar Análisis
+                </Button>
+                <Button onClick={exportarAnalisisExcel} variant="outline">
                   <Download className="h-4 w-4 mr-2" />
-                  Exportar
+                  Excel
+                </Button>
+                <Button onClick={imprimirReporteOperadores} variant="outline">
+                  <FileText className="h-4 w-4 mr-2" />
+                  Imprimir
                 </Button>
               </div>
 
-              {/* Estadísticas de archivados */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="border-purple-200 bg-purple-50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-purple-800">Total Archivados</p>
-                        <p className="text-2xl font-bold text-purple-900">{registrosArchivadosFiltrados.length}</p>
-                      </div>
-                      <Package className="h-8 w-8 text-purple-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-gray-200 bg-gray-50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">Monto Total MXN</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          $
-                          {registrosArchivadosFiltrados
-                            .filter((e) => e.moneda_flete === "MXN" || !e.moneda_flete)
-                            .reduce((sum, e) => sum + (e.precioFlete || 0), 0)
-                            .toLocaleString()}
-                        </p>
-                      </div>
-                      <DollarSign className="h-8 w-8 text-gray-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-gray-200 bg-gray-50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">Monto Total USD</p>
-                        <p className="text-2xl font-bold text-gray-900">
-                          $
-                          {registrosArchivadosFiltrados
-                            .filter((e) => e.moneda_flete === "USD")
-                            .reduce((sum, e) => sum + (e.precioFlete || 0), 0)
-                            .toLocaleString()}
-                        </p>
-                      </div>
-                      <DollarSign className="h-8 w-8 text-gray-600" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border-blue-200 bg-blue-50">
-                  <CardContent className="pt-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-blue-800">Clientes Únicos</p>
-                        <p className="text-2xl font-bold text-blue-900">
-                          {new Set(registrosArchivadosFiltrados.map((e) => e.clienteNombre)).size}
-                        </p>
-                      </div>
-                      <Users className="h-8 w-8 text-blue-600" />
-                    </div>
-                  </CardContent>
-                </Card>
+              {/* Sistema de pestañas */}
+              <div className="flex space-x-4 border-b">
+                <Button
+                  variant={activeAnalisisTab === "resumen" ? "default" : "outline"}
+                  onClick={() => setActiveAnalisisTab("resumen")}
+                  size="sm"
+                >
+                  Resumen General
+                </Button>
+                <Button
+                  variant={activeAnalisisTab === "detallado" ? "default" : "outline"}
+                  onClick={() => setActiveAnalisisTab("detallado")}
+                  size="sm"
+                >
+                  Análisis Detallado
+                </Button>
+                <Button
+                  variant={activeAnalisisTab === "contingencia" ? "default" : "outline"}
+                  onClick={() => setActiveAnalisisTab("contingencia")}
+                  size="sm"
+                >
+                  Casos de Contingencia
+                </Button>
+                <Button
+                  variant={activeAnalisisTab === "pagos" ? "default" : "outline"}
+                  onClick={() => setActiveAnalisisTab("pagos")}
+                  size="sm"
+                >
+                  Cálculo de Pagos
+                </Button>
               </div>
 
-              {/* Lista de registros archivados */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">
-                  Registros Archivados ({registrosArchivadosFiltrados.length})
-                </h3>
+              {/* Contenido de las pestañas */}
+              {activeAnalisisTab === "resumen" && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-800">Resumen General de Operadores</h3>
+                  
+                  {analisisData.resumenGeneral && (
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <Card className="border-blue-200 bg-blue-50">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-blue-800">Total Operadores</p>
+                              <p className="text-2xl font-bold text-blue-900">{analisisData.resumenGeneral.totalOperadores}</p>
+                            </div>
+                            <Users className="h-8 w-8 text-blue-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-green-200 bg-green-50">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-green-800">Total Embarques</p>
+                              <p className="text-2xl font-bold text-green-900">{analisisData.resumenGeneral.totalEmbarques}</p>
+                            </div>
+                            <Package className="h-8 w-8 text-green-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-purple-200 bg-purple-50">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-purple-800">Total a Pagar MXN</p>
+                              <p className="text-2xl font-bold text-purple-900">
+                                ${analisisData.resumenGeneral.totalPagarMXN?.toLocaleString() || 0}
+                              </p>
+                            </div>
+                            <DollarSign className="h-8 w-8 text-purple-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="border-orange-200 bg-orange-50">
+                        <CardContent className="pt-6">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-medium text-orange-800">Casos Contingencia</p>
+                              <p className="text-2xl font-bold text-orange-900">{analisisData.resumenGeneral.casosContingencia || 0}</p>
+                            </div>
+                            <AlertTriangle className="h-8 w-8 text-orange-600" />
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  )}
 
-                {registrosArchivadosFiltrados.length > 0 ? (
-                  <div className="max-h-96 overflow-y-auto border rounded-lg">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50 sticky top-0">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operador</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Monto</th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Fecha Archivo
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
-                            Usuario Archivo
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Motivo</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {registrosArchivadosFiltrados.map((embarque) => (
-                          <tr key={embarque.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-purple-600">
-                              {embarque.folio}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                              <div className="max-w-32 truncate" title={embarque.clienteNombre}>
-                                {embarque.clienteNombre}
-                              </div>
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {embarque.operadorAsignado.nombre}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">
-                              ${embarque.precioFlete?.toLocaleString()} {embarque.moneda_flete || "MXN"}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {embarque.fechaArchivado
-                                ? new Date(embarque.fechaArchivado).toLocaleDateString("es-MX")
-                                : "No especificada"}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                              {embarque.usuarioArchivo || "Sistema"}
-                            </td>
-                            <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
-                              <div className="max-w-32 truncate" title={embarque.motivoArchivo}>
-                                {embarque.motivoArchivo || "Sin especificar"}
-                              </div>
-                            </td>
+                  {/* Tabla resumen por operador */}
+                  {analisisData.analisisPorOperador && analisisData.analisisPorOperador.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operador</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Embarques</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contingencia</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Total a Pagar</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Promedio/Embarque</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                    <p className="text-gray-500">No se encontraron registros archivados</p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      Los embarques archivados aparecerán aquí para consulta histórica
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {analisisData.analisisPorOperador.map((operador, index) => (
+                            <tr key={index} className="hover:bg-gray-50">
+                              <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                {operador.nombre}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                                <Badge variant="outline">{operador.totalEmbarques}</Badge>
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {operador.embarquesContingencia > 0 ? (
+                                  <Badge variant="destructive">{operador.embarquesContingencia}</Badge>
+                                ) : (
+                                  <Badge variant="secondary">0</Badge>
+                                )}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm font-bold text-green-600">
+                                ${operador.totalPagar.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                                ${operador.promedioPorEmbarque.toLocaleString()}
+                              </td>
+                              <td className="px-4 py-4 whitespace-nowrap text-sm">
+                                <Badge variant={operador.embarquesContingencia > 0 ? "destructive" : "default"}>
+                                  {operador.embarquesContingencia > 0 ? "Requiere Revisión" : "Normal"}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeAnalisisTab === "detallado" && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-800">Análisis Detallado por Operador</h3>
+                  
+                  {analisisData.embarquesFiltradosAnalisis && analisisData.embarquesFiltradosAnalisis.length > 0 ? (
+                    <div className="space-y-4">
+                      {analisisData.analisisPorOperador.map((operadorData, index) => (
+                        <Card key={index} className="border-gray-200">
+                          <CardHeader>
+                            <div className="flex justify-between items-center">
+                              <CardTitle className="text-lg text-gray-800">{operadorData.nombre}</CardTitle>
+                              <div className="flex space-x-2">
+                                <Badge variant="outline">{operadorData.totalEmbarques} embarques</Badge>
+                                <Badge variant="default" className="bg-green-100 text-green-800">
+                                  ${operadorData.totalPagar.toLocaleString()}
+                                </Badge>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="overflow-x-auto">
+                              <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Folio</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Tipo Servicio</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Pago Operador</th>
+                                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Estado</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                  {operadorData.embarques.map((embarque) => (
+                                    <tr key={embarque.id} className={embarque.modificadoPorEmergencia ? "bg-red-50" : ""}>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-blue-600">
+                                        {embarque.folio}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                        <div className="max-w-32 truncate" title={embarque.clienteNombre}>
+                                          {embarque.clienteNombre}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                        {new Date(embarque.fechaAsignacion).toLocaleDateString("es-MX")}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
+                                        <div className="max-w-32 truncate" title={embarque.tipoServicioNombre}>
+                                          {embarque.tipoServicioNombre || "Sin especificar"}
+                                        </div>
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm font-bold text-green-600">
+                                        ${embarque.pagoOperador?.toLocaleString() || 0}
+                                      </td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-sm">
+                                        {embarque.modificadoPorEmergencia ? (
+                                          <Badge variant="destructive" className="text-xs">
+                                            <AlertTriangle className="h-3 w-3 mr-1" />
+                                            Contingencia
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="default" className="text-xs bg-green-100 text-green-800">
+                                            Normal
+                                          </Badge>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-gray-500">No se encontraron datos para el período seleccionado</p>
+                      <p className="text-sm text-gray-400 mt-1">Ajusta los filtros y genera el análisis nuevamente</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeAnalisisTab === "contingencia" && (
+                <div className="space-y-6">
+                  <h3 className="text-lg font-semibold text-gray-800">Gestión de Casos de Contingencia</h3>
+                  
+                  <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                    <h4 className="font-semibold text-orange-900 mb-2">¿Qué son los casos de contingencia?</h4>
+                    <p className="text-sm text-orange-800 mb-2">
+                      Los casos de contingencia ocurren cuando un embarque asignado originalmente a un operador debe ser 
+                      reasignado a otro operador por situaciones de emergencia (enfermedad, accidente, etc.).
+                    </p>
+                    <p className="text-xs text-orange-700">
+                      • <strong>Operador Original:</strong> Quien tenía la asignación inicial del embarque<br/>
+                      • <strong>Operador de Reemplazo:</strong> Quien finalmente realizó el embarque<br/>
+                      • <strong>División de Pago:</strong> Puedes asignar manualmente cómo dividir el pago entre ambos operadores
                     </p>
                   </div>
-                )}
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      </div>
-    </MainLayout>
-  )
-}
+
+                  {/* Casos de contingencia encontrados */}
+                  {analisisData.embarquesFiltradosAnalisis && (
+                    <div className="space-y-4">
+                      {analisisData.embarquesFiltradosAnalisis
+                        .filter(e => e.modificadoPorEmergencia)
+                        .map((embarque) => (
+                          <Card key={embarque.id} className="border-red-300 bg-red-50">
+                            <CardHeader>
+                              <div className="flex justify-between items-center">
+                                <CardTitle className="text-lg text-red-800 flex items-center">
+                                  <AlertTriangle className="h-5 w-5 mr-2" />
+                                  Caso de Contingencia - {embarque.folio}
+                                </CardTitle>
+                                <Badge variant="destructive">Requiere Atención</Badge>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Información del embarque */}
+                                <div>
+                                  <h4 className="font-medium text-gray-700 mb-3">Información del Embarque</h4>
+                                  <div className="space-y-2 text-sm">
+                                    <p><strong>Cliente:</strong> {embarque.clienteNombre}</p>
+                                    <p><strong>Fecha:</strong> {new Date(embarque.fechaAsignacion).toLocaleDateString("es-MX")}</p>
+                                    <p><strong>Tipo de Servicio:</strong> {embarque.tipoServicioNombre || "Sin especificar"}</p>
+                                    <p><strong>Pago Base:</strong> ${embarque.pagoOperador?.toLocaleString() || 0}</p>
+                                    {embarque.motivoModificacion && (
+                                      <p><strong>Motivo:</strong> {embarque.motivoModificacion}</p>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Gestión de operadores */}
+                                <div>
+                                  <h4 className="font-medium text-gray-700 mb-3">Gestión de Operadores</h4>
+                                  <div className="space-y-4">
+                                    {/* Operador Original */}
+                                    <div className="bg-white p-3 rounded border">
+                                      <div className="flex justify-between items-center mb-2">
+                                        <span className="text-sm font-medium text-gray-700">Operador Original:</span>
+                                        <Badge variant="outline">Original</Badge>
+                                      </div>
+                                      <p className="text-sm text-gray-600 mb-2">
+                                        {operadoresContingenciaData[embarque.id]?.original?.nombre || "No especificado"}
+                                      </p>
+                                      <div className="flex items-center space-x-2">
+                                        <Label htmlFor={`pago-original-${embarque.id}`} className="text-xs">Pago:</Label>
+                                        <Input
+                                          type="number"
+                                          id={`pago-original-${embarque.id}`}
+                                          defaultValue={operadoresContingencia[embarque.id]?.original || 0}
+                                          onChange={(e) => {
+                                            const valor = Number(e.target.value)
+                                            setOperadoresContingencia(prev => ({
+                                              ...prev,
+                                              [embarque.id]: {
+                                                ...prev[embarque.id],
+                                                original: valor
+                                              }
+                                            }))
+                                          }}
+                                          className="w-24 text-xs"
+                                          placeholder="0"
+                                        />
+                                        <span className="text-xs text-gray-500">\
