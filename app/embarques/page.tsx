@@ -18,24 +18,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
   Package,
   Plus,
   Search,
   Filter,
   Download,
   Edit,
-  Trash2,
   MapPin,
   Calendar,
   Truck,
@@ -78,6 +66,7 @@ export default function EmbarquesPage() {
   const [cancelingEmbarque, setCancelingEmbarque] = useState<Embarque | null>(null)
   const [cancelReason, setCancelReason] = useState("")
   const [proximoFolio, setProximoFolio] = useState("")
+  const [showArchivedModal, setShowArchivedModal] = useState(false)
 
   // Estado para el formulario
   const [formData, setFormData] = useState({
@@ -759,7 +748,7 @@ export default function EmbarquesPage() {
       (embarque.direccion_entrega && embarque.direccion_entrega.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const coincideEstado =
-      filtroEstado === "todos" ||
+      (filtroEstado === "todos" && embarque.estado !== "archivado") ||
       embarque.estado === filtroEstado ||
       (filtroEstado === "activos" &&
         embarque.estado !== "cancelado" &&
@@ -814,6 +803,42 @@ export default function EmbarquesPage() {
     )
   }
 
+  const llenarDatosPrueba = () => {
+    const clienteEjemplo = clientes[0]?.id || ""
+    const camionEjemplo = camiones[0]?.id || ""
+    const remolqueEjemplo = remolques[0]?.id || ""
+
+    setFormData({
+      folio: "",
+      cliente_id: clienteEjemplo,
+      camion_id: camionEjemplo,
+      remolque_id: remolqueEjemplo,
+      contenido: "Mercancía general de prueba",
+      peso: "25000",
+      observaciones: "Embarque de prueba generado automáticamente",
+      direccion_recolecta: "Av. Revolución 1234, Col. Centro, Tijuana, B.C., México",
+      direccion_entrega: "Main Street 5678, Downtown, San Diego, CA, USA",
+      fecha_recolecta: new Date().toISOString().split("T")[0],
+      hora_recolecta: "08:00",
+      fecha_entrega: new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      hora_entrega: "16:00",
+      load_number: "LD" + Math.floor(Math.random() * 100000),
+      patente_agente_aduanal: "3087",
+      aduana_cruce: "Tijuana - San Diego",
+      dueno_mercancia: "Empresa Importadora S.A. de C.V.",
+      representante_cliente: "",
+      carta_porte: "CP" + Math.floor(Math.random() * 1000000),
+      tipo_servicio_id: "exportacion-cargada-caja-seca-240",
+      remolque_manual: false,
+      remolque_numero_economico: "",
+      remolque_placa: "",
+    })
+
+    if (clienteEjemplo) {
+      cargarContactos(clienteEjemplo)
+    }
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -823,9 +848,13 @@ export default function EmbarquesPage() {
             <p className="text-gray-600 mt-2">Administrar embarques y asignaciones</p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline" onClick={loadData}>
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Actualizar
+            <Button
+              variant="outline"
+              onClick={() => setShowArchivedModal(true)}
+              className="bg-purple-50 border-purple-200 text-purple-800 hover:bg-purple-100"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              Ver Archivados
             </Button>
             <Button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
@@ -877,13 +906,19 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">En Tránsito</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {embarques.filter((e) => e.estado === "en-transito").length}
+                  <p className="text-sm font-medium text-gray-600">Archivados Año</p>
+                  <p className="text-2xl font-bold text-purple-600">
+                    {
+                      embarques.filter(
+                        (e) =>
+                          e.estado === "archivado" &&
+                          new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
+                      ).length
+                    }
                   </p>
-                  <p className="text-xs text-gray-500">Actualmente en ruta</p>
+                  <p className="text-xs text-gray-500">Archivados en {new Date().getFullYear()}</p>
                 </div>
-                <Truck className="h-8 w-8 text-orange-600" />
+                <Package className="h-8 w-8 text-purple-600" />
               </div>
             </CardContent>
           </Card>
@@ -959,7 +994,6 @@ export default function EmbarquesPage() {
                 <SelectItem value="en-transito">En Tránsito</SelectItem>
                 <SelectItem value="finalizado">Finalizado</SelectItem>
                 <SelectItem value="cancelado">Cancelado</SelectItem>
-                <SelectItem value="archivado">Archivado</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline">
@@ -989,7 +1023,7 @@ export default function EmbarquesPage() {
                     <div className="flex space-x-1">
                       <Button variant="outline" size="sm" onClick={() => handleViewDetails(embarque)}>
                         <Eye className="h-4 w-4 mr-1" />
-                        Ver Detalles
+                        {embarque.estado === "archivado" ? "Ver Archivo" : "Ver Detalles"}
                       </Button>
 
                       {embarque.estado === "creado" && (
@@ -1001,6 +1035,12 @@ export default function EmbarquesPage() {
 
                       {embarque.estado === "listo-para-asignar" && (
                         <Badge className="bg-green-100 text-green-800">Listo para Asignar</Badge>
+                      )}
+
+                      {embarque.estado === "finalizado" && (
+                        <Button variant="outline" size="sm" onClick={() => updateEstado(embarque, "archivado")}>
+                          Archivar
+                        </Button>
                       )}
 
                       <Button variant="outline" size="sm" onClick={() => handleEdit(embarque)}>
@@ -1017,25 +1057,6 @@ export default function EmbarquesPage() {
                       >
                         Cancelar
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm" disabled={embarque.estado === "listo-para-asignar"}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar embarque?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Se eliminará permanentemente el embarque.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(embarque)}>Eliminar</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
                     </div>
                   </div>
                 </div>
@@ -1207,7 +1228,20 @@ export default function EmbarquesPage() {
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg">Información Básica</CardTitle>
+                  <div className="flex justify-between items-center">
+                    <CardTitle className="text-lg">Información Básica</CardTitle>
+                    {!embarqueEditando && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={llenarDatosPrueba}
+                        className="bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
+                      >
+                        🧪 Llenar Datos de Prueba
+                      </Button>
+                    )}
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Tabs defaultValue="basica" className="w-full">
@@ -2075,6 +2109,149 @@ export default function EmbarquesPage() {
 
             <DialogFooter>
               <Button onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal de embarques archivados */}
+        <Dialog open={showArchivedModal} onOpenChange={setShowArchivedModal}>
+          <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Embarques Archivados</DialogTitle>
+              <DialogDescription>Historial de embarques que han sido archivados</DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              {/* Estadísticas de archivados */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Total Archivados</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {embarques.filter((e) => e.estado === "archivado").length}
+                        </p>
+                      </div>
+                      <Package className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Este Año</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {
+                            embarques.filter(
+                              (e) =>
+                                e.estado === "archivado" &&
+                                new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
+                            ).length
+                          }
+                        </p>
+                      </div>
+                      <Calendar className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="pt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-600">Este Mes</p>
+                        <p className="text-2xl font-bold text-purple-600">
+                          {
+                            embarques.filter(
+                              (e) =>
+                                e.estado === "archivado" &&
+                                new Date(e.fecha_creacion).getMonth() === new Date().getMonth() &&
+                                new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
+                            ).length
+                          }
+                        </p>
+                      </div>
+                      <Package className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Lista de embarques archivados */}
+              <div className="space-y-3 max-h-96 overflow-y-auto">
+                {embarques
+                  .filter((embarque) => embarque.estado === "archivado")
+                  .map((embarque) => (
+                    <Card key={embarque.id} className="border-purple-200">
+                      <CardHeader className="pb-3">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <CardTitle className="text-base text-purple-800">Folio: {embarque.folio}</CardTitle>
+                            <CardDescription>
+                              {embarque.cliente?.nombre && `Cliente: ${embarque.cliente.nombre}`}
+                              {embarque.operador &&
+                                ` • Operador: ${embarque.operador.nombre} ${embarque.operador.apellidos}`}
+                            </CardDescription>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge className="bg-purple-100 text-purple-800">Archivado</Badge>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEmbarqueDetalle(embarque)
+                                setShowDetailModal(true)
+                              }}
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              Ver Detalles
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <p className="font-medium">Origen</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {embarque.direccion_recolecta || "No especificado"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <MapPin className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <p className="font-medium">Destino</p>
+                              <p className="text-xs text-gray-500 truncate">
+                                {embarque.direccion_entrega || "No especificado"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-2 text-xs text-gray-400">
+                          Archivado: {new Date(embarque.updated_at || embarque.fecha_creacion).toLocaleDateString()}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+              </div>
+
+              {embarques.filter((e) => e.estado === "archivado").length === 0 && (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                  <p className="text-gray-500">No hay embarques archivados</p>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Los embarques finalizados pueden ser archivados desde la lista principal
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setShowArchivedModal(false)}>Cerrar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
