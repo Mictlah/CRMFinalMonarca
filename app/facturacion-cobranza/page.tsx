@@ -801,7 +801,7 @@ export default function FacturacionCobranzaPage() {
     localStorage.setItem("creditLimits", JSON.stringify(newLimits))
 
     // También guardar en la base de datos
-    await saveCreditLimitToDatabase(clienteId, newLimits[clienteId])
+    await saveCreditLimitToDatabase(clienteId, newLimits[clienteId].usd)
   }
 
   const checkCreditExceeded = (clienteNombre: string, montoFacturado: number, moneda_flete: "MXN" | "USD" = "MXN") => {
