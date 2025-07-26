@@ -1919,14 +1919,20 @@ const generarRecibosOperadores = () => {
           </div>
         </div>
 
-        {/* Estadísticas generales */}
+       {/* Estadísticas generales */}
         <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Embarques</p>
-                  <p className="text-2xl font-bold">{embarquesFiltrados.length}</p>
+                  <p className="text-2xl font-bold">
+                    {
+                      [...embarquesFiltrados, ...registrosArchivados].filter(
+                        (e) => new Date(e.fechaAsignacion).getFullYear() === new Date().getFullYear(),
+                      ).length
+                    }
+                  </p>
                 </div>
                 <Package className="h-8 w-8 text-blue-600" />
               </div>
@@ -1939,7 +1945,7 @@ const generarRecibosOperadores = () => {
                   <p className="text-sm font-medium text-gray-600">Flete Año MXN</p>
                   <p className="text-2xl font-bold text-green-600">
                     $
-                    {embarquesFiltrados
+                    {[...embarquesFiltrados, ...registrosArchivados]
                       .filter((e) => e.moneda_flete === "MXN" || !e.moneda_flete)
                       .filter((e) => new Date(e.fechaAsignacion).getFullYear() === new Date().getFullYear())
                       .reduce((sum, e) => sum + (e.precioFlete || e.montoFacturado || 0), 0)
@@ -1957,7 +1963,7 @@ const generarRecibosOperadores = () => {
                   <p className="text-sm font-medium text-gray-600">Flete Año USD</p>
                   <p className="text-2xl font-bold text-green-600">
                     $
-                    {embarquesFiltrados
+                    {[...embarquesFiltrados, ...registrosArchivados]
                       .filter((e) => e.moneda_flete === "USD")
                       .filter((e) => new Date(e.fechaAsignacion).getFullYear() === new Date().getFullYear())
                       .reduce((sum, e) => sum + (e.precioFlete || e.montoFacturado || 0), 0)
@@ -1974,7 +1980,7 @@ const generarRecibosOperadores = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pagados</p>
                   <p className="text-2xl font-bold text-green-600">
-                    {embarquesFiltrados.filter((e) => e.pagado).length}
+                    {embarquesFiltrados.filter((e) => e.pagado && e.estado_facturacion !== "archivado").length}
                   </p>
                 </div>
                 <FileText className="h-8 w-8 text-green-600" />
@@ -1987,7 +1993,7 @@ const generarRecibosOperadores = () => {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Pendientes</p>
                   <p className="text-2xl font-bold text-yellow-600">
-                    {embarquesFiltrados.filter((e) => !e.pagado).length}
+                    {embarquesFiltrados.filter((e) => !e.pagado && e.estado_facturacion !== "archivado").length}
                   </p>
                 </div>
                 <Calendar className="h-8 w-8 text-yellow-600" />
@@ -1999,16 +2005,14 @@ const generarRecibosOperadores = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Archivados</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {embarquesFiltrados.filter((e) => e.estado_facturacion === "archivado").length}
-                  </p>
+                  <p className="text-2xl font-bold text-purple-600">{registrosArchivados.length}</p>
                 </div>
                 <Package className="h-8 w-8 text-purple-600" />
               </div>
             </CardContent>
           </Card>
         </div>
-
+        
         {/* Búsqueda y Consultas Avanzadas */}
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 max-w-md">
