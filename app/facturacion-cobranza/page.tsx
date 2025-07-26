@@ -567,9 +567,10 @@ export default function FacturacionCobranzaPage() {
         }
 
         // Load credit limits from Supabase - FIXED: using correct column name
+        // Load credit limits from Supabase - Load both USD and MXN
         const { data: creditosData, error: creditosError } = await supabase
           .from("creditos_clientes")
-          .select("cliente_id, limite_credito_usd")
+          .select("cliente_id, limite_credito_usd, limite_credito_mxn")
           .eq("activo", true)
 
         if (creditosError) {
@@ -578,9 +579,12 @@ export default function FacturacionCobranzaPage() {
           const creditosGuardados = JSON.parse(localStorage.getItem("creditLimits") || "{}")
           setCreditLimits(creditosGuardados)
         } else {
-          const creditLimitsMap: { [key: string]: number } = {}
+          const creditLimitsMap: { [key: string]: { usd: number; mxn: number } } = {}
           creditosData?.forEach((credito) => {
-            creditLimitsMap[credito.cliente_id] = credito.limite_credito_usd || 0
+            creditLimitsMap[credito.cliente_id] = {
+              usd: credito.limite_credito_usd || 0,
+              mxn: credito.limite_credito_mxn || 0
+            }
           })
           setCreditLimits(creditLimitsMap)
         }
@@ -743,66 +747,58 @@ export default function FacturacionCobranzaPage() {
     return coincideBusqueda && coincideFechaArchivo && coincideFechaArchivoHasta
   })
 
-  const saveCreditLimitToDatabase = async (clienteId: string, limit: number) => {
-    try {
-      // First, try to update existing record
-      const { data: existingRecord, error: selectError } = await supabase
-        .from("creditos_clientes")
-        .select("id")
-        .eq("cliente_id", clienteId)
-        .single()
-
-      if (existingRecord) {
-        // Update existing record - FIXED: using correct column name
-        const { error: updateError } = await supabase
-          .from("creditos_clientes")
-          .update({
-            limite_credito_usd: limit,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("cliente_id", clienteId)
-
-        if (updateError) {
-          console.error("Error updating credit limit:", updateError)
-          return false
-        }
-      } else {
-        // Insert new record - FIXED: using correct column name
-        const { error: insertError } = await supabase.from("creditos_clientes").insert({
-          cliente_id: clienteId,
-          limite_credito_usd: limit,
-          activo: true,
-        })
-
-        if (insertError) {
-          console.error("Error inserting credit limit:", insertError)
-          return false
-        }
-      }
-
-      return true
-    } catch (error) {
-      console.error("Error saving credit limit to database:", error)
-      return false
-    }
-  }
-
   // Update the saveCreditLimit function to also save to database
-  const saveCreditLimit = async (clienteId: string, currency: "usd" | "mxn", limit: number) => {
-    const currentLimits = creditLimits[clienteId] || { usd: 0, mxn: 0 }
-    const newLimits = {
-      ...creditLimits,
-      [clienteId]: {
-        ...currentLimits,
-        [currency]: limit,
-      },
-    }
-    setCreditLimits(newLimits)
-    localStorage.setItem("creditLimits", JSON.stringify(newLimits))
-
-    // También guardar en la base de datos
-    await saveCreditLimitToDatabase(clienteId, newLimits[clienteId].usd)
+const saveCreditLimit = async (clienteId: string, currency: "usd" | "mxn", limit: number) => {
+  const currentLimits = creditLimits[clienteId] || { usd: 0, mxn: 0 }
+  const newLimits = {
+    ...creditLimits,
+    [clienteId]: {
+      ...currentLimits,
+      [currency]: limit,
+    },
   }
+  setCreditLimits(newLimits)
+  localStorage.setItem("creditLimits", JSON.stringify(newLimits))
+
+  // Save both USD and MXN limits to database
+  try {
+    const { data: existingRecord, error: selectError } = await supabase
+      .from("creditos_clientes")
+      .select("id")
+      .eq("cliente_id", clienteId)
+      .single()
+
+    if (existingRecord) {
+      // Update existing record with both limits
+      const { error: updateError } = await supabase
+        .from("creditos_clientes")
+        .update({
+          limite_credito_usd: newLimits[clienteId].usd,
+          limite_credito_mxn: newLimits[clienteId].mxn,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("cliente_id", clienteId)
+
+      if (updateError) {
+        console.error("Error updating credit limits:", updateError)
+      }
+    } else {
+      // Insert new record with both limits
+      const { error: insertError } = await supabase.from("creditos_clientes").insert({
+        cliente_id: clienteId,
+        limite_credito_usd: newLimits[clienteId].usd,
+        limite_credito_mxn: newLimits[clienteId].mxn,
+        activo: true,
+      })
+
+      if (insertError) {
+        console.error("Error inserting credit limits:", insertError)
+      }
+    }
+  } catch (error) {
+    console.error("Error saving credit limits to database:", error)
+  }
+}
 
   const checkCreditExceeded = (clienteNombre: string, montoFacturado: number, moneda_flete: "MXN" | "USD" = "MXN") => {
     if (!clienteNombre || !clientes || clientes.length === 0) {
@@ -2224,14 +2220,14 @@ const generarRecibosOperadores = () => {
                         <div className="flex items-center space-x-2">
                           <Package className="h-4 w-4 text-purple-600" />
                           <span className="text-gray-600 text-sm">
-                            {(() => {
-                              if (embarque.tipo_servicio_id) {
-                                const tipoServicio = tiposServicio.find((t) => t.id === embarque.tipo_servicio_id)
-                                return tipoServicio ? tipoServicio.nombre : embarque.tipo_servicio_id
-                              }
-                              return embarque.tipoServicio || "Sin especificar"
-                            })()}
-                          </span>
+  {(() => {
+    if (embarque.tipo_servicio_id) {
+      const tipoServicio = tiposServicio.find((t) => t.id === embarque.tipo_servicio_id)
+      return tipoServicio ? tipoServicio.nombre : `ID: ${embarque.tipo_servicio_id}`
+    }
+    return "No asignado"
+  })()}
+</span>
                         </div>
                       </div>
                       <div>
@@ -3517,14 +3513,35 @@ const generarRecibosOperadores = () => {
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
                                         {new Date(embarque.fechaAsignacion).toLocaleDateString("es-MX")}
                                       </td>
+                                      
                                       <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-600">
-                                        <div className="max-w-32 truncate" title={embarque.tipoServicioNombre}>
-                                          {embarque.tipoServicioNombre || "Sin especificar"}
-                                        </div>
-                                      </td>
+  <div className="space-y-1">
+    <div className="max-w-32 truncate" title={embarque.tipoServicioNombre}>
+      {(() => {
+        if (embarque.tipo_servicio_id) {
+          const tipoServicio = tiposServicio.find((t) => t.id === embarque.tipo_servicio_id)
+          return tipoServicio ? tipoServicio.nombre : `ID: ${embarque.tipo_servicio_id}`
+        }
+        return "No asignado"
+      })()}
+    </div>
+    {embarque.modificadoPorEmergencia && operadoresContingenciaData[embarque.id] && (
+      <div className="text-xs text-red-600 bg-red-50 p-1 rounded border">
+        <div><strong>Original:</strong> {operadoresContingenciaData[embarque.id].original?.nombre}</div>
+        <div><strong>Reemplazo:</strong> {operadoresContingenciaData[embarque.id].reemplazo?.nombre}</div>
+      </div>
+    )}
+  </div>
+</td>
                                       <td className="px-3 py-2 whitespace-nowrap text-sm font-bold text-green-600">
-                                        ${embarque.pagoOperador?.toLocaleString() || 0}
-                                      </td>
+  ${(() => {
+    if (embarque.tipo_servicio_id) {
+      const tipoServicio = tiposServicio.find(t => t.id === embarque.tipo_servicio_id)
+      return (tipoServicio?.pago_operador || tipoServicio?.precio_base || 0).toLocaleString()
+    }
+    return (embarque.pagoOperador || 0).toLocaleString()
+  })()}
+</td>
                                       <td className="px-3 py-2 whitespace-nowrap text-sm">
                                         {embarque.modificadoPorEmergencia ? (
                                           <Badge variant="destructive" className="text-xs">
@@ -3612,29 +3629,4 @@ const generarRecibosOperadores = () => {
                                     {/* Operador Original */}
                                     <div className="bg-white p-3 rounded border">
                                       <div className="flex justify-between items-center mb-2">
-                                        <span className="text-sm font-medium text-gray-700">Operador Original:</span>
-                                        <Badge variant="outline">Original</Badge>
-                                      </div>
-                                      <p className="text-sm text-gray-600 mb-2">
-                                        {operadoresContingenciaData[embarque.id]?.original?.nombre || "No especificado"}
-                                      </p>
-                                      <div className="flex items-center space-x-2">
-                                        <Label htmlFor={`pago-original-${embarque.id}`} className="text-xs">Pago:</Label>
-                                        <Input
-                                          type="number"
-                                          id={`pago-original-${embarque.id}`}
-                                          defaultValue={operadoresContingencia[embarque.id]?.original || 0}
-                                          onChange={(e) => {
-                                            const valor = Number(e.target.value)
-                                            setOperadoresContingencia(prev => ({
-                                              ...prev,
-                                              [embarque.id]: {
-                                                ...prev[embarque.id],
-                                                original: valor
-                                              }
-                                            }))
-                                          }}
-                                          className="w-24 text-xs"
-                                          placeholder="0"
-                                        />
-                                        <span className="text-xs text-gray-500">\
+                                        <span className="text-sm font-medium text-gray-70\

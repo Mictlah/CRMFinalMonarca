@@ -14,6 +14,8 @@ import { Bell, Menu, User, LogOut, Settings } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { obtenerNotificaciones } from "@/lib/supabase"
+import { logout } from "@/lib/auth"
+import { useRouter } from "next/navigation"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -21,6 +23,13 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const [notificationCount, setNotificationCount] = useState(0)
+
+  const router = useRouter()
+
+  const handleLogout = () => {
+    logout()
+    router.push("/login")
+  }
 
   useEffect(() => {
     const cargarNotificaciones = async () => {
@@ -105,7 +114,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <span>Configuración</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600">
+              <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar Sesión</span>
               </DropdownMenuItem>
