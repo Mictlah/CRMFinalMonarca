@@ -516,18 +516,18 @@ export default function AsignarOperadoresPage() {
         estado: "completado",
         montoFacturado: embarque.precio_flete || 0,
         precioFlete: embarque.precio_flete || 0,
-        precio_flete: embarque.precio_flete || 0,
         moneda_flete: embarque.moneda_flete || "MXN",
         fechaEntrega: "",
         observacionesFacturacion: "",
         observacionesFinalizacion: `Embarque finalizado el ${new Date().toLocaleDateString()}`,
         pagado: false,
         fechaPago: "",
-        modificado: embarque.modificado || false,
+        // Aquí se añaden las propiedades para la alerta de modificación
+        modificadoPorEmergencia: embarque.modificado || false, // <-- Esta es la clave
+        requiereAtencionEspecial: embarque.modificado || false,
         alertaModificacion: embarque.modificado
           ? "⚠️ EMBARQUE MODIFICADO POR SITUACIÓN DE EMERGENCIA/CONTINGENCIA"
           : null,
-        requiereAtencionEspecial: embarque.modificado || false,
         colorAlerta: embarque.modificado ? "red" : null,
         mensajeParaFacturacion: embarque.modificado
           ? "ATENCIÓN: Este embarque fue modificado por situaciones de emergencia/contingencia. Verificar procedimientos especiales de pago y documentación antes de procesar."
