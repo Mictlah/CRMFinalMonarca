@@ -1,17 +1,13 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase environment variables")
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.")
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: false,
-  },
-})
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Tipos TypeScript para las tablas
 export interface Operador {
@@ -86,20 +82,10 @@ export interface TipoServicio {
   id: string
   nombre: string
   descripcion?: string
-  precio_base?: number
+  precio_base?: number // Este es el campo para el pago al operador
   activo: boolean
-  fecha_creacion: string
-  updated_at: string
-}
-
-export interface TipoCambio {
-  id: string
-  fecha: string
-  usd_to_mxn: number
-  mxn_to_usd: number
-  activo: boolean
-  creado_por?: string
-  fecha_creacion: string
+  orden_visualizacion?: number
+  fecha_creacion?: string
   updated_at: string
 }
 
@@ -236,87 +222,16 @@ export interface FotoEmbarque {
   subido_por?: string
 }
 
-// Función para obtener el tipo de cambio actual
-export const obtenerTipoCambioActual = async (): Promise<TipoCambio | null> => {
-  try {
-    const { data, error } = await supabase
-      .from("tipos_cambio")
-      .select("*")
-      .eq("activo", true)
-      .order("fecha", { ascending: false })
-      .limit(1)
-      .single()
-
-    if (error) {
-      console.error("Error obteniendo tipo de cambio:", error)
-      // Retornar tipo de cambio por defecto si no hay en la BD
-      return {
-        id: "default",
-        fecha: new Date().toISOString().split("T")[0],
-        usd_to_mxn: 17.5,
-        mxn_to_usd: 1 / 17.5,
-        activo: true,
-        fecha_creacion: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      }
-    }
-
-    return data
-  } catch (error) {
-    console.error("Error:", error)
-    return null
-  }
-}
-
-// Función para convertir montos entre divisas
-export const convertirDivisa = (
-  monto: number,
-  divisaOrigen: "MXN" | "USD",
-  divisaDestino: "MXN" | "USD",
-  tipoCambio: TipoCambio,
-): number => {
-  if (divisaOrigen === divisaDestino) return monto
-
-  if (divisaOrigen === "MXN" && divisaDestino === "USD") {
-    return monto * tipoCambio.mxn_to_usd
-  }
-
-  if (divisaOrigen === "USD" && divisaDestino === "MXN") {
-    return monto * tipoCambio.usd_to_mxn
-  }
-
-  return monto
-}
-
-// Función para actualizar tipo de cambio
-export const actualizarTipoCambio = async (usdToMxn: number, creadoPor?: string): Promise<boolean> => {
-  try {
-    // Desactivar tipos de cambio anteriores
-    const { error: updateError } = await supabase.from("tipos_cambio").update({ activo: false }).eq("activo", true)
-
-    if (updateError) {
-      console.error("Error desactivando tipos de cambio anteriores:", updateError)
-      return false
-    }
-
-    // Insertar nuevo tipo de cambio
-    const { error: insertError } = await supabase.from("tipos_cambio").insert({
-      fecha: new Date().toISOString().split("T")[0],
-      usd_to_mxn: usdToMxn,
-      activo: true,
-      creado_por: creadoPor || "Usuario",
-    })
-
-    if (insertError) {
-      console.error("Error insertando nuevo tipo de cambio:", insertError)
-      return false
-    }
-
-    return true
-  } catch (error) {
-    console.error("Error actualizando tipo de cambio:", error)
-    return false
-  }
+export interface OperadorPagoContingencia {
+  id: string
+  embarque_id: string
+  operador_original_id?: string
+  operador_reemplazo_id?: string
+  monto_original: number
+  monto_reemplazo: number
+  fecha_registro: string
+  registrado_por?: string
+  updated_at: string
 }
 
 // Función para generar folio automático
@@ -639,12 +554,12 @@ export const obtenerEmbarques = async () => {
     const { data, error } = await supabase
       .from("embarques")
       .select(`
-        *,
-        cliente:clientes(nombre),
-        operador:operadores(nombre, apellidos),
-        camion:camiones(numero_economico),
-        remolque:remolques(numero_economico)
-      `)
+      *,
+      cliente:clientes(nombre),
+      operador:operadores(nombre, apellidos),
+      camion:camiones(numero_economico),
+      remolque:remolques(numero_economico)
+    `)
       .order("fecha_creacion", { ascending: false })
 
     if (error) {
@@ -665,10 +580,10 @@ export const obtenerRecordatorios = async () => {
     const { data, error } = await supabase
       .from("recordatorios")
       .select(`
-        *,
-        operador:operadores(nombre, apellidos),
-        camion:camiones(numero_economico)
-      `)
+      *,
+      operador:operadores(nombre, apellidos),
+      camion:camiones(numero_economico)
+    `)
       .order("fecha_vencimiento", { ascending: true })
 
     if (error) {
@@ -680,5 +595,24 @@ export const obtenerRecordatorios = async () => {
   } catch (error) {
     console.error("Error:", error)
     return { data: [], error }
+  }
+}
+
+// Función para obtener IDs de embarques modificados
+export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase.from("embarque_modificaciones").select("embarque_id")
+
+    if (error) {
+      console.error("Error al obtener IDs de embarques modificados:", error)
+      return []
+    }
+
+    // Extraer y devolver IDs únicos
+    const ids = data.map((row) => row.embarque_id)
+    return Array.from(new Set(ids))
+  } catch (error) {
+    console.error("Excepción al obtener IDs de embarques modificados:", error)
+    return []
   }
 }
