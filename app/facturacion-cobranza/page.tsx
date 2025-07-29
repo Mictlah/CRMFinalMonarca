@@ -1252,7 +1252,102 @@ export default function FacturacionCobranzaPage() {
     desde: "",
     hasta: "",
   })
-  const [clienteSeleccionado, setClienteSeleccionado] = useState("")
+  const [clienteSeleccionado, setClienteSeleccionado] = useState("todos") // Default to "todos"
+  const [clienteSearchTerm, setClienteSearchTerm] = useState("") // New state for search input
+
+  const [loadingClienteEmbarques, setLoadingClienteEmbarques] = useState(false)
+  const [embarquesClienteFiltrados, setEmbarquesClienteFiltrados] = useState<EmbarqueAsignado[]>([])
+
+  const consultarEmbarquesPorCliente = useCallback(async () => {
+    setLoadingClienteEmbarques(true)
+    setEmbarquesClienteFiltrados([])
+    try {
+      let query = supabase
+        .from("embarques")
+        .select(
+          `
+        *,
+        cliente:clientes(id, nombre),
+        operador:operadores(id, nombre, apellidos)
+      `,
+        )
+        .eq("estado", "finalizado")
+        .neq("estado_facturacion", "archivado")
+
+      if (clienteSeleccionado && clienteSeleccionado !== "todos") {
+        query = query.eq("cliente_id", clienteSeleccionado)
+      }
+
+      if (clientesPeriodo.desde) {
+        query = query.gte("fecha_creacion", clientesPeriodo.desde)
+      }
+      if (clientesPeriodo.hasta) {
+        query = query.lte("fecha_creacion", clientesPeriodo.hasta)
+      }
+
+      const { data, error } = await query.order("fecha_creacion", { ascending: false })
+
+      if (error) {
+        console.error("Error al consultar embarques por cliente:", error)
+        alert("Error al consultar embarques por cliente: " + error.message)
+        setEmbarquesClienteFiltrados([])
+        return
+      }
+
+      const embarquesFormateados: EmbarqueAsignado[] = (data || []).map((embarque: any) => ({
+        ...embarque,
+        clienteNombre: embarque.cliente?.nombre || "Cliente no especificado",
+        operadorAsignado: embarque.operador
+          ? {
+              id: embarque.operador.id,
+              nombre: `${embarque.operador.nombre} ${embarque.operador.apellidos || ""}`.trim(),
+            }
+          : { id: "", nombre: "Sin asignar" },
+        modificadoPorEmergencia: embarquesModificadosIds.includes(embarque.id),
+        precioFlete: embarque.precio_flete,
+        numeroLoad: embarque.load_number,
+      }))
+
+      const filteredBySearch = embarquesFormateados.filter((e) => {
+        const searchLower = clienteSearchTerm.toLowerCase()
+        return (
+          (e.folio || "").toLowerCase().includes(searchLower) ||
+          (e.clienteNombre || "").toLowerCase().includes(searchLower) ||
+          (e.numeroLoad || "").toLowerCase().includes(searchLower) ||
+          (e.operadorAsignado?.nombre || "").toLowerCase().includes(searchLower)
+        )
+      })
+
+      setEmbarquesClienteFiltrados(filteredBySearch)
+    } catch (error) {
+      console.error("Excepción al consultar embarques por cliente:", error)
+      alert("Error inesperado al consultar embarques por cliente.")
+    } finally {
+      setLoadingClienteEmbarques(false)
+    }
+  }, [clienteSeleccionado, clientesPeriodo.desde, clientesPeriodo.hasta, clienteSearchTerm, embarquesModificadosIds])
+
+  useEffect(() => {
+    if (showClientesModal) {
+      consultarEmbarquesPorCliente()
+    }
+  }, [showClientesModal, consultarEmbarquesPorCliente])
+
+  const exportarEmbarquesClienteExcel = () => {
+    let csv = "Folio,Cliente,Load,Fecha,Monto Flete,Moneda,Contingencia\n"
+    embarquesClienteFiltrados.forEach((e) => {
+      csv += `${e.folio},${e.clienteNombre},${e.numeroLoad},${new Date(
+        e.fechaAsignacion!,
+      ).toLocaleDateString()},${e.precioFlete},${e.moneda_flete || "MXN"},${e.modificadoPorEmergencia ? "Sí" : "No"}\n`
+    })
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "embarques_por_cliente.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const operacionesPorPeriodo = embarquesAsignados.filter((e) => {
     if (!clientesPeriodo.desde && !clientesPeriodo.hasta) return true
@@ -1380,11 +1475,11 @@ export default function FacturacionCobranzaPage() {
         .from("embarques")
         .select(
           `
-        *,
-        cliente:clientes(nombre),
-        operador:operadores(id, nombre, apellidos),
-        tipo_servicio:tipos_servicio(nombre, precio_base)
-      `,
+       *,
+       cliente:clientes(nombre),
+       operador:operadores(id, nombre, apellidos),
+       tipo_servicio:tipos_servicio(nombre, precio_base)
+     `,
         )
         .eq("estado", "finalizado")
         .neq("estado_facturacion", "archivado")
@@ -1460,6 +1555,7 @@ export default function FacturacionCobranzaPage() {
               formattedEmbarque.montoReemplazoContingencia = contingencyPaymentData.monto_reemplazo
             } else {
               // Default split if no contingency payment recorded yet
+              formattedEmbarque.pagoOperador = formattedEmbarque.pagoOperador
               formattedEmbarque.montoOriginalContingencia = formattedEmbarque.pagoOperador
               formattedEmbarque.montoReemplazoContingencia = 0
             }
@@ -2420,8 +2516,12 @@ export default function FacturacionCobranzaPage() {
               )}
             </DialogContent>
           </Dialog>
+          <Button onClick={() => setShowClientesModal(true)} variant="outline">
+            <Users className="h-4 w-4 mr-2" />
+            Operaciones por Cliente
+          </Button>
           <Dialog open={showClientesModal} onOpenChange={setShowClientesModal}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Operaciones por Cliente</DialogTitle>
                 <DialogDescription>
@@ -2429,193 +2529,130 @@ export default function FacturacionCobranzaPage() {
                   si la factura ya fue pagada o no.
                 </DialogDescription>
               </DialogHeader>
-              <div className="mb-4">
-                <div className="flex space-x-2 border-b mb-4">
-                  <button
-                    className={`px-4 py-2 font-semibold ${
-                      clientesTab === "porCliente" ? "border-b-2 border-blue-600 text-blue-700" : "text-gray-600"
-                    }`}
-                    onClick={() => setClientesTab("porCliente")}
-                  >
-                    Por Cliente
-                  </button>
-                  <button
-                    className={`px-4 py-2 font-semibold ${
-                      clientesTab === "porPeriodo" ? "border-b-2 border-blue-600 text-blue-700" : "text-gray-600"
-                    }`}
-                    onClick={() => setClientesTab("porPeriodo")}
-                  >
-                    Por Periodo
-                  </button>
-                  <button
-                    className={`px-4 py-2 font-semibold ${
-                      clientesTab === "porTipoServicio" ? "border-b-2 border-blue-600 text-blue-700" : "text-gray-600"
-                    }`}
-                    onClick={() => setClientesTab("porTipoServicio")}
-                  >
-                    Por Tipo de Servicio
-                  </button>
+              <div className="flex flex-wrap gap-2 mb-4 items-end">
+                <div className="flex-1 min-w-[150px]">
+                  <Label htmlFor="search-cliente-embarques">Buscar</Label>
+                  <Input
+                    id="search-cliente-embarques"
+                    placeholder="Buscar por folio, load, etc."
+                    value={clienteSearchTerm}
+                    onChange={(e) => setClienteSearchTerm(e.target.value)}
+                  />
                 </div>
-                {/* Filtros de periodo */}
-                {(clientesTab === "porCliente" ||
-                  clientesTab === "porTipoServicio" ||
-                  clientesTab === "porPeriodo") && (
-                  <div className="flex items-center space-x-4 mb-4">
-                    <div>
-                      <Label>Desde</Label>
-                      <Input
-                        type="date"
-                        value={clientesPeriodo.desde}
-                        onChange={(e) =>
-                          setClientesPeriodo((p) => ({
-                            ...p,
-                            desde: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label>Hasta</Label>
-                      <Input
-                        type="date"
-                        value={clientesPeriodo.hasta}
-                        onChange={(e) =>
-                          setClientesPeriodo((p) => ({
-                            ...p,
-                            hasta: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* Contenido de pestañas */}
-              {clientesTab === "porCliente" && (
-                <div>
-                  {operacionesPorCliente.length === 0 && (
-                    <p className="text-gray-500">No hay operaciones para mostrar.</p>
-                  )}
-                  {operacionesPorCliente.map(({ cliente, operaciones }) => (
-                    <div key={cliente.id} className="mb-6 border-b pb-4">
-                      <h3 className="font-bold text-lg text-blue-700 mb-2">{cliente.nombre}</h3>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="bg-gray-100">
-                              <th className="px-2 py-1 text-left">Folio</th>
-                              <th className="px-2 py-1 text-left">Fecha</th>
-                              <th className="px-2 py-1 text-left">Tipo Servicio</th>
-                              <th className="px-2 py-1 text-left">Monto</th>
-                              <th className="px-2 py-1 text-left">Moneda</th>
-                              <th className="px-2 py-1 text-left">Pagado</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {operaciones.map((op) => (
-                              <tr key={op.id} className="border-b">
-                                <td className="px-2 py-1">{op.folio}</td>
-                                <td className="px-2 py-1">{op.fechaAsignacion}</td>
-                                <td className="px-2 py-1">{op.tipoServicio || "-"}</td>
-                                <td className="px-2 py-1">${op.montoFacturado || op.precioFlete || 0}</td>
-                                <td className="px-2 py-1">{op.moneda_flete || "MXN"}</td>
-                                <td className="px-2 py-1">
-                                  {op.pagado ? (
-                                    <span className="text-green-600 font-semibold">Pagado</span>
-                                  ) : (
-                                    <span className="text-yellow-600 font-semibold">Pendiente</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {clientesTab === "porPeriodo" && (
-                <div>
-                  {operacionesPorPeriodo.length === 0 && (
-                    <p className="text-gray-500">No hay operaciones para mostrar.</p>
-                  )}
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-100">
-                          <th className="px-2 py-1 text-left">Folio</th>
-                          <th className="px-2 py-1 text-left">Cliente</th>
-                          <th className="px-2 py-1 text-left">Tipo Servicio</th>
-                          <th className="px-2 py-1 text-left">Monto</th>
-                          <th className="px-2 py-1 text-left">Moneda</th>
-                          <th className="px-2 py-1 text-left">Pagado</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {operacionesPorPeriodo.map((op) => (
-                          <tr key={op.id} className="border-b">
-                            <td className="px-2 py-1">{op.folio}</td>
-                            <td className="px-2 py-1">{op.clienteNombre}</td>
-                            <td className="px-2 py-1">{op.tipoServicio || "-"}</td>
-                            <td className="px-2 py-1">${op.montoFacturado || op.precioFlete || 0}</td>
-                            <td className="px-2 py-1">{op.moneda_flete || "MXN"}</td>
-                            <td className="px-2 py-1">
-                              {op.pagado ? (
-                                <span className="text-green-600 font-semibold">Pagado</span>
-                              ) : (
-                                <span className="text-yellow-600 font-semibold">Pendiente</span>
-                              )}
-                            </td>
-                          </tr>
+                <div className="flex-1 min-w-[150px]">
+                  <Label htmlFor="select-cliente-embarques">Cliente</Label>
+                  <Select
+                    value={clienteSeleccionado}
+                    onValueChange={(value) => setClienteSeleccionado(value)}
+                    disabled={loadingEmbarques}
+                  >
+                    <SelectTrigger id="select-cliente-embarques">
+                      <SelectValue placeholder="Selecciona un cliente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los clientes</SelectItem>
+                      {clientes
+                        .filter((cliente) => cliente?.id)
+                        .map((cliente) => (
+                          <SelectItem key={cliente.id} value={cliente.id}>
+                            {cliente.nombre}
+                          </SelectItem>
                         ))}
-                      </tbody>
-                    </table>
-                  </div>
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
-              {clientesTab === "porTipoServicio" && (
-                <div>
-                  {operacionesPorTipoServicio.length === 0 && (
-                    <p className="text-gray-500">No hay operaciones para mostrar.</p>
-                  )}
-                  {operacionesPorTipoServicio.map(({ tipo, operaciones }) => (
-                    <div key={tipo.id} className="mb-6 border-b pb-4">
-                      <h3 className="font-bold text-lg text-blue-700 mb-2">{tipo.nombre}</h3>
-                      <div className="overflow-x-auto">
-                        <table className="min-w-full text-sm">
-                          <thead>
-                            <tr className="bg-gray-100">
-                              <th className="px-2 py-1 text-left">Folio</th>
-                              <th className="px-2 py-1 text-left">Cliente</th>
-                              <th className="px-2 py-1 text-left">Fecha</th>
-                              <th className="px-2 py-1 text-left">Monto</th>
-                              <th className="px-2 py-1 text-left">Moneda</th>
-                              <th className="px-2 py-1 text-left">Pagado</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {operaciones.map((op) => (
-                              <tr key={op.id} className="border-b">
-                                <td className="px-2 py-1">{op.folio}</td>
-                                <td className="px-2 py-1">{op.clienteNombre}</td>
-                                <td className="px-2 py-1">{op.fechaAsignacion}</td>
-                                <td className="px-2 py-1">${op.montoFacturado || op.precioFlete || 0}</td>
-                                <td className="px-2 py-1">{op.moneda_flete || "MXN"}</td>
-                                <td className="px-2 py-1">
-                                  {op.pagado ? (
-                                    <span className="text-green-600 font-semibold">Pagado</span>
-                                  ) : (
-                                    <span className="text-yellow-600 font-semibold">Pendiente</span>
-                                  )}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  ))}
+                <div className="flex-1 min-w-[120px]">
+                  <Label htmlFor="fecha-inicio-clientes">Desde</Label>
+                  <Input
+                    type="date"
+                    id="fecha-inicio-clientes"
+                    value={clientesPeriodo.desde}
+                    onChange={(e) =>
+                      setClientesPeriodo((p) => ({
+                        ...p,
+                        desde: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <Label htmlFor="fecha-fin-clientes">Hasta</Label>
+                  <Input
+                    type="date"
+                    id="fecha-fin-clientes"
+                    value={clientesPeriodo.hasta}
+                    onChange={(e) =>
+                      setClientesPeriodo((p) => ({
+                        ...p,
+                        hasta: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+                <Button onClick={consultarEmbarquesPorCliente} disabled={loadingClienteEmbarques}>
+                  {loadingClienteEmbarques ? "Consultando..." : "Generar Búsqueda"}
+                </Button>
+                <Button
+                  onClick={exportarEmbarquesClienteExcel}
+                  variant="outline"
+                  disabled={embarquesClienteFiltrados.length === 0}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Exportar Excel
+                </Button>
+              </div>
+              {loadingClienteEmbarques ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+                  <span className="ml-2 text-sm text-gray-600">Cargando embarques...</span>
+                </div>
+              ) : embarquesClienteFiltrados.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  No se encontraron embarques para los filtros seleccionados.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="px-2 py-1 text-left">Folio</th>
+                        <th className="px-2 py-1 text-left">Cliente</th>
+                        <th className="px-2 py-1 text-left">Load</th>
+                        <th className="px-2 py-1 text-left">Monto Flete</th>
+                        <th className="px-2 py-1 text-left">Fecha</th>
+                        <th className="px-2 py-1 text-left">Contingencia</th>
+                        <th className="px-2 py-1 text-left">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {embarquesClienteFiltrados.map((embarque) => (
+                        <tr key={embarque.id} className="border-b">
+                          <td className="px-2 py-1">{embarque.folio}</td>
+                          <td className="px-2 py-1">{embarque.clienteNombre}</td>
+                          <td className="px-2 py-1">{embarque.numeroLoad}</td>
+                          <td className="px-2 py-1">
+                            ${embarque.precioFlete?.toLocaleString() || 0} {embarque.moneda_flete || "MXN"}
+                          </td>
+                          <td className="px-2 py-1">{new Date(embarque.fechaAsignacion!).toLocaleDateString()}</td>
+                          <td className="px-2 py-1">
+                            {embarque.modificadoPorEmergencia ? <Badge variant="destructive">Sí</Badge> : "No"}
+                          </td>
+                          <td className="px-2 py-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setEmbarqueDetalle(embarque)
+                                setShowDetailModal(true)
+                              }}
+                            >
+                              Ver Detalles
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </DialogContent>
@@ -3466,8 +3503,6 @@ export default function FacturacionCobranzaPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Modal para gestión de crédito de clientes */}
         <Dialog open={showCreditModal} onOpenChange={setShowCreditModal}>
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
@@ -3612,8 +3647,6 @@ export default function FacturacionCobranzaPage() {
             </div>
           </DialogContent>
         </Dialog>
-
-        {/* Modal para facturación */}
         <Dialog open={showFacturacionModal} onOpenChange={setShowFacturacionModal}>
           <DialogContent>
             <DialogHeader>
