@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
 import { supabase, type Embarque, obtenerFotosEmbarque } from "@/lib/supabase"
-import { subirFotoAction, eliminarFotoAction } from "../actions"
+import { subirFotoAction, eliminarFotoAction } from "../actions" // Importar las Server Actions
 
 interface FilePreview extends File {
   preview: string
@@ -129,7 +129,7 @@ export default function SubirFotosEmbarquePage({
     setGlobalSuccess(null)
 
     try {
-      const result = await eliminarFotoAction(photoId, pathname)
+      const result = await eliminarFotoAction(photoId, pathname) // Llamada a Server Action
 
       if (result.success) {
         setGlobalSuccess("Imagen eliminada exitosamente.")

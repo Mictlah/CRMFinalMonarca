@@ -1,4 +1,7 @@
--- Crear tabla fotos_embarques si no existe
+-- Asegurar que la tabla fotos_embarques existe con la estructura correcta
+-- Script: 54-ensure-fotos-embarques-table.sql
+
+-- Crear la tabla si no existe
 CREATE TABLE IF NOT EXISTS fotos_embarques (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     embarque_id UUID NOT NULL REFERENCES embarques(id) ON DELETE CASCADE,
@@ -13,7 +16,7 @@ CREATE TABLE IF NOT EXISTS fotos_embarques (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Crear índices para mejor rendimiento
+-- Crear índices para mejorar el rendimiento
 CREATE INDEX IF NOT EXISTS idx_fotos_embarques_embarque_id ON fotos_embarques(embarque_id);
 CREATE INDEX IF NOT EXISTS idx_fotos_embarques_fecha_subida ON fotos_embarques(fecha_subida);
 
@@ -41,3 +44,13 @@ COMMENT ON COLUMN fotos_embarques.pathname_blob IS 'Pathname del archivo en Verc
 COMMENT ON COLUMN fotos_embarques.tamano_bytes IS 'Tamaño del archivo en bytes';
 COMMENT ON COLUMN fotos_embarques.tipo_mime IS 'Tipo MIME del archivo';
 COMMENT ON COLUMN fotos_embarques.subido_por IS 'Nombre del usuario que subió la foto';
+
+-- Verificar que la tabla se creó correctamente
+SELECT 
+    table_name,
+    column_name,
+    data_type,
+    is_nullable
+FROM information_schema.columns 
+WHERE table_name = 'fotos_embarques'
+ORDER BY ordinal_position;

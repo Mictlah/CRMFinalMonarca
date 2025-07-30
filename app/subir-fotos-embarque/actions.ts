@@ -18,10 +18,10 @@ export async function subirFotoAction(
 
     console.log(`=== SERVER ACTION: Subiendo ${file.name} ===`)
 
-    // Paso 1: Subir a Vercel Blob
+    // Paso 1: Subir a Vercel Blob (función de servidor)
     const { url, pathname } = await subirFotoEmbarqueServidor(file, folioEmbarque, operadorNombre)
 
-    // Paso 2: Guardar registro en Supabase
+    // Paso 2: Guardar registro en Supabase (función de servidor)
     const savedPhoto = await guardarFotoEmbarque({
       embarque_id: embarqueId,
       nombre_archivo: file.name,
@@ -56,10 +56,10 @@ export async function eliminarFotoAction(photoId: string, pathname: string) {
   try {
     console.log(`=== SERVER ACTION: Eliminando foto ${photoId} ===`)
 
-    // Paso 1: Eliminar de Vercel Blob
+    // Paso 1: Eliminar de Vercel Blob (función de servidor)
     await eliminarFotoEmbarque(pathname)
 
-    // Paso 2: Eliminar registro de Supabase
+    // Paso 2: Eliminar registro de Supabase (función de servidor)
     await eliminarFotoEmbarqueDB(photoId)
 
     console.log(`=== SERVER ACTION: Foto eliminada exitosamente ===`)
