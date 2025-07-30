@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { UploadCloud, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package } from "lucide-react" // Added icons
 import { supabase, type Embarque, guardarFotoEmbarque } from "@/lib/supabase"
 
 interface FilePreview extends File {
@@ -26,12 +26,12 @@ export default function SubirFotosEmbarquePage({
   const { id: embarqueId } = params
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
-  const [operatorName, setOperatorName] = useState("")
   const [files, setFiles] = useState<FilePreview[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [maxFilesReached, setMaxFilesReached] = useState(false)
+  const [confirmationStep, setConfirmationStep] = useState(0) // 0: initial, 1: first confirmed, 2: second confirmed (ready for upload)
 
   useEffect(() => {
     async function loadEmbarque() {
@@ -39,18 +39,30 @@ export default function SubirFotosEmbarquePage({
 
       const { data, error } = await supabase
         .from("embarques")
-        .select(`
+        .select(
+          `
           *,
+          cliente:clientes(nombre),
+          operador:operadores(nombre, apellidos),
           remolque:remolques(numero_economico, placas)
-        `)
+        `,
+        )
         .eq("id", embarqueId)
         .single()
 
       if (error) {
         console.error("Error cargando embarque:", error)
-        setGlobalError("No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta.")
+        setGlobalError(
+          "No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta o que el embarque exista.",
+        )
         return
       }
+
+      if (!data.operador_id || !data.operador) {
+        setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
+        return
+      }
+
       setEmbarque(data)
     }
     loadEmbarque()
@@ -88,18 +100,34 @@ export default function SubirFotosEmbarquePage({
     })
   }
 
+  const handleFirstConfirmation = () => {
+    setGlobalError(null)
+    setGlobalSuccess(null)
+    if (!embarque || !embarque.operador) {
+      setGlobalError("No se pudo verificar la información del embarque o del operador.")
+      return
+    }
+    setConfirmationStep(1)
+  }
+
+  const handleSecondConfirmation = () => {
+    setGlobalError(null)
+    setGlobalSuccess(null)
+    setConfirmationStep(2)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setGlobalError(null)
     setGlobalSuccess(null)
 
-    if (!embarque) {
-      setGlobalError("No se ha cargado la información del embarque.")
+    if (confirmationStep !== 2) {
+      setGlobalError("Por favor, completa los pasos de confirmación antes de subir las imágenes.")
       return
     }
 
-    if (!operatorName.trim()) {
-      setGlobalError("Por favor, ingresa tu nombre para confirmar.")
+    if (!embarque || !embarque.operador) {
+      setGlobalError("No se ha cargado la información del embarque o del operador.")
       return
     }
 
@@ -109,6 +137,8 @@ export default function SubirFotosEmbarquePage({
     }
 
     setIsSubmitting(true)
+
+    const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
 
     const uploadPromises = files.map(async (file, index) => {
       // Skip already uploaded files
@@ -140,7 +170,7 @@ export default function SubirFotosEmbarquePage({
           url_blob: url,
           tamano_bytes: file.size,
           tipo_mime: file.type,
-          subido_por: operatorName.trim(),
+          subido_por: operatorFullName, // Use the assigned operator's full name
         })
 
         if (!saved) {
@@ -167,8 +197,6 @@ export default function SubirFotosEmbarquePage({
     if (allUploaded) {
       setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
       setFiles([]) // Clear files after successful upload
-      setOperatorName("")
-      // Optionally redirect or show a success message that can be dismissed
     } else {
       setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }
@@ -222,124 +250,212 @@ export default function SubirFotosEmbarquePage({
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Detalles del Embarque (siempre visibles) */}
+          <div className="space-y-4 border p-4 rounded-lg bg-gray-50">
+            <h3 className="text-lg font-semibold text-gray-800 mb-3">Información del Embarque</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="folio">Número de Embarque</Label>
-                <Input id="folio" value={embarque.folio} readOnly disabled className="bg-gray-50 font-mono" />
+                <div className="flex items-center gap-2">
+                  <Package className="h-4 w-4 text-gray-500" />
+                  <Input id="folio" value={embarque.folio} readOnly disabled className="bg-white font-mono" />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente</Label>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <Input
+                    id="cliente"
+                    value={embarque.cliente?.nombre || "N/A"}
+                    readOnly
+                    disabled
+                    className="bg-white"
+                  />
+                </div>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="remolque">Remolque Asignado</Label>
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-gray-500" />
+                  <Input
+                    id="remolque"
+                    value={embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}
+                    readOnly
+                    disabled
+                    className="bg-white"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="operador-asignado">Operador Asignado</Label>
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-gray-500" />
+                  <Input
+                    id="operador-asignado"
+                    value={`${embarque.operador?.nombre || ""} ${embarque.operador?.apellidos || ""}`}
+                    readOnly
+                    disabled
+                    className="bg-white font-medium"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="direccion-recolecta">Lugar de Recolecta</Label>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-gray-500" />
                 <Input
-                  id="remolque"
-                  value={embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}
+                  id="direccion-recolecta"
+                  value={embarque.direccion_recolecta || "N/A"}
                   readOnly
                   disabled
-                  className="bg-gray-50"
+                  className="bg-white"
                 />
               </div>
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="operator-name">Tu Nombre *</Label>
-              <Input
-                id="operator-name"
-                value={operatorName}
-                onChange={(e) => setOperatorName(e.target.value)}
-                placeholder="Ingresa tu nombre completo"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="images">Subir Imágenes (Máx. 10)</Label>
-              <Input
-                id="images"
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={isSubmitting || maxFilesReached}
-                className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
-              />
-              {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
-            </div>
-
-            {files.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {files.map((file, index) => (
-                  <div
-                    key={index}
-                    className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
-                  >
-                    {file.status === "uploading" && (
-                      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                      </div>
-                    )}
-                    {file.status === "failed" && (
-                      <div className="absolute inset-0 bg-red-500 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                        <XCircle className="h-6 w-6 text-white" />
-                      </div>
-                    )}
-                    <img
-                      src={file.preview || "/placeholder.svg"}
-                      alt={`Preview ${file.name}`}
-                      className="w-24 h-24 object-cover rounded-md mb-2"
-                      onLoad={() => URL.revokeObjectURL(file.preview)}
-                    />
-                    <p className="text-xs truncate w-full px-1">{file.name}</p>
-                    <div className="absolute top-1 right-1">
-                      {file.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      {file.status === "failed" && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(index)}
-                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80"
-                          title="Eliminar imagen fallida"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                      {(file.status === "pending" || file.status === "uploading") && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(index)}
-                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
-                          title="Eliminar imagen"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+              <Label htmlFor="direccion-entrega">Lugar de Entrega</Label>
+              <div className="flex items-center gap-2">
+                <MapPin className="h-4 w-4 text-gray-500" />
+                <Input
+                  id="direccion-entrega"
+                  value={embarque.direccion_entrega || "N/A"}
+                  readOnly
+                  disabled
+                  className="bg-white"
+                />
               </div>
-            )}
+            </div>
+          </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700"
-              disabled={
-                isSubmitting ||
-                !operatorName.trim() ||
-                files.length === 0 ||
-                files.some((f) => f.status === "uploading")
-              }
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Subiendo fotos...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="h-4 w-4 mr-2" />
-                  Confirmar y Subir Fotos
-                </>
+          {/* Pasos de Confirmación */}
+          {confirmationStep === 0 && (
+            <div className="space-y-4">
+              <Alert>
+                <AlertTitle>Confirmación de Datos</AlertTitle>
+                <AlertDescription>
+                  Por favor, verifica que los datos del embarque mostrados arriba y tu nombre como operador asignado son
+                  correctos.
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={handleFirstConfirmation}
+                disabled={isSubmitting}
+                className="w-full bg-blue-600 hover:bg-blue-700"
+              >
+                Confirmar Datos y Continuar
+              </Button>
+            </div>
+          )}
+
+          {confirmationStep === 1 && (
+            <div className="space-y-4">
+              <Alert variant="warning">
+                <AlertTitle>Segunda Confirmación</AlertTitle>
+                <AlertDescription>
+                  Estás a punto de proceder con la subida de imágenes para este embarque. Asegúrate de que tienes las
+                  fotos listas y que los datos mostrados son correctos.
+                </AlertDescription>
+              </Alert>
+              <Button
+                onClick={handleSecondConfirmation}
+                disabled={isSubmitting}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                Confirmar y Habilitar Subida de Fotos
+              </Button>
+            </div>
+          )}
+
+          {/* Formulario de Subida de Imágenes (solo visible después de la segunda confirmación) */}
+          {confirmationStep === 2 && (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="images">Subir Imágenes (Máx. 10)</Label>
+                <Input
+                  id="images"
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting || maxFilesReached}
+                  className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
+                />
+                {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
+              </div>
+
+              {files.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                  {files.map((file, index) => (
+                    <div
+                      key={index}
+                      className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
+                    >
+                      {file.status === "uploading" && (
+                        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                        </div>
+                      )}
+                      {file.status === "failed" && (
+                        <div className="absolute inset-0 bg-red-500 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                          <XCircle className="h-6 w-6 text-white" />
+                        </div>
+                      )}
+                      <img
+                        src={file.preview || "/placeholder.svg"}
+                        alt={`Preview ${file.name}`}
+                        className="w-24 h-24 object-cover rounded-md mb-2"
+                        onLoad={() => URL.revokeObjectURL(file.preview)}
+                      />
+                      <p className="text-xs truncate w-full px-1">{file.name}</p>
+                      <div className="absolute top-1 right-1">
+                        {file.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
+                        {file.status === "failed" && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(index)}
+                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80"
+                            title="Eliminar imagen fallida"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        )}
+                        {(file.status === "pending" || file.status === "uploading") && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(index)}
+                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
+                            title="Eliminar imagen"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </Button>
-          </form>
+
+              <Button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                disabled={isSubmitting || files.length === 0 || files.some((f) => f.status === "uploading")}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Subiendo fotos...
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="h-4 w-4 mr-2" />
+                    Confirmar y Subir Fotos
+                  </>
+                )}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>
