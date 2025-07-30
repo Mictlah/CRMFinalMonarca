@@ -174,14 +174,18 @@ export default function SubirFotosEmbarquePage({
     setIsSubmitting(true)
 
     const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
+    let allUploadedSuccessfully = true
 
     const uploadPromises = files.map(async (file, index) => {
-      if (file.status === "uploaded") return
+      if (file.status === "uploaded") return // Skip already uploaded files
 
       try {
+        const formData = new FormData()
+        formData.append("file", file) // Adjuntar el archivo al FormData
+
         const response = await fetch(`/api/upload?filename=embarques/${embarque.folio}/${Date.now()}-${file.name}`, {
           method: "POST",
-          body: file,
+          body: formData, // Enviar FormData
         })
 
         if (!response.ok) {
@@ -211,6 +215,7 @@ export default function SubirFotosEmbarquePage({
         )
       } catch (error: any) {
         console.error(`Error uploading or saving file ${file.name}:`, error)
+        allUploadedSuccessfully = false // Marcar que al menos una falló
         setFiles((prev) =>
           prev.map((f, i) =>
             i === index ? { ...f, status: "failed", message: error.message || "Error desconocido" } : f,
@@ -221,50 +226,10 @@ export default function SubirFotosEmbarquePage({
 
     await Promise.all(uploadPromises)
 
-    const allUploadedSuccessfully = files.every((f) => f.status === "uploaded")
-
     if (allUploadedSuccessfully) {
       setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
       setFiles([])
       await loadEmbarqueAndPhotos()
-
-      // Enviar notificación al operador
-      if (embarque.operador?.telefono) {
-        const operatorPhoneNumber = embarque.operador.telefono
-        const notificationMessage = `¡Hola ${embarque.operador.nombre}! Las fotos para el embarque ${embarque.folio} han sido subidas y registradas correctamente.`
-
-        try {
-          const notificationResponse = await fetch("/api/send-notification", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              to: `whatsapp:${operatorPhoneNumber}`, // Asumiendo WhatsApp, ajusta si es necesario
-              message: notificationMessage,
-            }),
-          })
-
-          if (!notificationResponse.ok) {
-            const errorData = await notificationResponse.json()
-            console.error("Error sending operator notification:", errorData.error)
-            setGlobalError(
-              (prev) =>
-                `${prev || ""} Fotos subidas, pero falló el envío de notificación al operador: ${errorData.error}`,
-            )
-          } else {
-            setGlobalSuccess((prev) => `${prev} Se ha enviado una notificación al operador.`)
-          }
-        } catch (notificationError: any) {
-          console.error("Exception sending operator notification:", notificationError)
-          setGlobalError(
-            (prev) =>
-              `${prev || ""} Fotos subidas, pero hubo un error al intentar notificar al operador: ${notificationError.message}`,
-          )
-        }
-      } else {
-        console.warn("No hay número de teléfono para el operador, no se enviará notificación.")
-      }
     } else {
       setGlobalError("Algunas imágenes no se pudieron subir o registrar. Revisa los detalles de cada archivo.")
     }

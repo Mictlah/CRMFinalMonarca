@@ -9,12 +9,17 @@ export async function POST(request: Request): Promise<NextResponse> {
     return NextResponse.json({ error: "Filename is required" }, { status: 400 })
   }
 
-  const file = request.body as ReadableStream<Uint8Array>
+  const formData = await request.formData()
+  const file = formData.get("file") as File | null
+
+  if (!file) {
+    return NextResponse.json({ error: "File not found in form data" }, { status: 400 })
+  }
 
   try {
     const blob = await put(filename, file, {
       access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN, // Asegúrate de que esta variable de entorno esté configurada
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
     return NextResponse.json(blob)

@@ -588,10 +588,10 @@ export const obtenerRecordatorios = async () => {
     const { data, error } = await supabase
       .from("recordatorios")
       .select(`
-    *,
-    operador:operadores(nombre, apellidos),
-    camion:camiones(numero_economico)
-  `)
+   *,
+   operador:operadores(nombre, apellidos),
+   camion:camiones(numero_economico)
+ `)
       .order("fecha_vencimiento", { ascending: true })
 
     if (error) {
