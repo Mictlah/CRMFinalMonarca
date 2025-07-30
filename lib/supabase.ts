@@ -227,6 +227,7 @@ export interface FotoEmbarque {
   subido_por?: string
   created_at?: string
   updated_at?: string
+  pathname_blob?: string // Nuevo campo para almacenar el pathname de Vercel Blob
 }
 
 export interface OperadorPagoContingencia {
@@ -587,10 +588,10 @@ export const obtenerRecordatorios = async () => {
     const { data, error } = await supabase
       .from("recordatorios")
       .select(`
-     *,
-     operador:operadores(nombre, apellidos),
-     camion:camiones(numero_economico)
-   `)
+    *,
+    operador:operadores(nombre, apellidos),
+    camion:camiones(numero_economico)
+  `)
       .order("fecha_vencimiento", { ascending: true })
 
     if (error) {
@@ -628,7 +629,7 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
     const { data, error } = await supabase
-      .from("fotos_embarques") // CAMBIO: de fotos_embarque a fotos_embarques
+      .from("fotos_embarques")
       .select("*")
       .eq("embarque_id", embarqueId)
       .order("fecha_subida", { ascending: false })
@@ -649,7 +650,6 @@ export const guardarFotoEmbarque = async (
 ) => {
   try {
     const { error } = await supabase.from("fotos_embarques").insert({
-      // CAMBIO: de fotos_embarque a fotos_embarques
       ...foto,
       fecha_subida: new Date().toISOString(),
     })
@@ -660,6 +660,21 @@ export const guardarFotoEmbarque = async (
     return true
   } catch (error) {
     console.error("Excepción al guardar foto del embarque:", error)
+    return false
+  }
+}
+
+export const eliminarFotoEmbarqueDB = async (fotoId: string): Promise<boolean> => {
+  try {
+    const { error } = await supabase.from("fotos_embarques").delete().eq("id", fotoId)
+
+    if (error) {
+      console.error("Error eliminando foto del embarque en DB:", error)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error("Excepción al eliminar foto del embarque en DB:", error)
     return false
   }
 }

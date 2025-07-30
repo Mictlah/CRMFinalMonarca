@@ -1,15 +1,22 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package } from "lucide-react" // Added icons
-import { supabase, type Embarque, guardarFotoEmbarque } from "@/lib/supabase"
+import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
+import {
+  supabase,
+  type Embarque,
+  guardarFotoEmbarque,
+  obtenerFotosEmbarque,
+  eliminarFotoEmbarqueDB, // Nueva función
+} from "@/lib/supabase"
+import { eliminarFotoEmbarque } from "@/lib/blob" // Importar función de eliminación de blob
 
 interface FilePreview extends File {
   preview: string
@@ -26,78 +33,111 @@ export default function SubirFotosEmbarquePage({
   const { id: embarqueId } = params
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
-  const [files, setFiles] = useState<FilePreview[]>([])
+  const [files, setFiles] = useState<FilePreview[]>([]) // Archivos nuevos a subir
+  const [existingPhotos, setExistingPhotos] = useState<any[]>([]) // Fotos ya subidas
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [maxFilesReached, setMaxFilesReached] = useState(false)
   const [confirmationStep, setConfirmationStep] = useState(0) // 0: initial, 1: first confirmed, 2: second confirmed (ready for upload)
 
-  useEffect(() => {
-    async function loadEmbarque() {
-      if (!embarqueId) return
+  const MAX_FILES = 10
 
-      const { data, error } = await supabase
-        .from("embarques")
-        .select(
-          `
+  const loadEmbarqueAndPhotos = useCallback(async () => {
+    setGlobalError(null)
+    if (!embarqueId) return
+
+    // Cargar embarque
+    const { data: embarqueData, error: embarqueError } = await supabase
+      .from("embarques")
+      .select(
+        `
           *,
           cliente:clientes(nombre),
           operador:operadores(nombre, apellidos),
           remolque:remolques(numero_economico, placas)
         `,
-        )
-        .eq("id", embarqueId)
-        .single()
+      )
+      .eq("id", embarqueId)
+      .single()
 
-      if (error) {
-        console.error("Error cargando embarque:", error)
-        setGlobalError(
-          "No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta o que el embarque exista.",
-        )
-        return
-      }
-
-      if (!data.operador_id || !data.operador) {
-        setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
-        return
-      }
-
-      setEmbarque(data)
+    if (embarqueError) {
+      console.error("Error cargando embarque:", embarqueError)
+      setGlobalError(
+        "No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta o que el embarque exista.",
+      )
+      setEmbarque(null) // Clear embarque if there's an error
+      return
     }
-    loadEmbarque()
+
+    if (!embarqueData.operador_id || !embarqueData.operador) {
+      setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
+      setEmbarque(null) // Clear embarque if no operator
+      return
+    }
+
+    setEmbarque(embarqueData)
+
+    // Cargar fotos existentes
+    const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
+    setExistingPhotos(existingPhotosData)
+    setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
   }, [embarqueId])
+
+  useEffect(() => {
+    loadEmbarqueAndPhotos()
+  }, [loadEmbarqueAndPhotos])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as FilePreview[]
-    const currentFilesCount = files.length
-    const newFilesCount = selectedFiles.length
+    const currentTotalFiles = files.length + existingPhotos.length
+    const filesToAddCount = Math.min(selectedFiles.length, MAX_FILES - currentTotalFiles)
 
-    if (currentFilesCount + newFilesCount > 10) {
-      alert("Solo puedes subir un máximo de 10 imágenes por embarque.")
+    if (filesToAddCount <= 0) {
+      setGlobalError(`Ya has alcanzado el límite de ${MAX_FILES} imágenes.`)
       setMaxFilesReached(true)
+      e.target.value = "" // Clear the input
       return
-    } else {
-      setMaxFilesReached(false)
     }
 
-    const newFilePreviews = selectedFiles.map((file) =>
+    const newFilePreviews = selectedFiles.slice(0, filesToAddCount).map((file) =>
       Object.assign(file, {
         preview: URL.createObjectURL(file),
         status: "pending",
       }),
     )
     setFiles((prevFiles) => [...prevFiles, ...newFilePreviews])
+    setMaxFilesReached(currentTotalFiles + filesToAddCount >= MAX_FILES)
+    setGlobalError(null) // Clear previous error if files are added
   }
 
   const handleRemoveFile = (index: number) => {
     setFiles((prevFiles) => {
       const newFiles = prevFiles.filter((_, i) => i !== index)
-      if (newFiles.length < 10) {
-        setMaxFilesReached(false)
-      }
+      setMaxFilesReached(newFiles.length + existingPhotos.length < MAX_FILES ? false : true)
       return newFiles
     })
+  }
+
+  const handleDeleteExistingPhoto = async (photoId: string, pathname: string) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen?")) {
+      return
+    }
+    setGlobalError(null)
+    setGlobalSuccess(null)
+    try {
+      // Eliminar de Vercel Blob
+      await eliminarFotoEmbarque(pathname)
+      // Eliminar de Supabase
+      await eliminarFotoEmbarqueDB(photoId)
+
+      setGlobalSuccess("Imagen eliminada exitosamente.")
+      // Recargar fotos para actualizar la lista
+      await loadEmbarqueAndPhotos()
+    } catch (error: any) {
+      console.error("Error al eliminar la imagen:", error)
+      setGlobalError(`Error al eliminar la imagen: ${error.message || "Error desconocido"}`)
+    }
   }
 
   const handleFirstConfirmation = () => {
@@ -141,54 +181,40 @@ export default function SubirFotosEmbarquePage({
     const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
 
     const uploadPromises = files.map(async (file, index) => {
-      // Skip already uploaded files
+      // Skip already uploaded files (shouldn't happen with new logic, but as a safeguard)
       if (file.status === "uploaded") return
 
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("fileName", `${embarque.folio}-${Date.now()}-${file.name}`)
+      // Use the /api/upload route
+      const response = await fetch(`/api/upload?filename=embarques/${embarque.folio}/${Date.now()}-${file.name}`, {
+        method: "POST",
+        body: file, // Send the file directly as body
+      })
 
-      try {
-        setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
-
-        const response = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || "Error al subir la imagen.")
-        }
-
-        const { url } = await response.json()
-
-        // Guardar la URL en Supabase
-        const saved = await guardarFotoEmbarque({
-          embarque_id: embarqueId,
-          nombre_archivo: file.name,
-          url_blob: url,
-          tamano_bytes: file.size,
-          tipo_mime: file.type,
-          subido_por: operatorFullName, // Use the assigned operator's full name
-        })
-
-        if (!saved) {
-          throw new Error("Error al guardar el registro de la imagen en la base de datos.")
-        }
-
-        setFiles((prev) =>
-          prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
-        )
-      } catch (error: any) {
-        console.error("Error en la subida/guardado:", error)
-        setFiles((prev) =>
-          prev.map((f, i) =>
-            i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
-          ),
-        )
-        setGlobalError(`Algunas imágenes no se pudieron subir: ${error.message}`)
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || "Error al subir la imagen.")
       }
+
+      const { url, pathname } = await response.json()
+
+      // Guardar la URL en Supabase
+      const saved = await guardarFotoEmbarque({
+        embarque_id: embarqueId,
+        nombre_archivo: file.name,
+        url_blob: url,
+        tamano_bytes: file.size,
+        tipo_mime: file.type,
+        subido_por: operatorFullName,
+        pathname_blob: pathname, // Guardar el pathname para futuras eliminaciones
+      })
+
+      if (!saved) {
+        throw new Error("Error al guardar el registro de la imagen en la base de datos.")
+      }
+
+      setFiles((prev) =>
+        prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
+      )
     })
 
     await Promise.all(uploadPromises)
@@ -196,7 +222,8 @@ export default function SubirFotosEmbarquePage({
     const allUploaded = files.every((f) => f.status === "uploaded")
     if (allUploaded) {
       setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
-      setFiles([]) // Clear files after successful upload
+      setFiles([]) // Clear new files after successful upload
+      await loadEmbarqueAndPhotos() // Reload existing photos to show newly uploaded ones
     } else {
       setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }
@@ -368,11 +395,47 @@ export default function SubirFotosEmbarquePage({
             </div>
           )}
 
+          {/* Fotos Existentes */}
+          {existingPhotos.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-800">
+                Fotos Existentes ({existingPhotos.length}/{MAX_FILES})
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {existingPhotos.map((photo) => (
+                  <div
+                    key={photo.id}
+                    className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
+                  >
+                    <img
+                      src={photo.url_blob || "/placeholder.svg"}
+                      alt={`Foto ${photo.nombre_archivo}`}
+                      className="w-24 h-24 object-cover rounded-md mb-2"
+                    />
+                    <p className="text-xs truncate w-full px-1">{photo.nombre_archivo}</p>
+                    <div className="absolute top-1 right-1">
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteExistingPhoto(photo.id, photo.pathname_blob)}
+                        className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
+                        title="Eliminar imagen"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Formulario de Subida de Imágenes (solo visible después de la segunda confirmación) */}
           {confirmationStep === 2 && (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="images">Subir Imágenes (Máx. 10)</Label>
+                <Label htmlFor="images">
+                  Subir Nuevas Imágenes (Máx. {MAX_FILES - existingPhotos.length} disponibles)
+                </Label>
                 <Input
                   id="images"
                   type="file"
@@ -382,7 +445,9 @@ export default function SubirFotosEmbarquePage({
                   disabled={isSubmitting || maxFilesReached}
                   className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
                 />
-                {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
+                {maxFilesReached && (
+                  <p className="text-sm text-red-600">Has alcanzado el límite de {MAX_FILES} imágenes.</p>
+                )}
               </div>
 
               {files.length > 0 && (
