@@ -9,14 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
-import {
-  supabase,
-  type Embarque,
-  guardarFotoEmbarque,
-  obtenerFotosEmbarque,
-  eliminarFotoEmbarqueDB,
-} from "@/lib/supabase"
-import { eliminarFotoEmbarque } from "@/lib/blob"
+import { supabase, type Embarque, obtenerFotosEmbarque } from "@/lib/supabase"
+import { subirFotoAction, eliminarFotoAction } from "../actions"
 
 interface FilePreview extends File {
   preview: string
@@ -50,43 +44,46 @@ export default function SubirFotosEmbarquePage({
     setGlobalError(null)
     if (!embarqueId) return
 
-    const { data: embarqueData, error: embarqueError } = await supabase
-      .from("embarques")
-      .select(
-        `
-          *,
-          cliente:clientes(nombre),
-          operador:operadores(nombre, apellidos, telefono),
-          remolque:remolques(numero_economico, placas)
-        `,
-      )
-      .eq("id", embarqueId)
-      .single()
+    try {
+      const { data: embarqueData, error: embarqueError } = await supabase
+        .from("embarques")
+        .select(
+          `
+            *,
+            cliente:clientes(nombre),
+            operador:operadores(nombre, apellidos, telefono),
+            remolque:remolques(numero_economico, placas)
+          `,
+        )
+        .eq("id", embarqueId)
+        .single()
 
-    if (embarqueError) {
-      console.error("Error cargando embarque:", embarqueError)
-      setGlobalError(
-        "No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta o que el embarque exista.",
-      )
-      setEmbarque(null)
-      return
+      if (embarqueError) {
+        console.error("Error cargando embarque:", embarqueError)
+        setGlobalError("No se pudo cargar la información del embarque. Verifica que el ID sea correcto.")
+        setEmbarque(null)
+        return
+      }
+
+      console.log("Embarque cargado:", embarqueData.folio)
+
+      if (!embarqueData.operador_id || !embarqueData.operador) {
+        setGlobalError("Este embarque no tiene un operador asignado. Contacta a administración.")
+        setEmbarque(null)
+        return
+      }
+
+      setEmbarque(embarqueData)
+
+      const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
+      setExistingPhotos(existingPhotosData)
+      setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
+
+      console.log("=== FIN CARGA EMBARQUE Y FOTOS ===")
+    } catch (error) {
+      console.error("Error en loadEmbarqueAndPhotos:", error)
+      setGlobalError("Error inesperado al cargar los datos.")
     }
-
-    console.log("Embarque cargado:", embarqueData)
-
-    if (!embarqueData.operador_id || !embarqueData.operador) {
-      setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
-      setEmbarque(null)
-      return
-    }
-
-    setEmbarque(embarqueData)
-
-    const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
-    setExistingPhotos(existingPhotosData)
-    setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
-
-    console.log("=== FIN CARGA EMBARQUE Y FOTOS ===")
   }, [embarqueId])
 
   useEffect(() => {
@@ -130,12 +127,16 @@ export default function SubirFotosEmbarquePage({
     }
     setGlobalError(null)
     setGlobalSuccess(null)
-    try {
-      await eliminarFotoEmbarque(pathname)
-      await eliminarFotoEmbarqueDB(photoId)
 
-      setGlobalSuccess("Imagen eliminada exitosamente.")
-      await loadEmbarqueAndPhotos()
+    try {
+      const result = await eliminarFotoAction(photoId, pathname)
+
+      if (result.success) {
+        setGlobalSuccess("Imagen eliminada exitosamente.")
+        await loadEmbarqueAndPhotos()
+      } else {
+        setGlobalError(`Error al eliminar la imagen: ${result.error}`)
+      }
     } catch (error: any) {
       console.error("Error al eliminar la imagen:", error)
       setGlobalError(`Error al eliminar la imagen: ${error.message || "Error desconocido"}`)
@@ -160,7 +161,7 @@ export default function SubirFotosEmbarquePage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("=== INICIANDO SUBIDA DE FOTOS ===")
+    console.log("=== INICIANDO PROCESO DE SUBIDA CON SERVER ACTIONS ===")
 
     setGlobalError(null)
     setGlobalSuccess(null)
@@ -186,71 +187,46 @@ export default function SubirFotosEmbarquePage({
     let successCount = 0
     let failCount = 0
 
-    console.log(`Iniciando subida de ${files.length} archivos`)
+    console.log(`Procesando ${files.length} archivos para embarque ${embarque.folio}`)
 
     const updateFileStatus = (index: number, status: FilePreview["status"], message?: string) => {
       setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status, message } : f)))
     }
 
-    const uploadPromises = files.map(async (file, index) => {
-      if (file.status === "uploaded") return // Skip already uploaded files
+    // Procesar archivos uno por uno usando Server Actions
+    for (let index = 0; index < files.length; index++) {
+      const file = files[index]
+
+      if (file.status === "uploaded") continue
 
       try {
-        console.log(`--- Procesando archivo ${index + 1}: ${file.name} ---`)
-
+        console.log(`--- Procesando archivo ${index + 1}/${files.length}: ${file.name} ---`)
         updateFileStatus(index, "uploading", "Subiendo...")
 
+        // Crear FormData para el Server Action
         const formData = new FormData()
         formData.append("file", file)
 
-        const filename = `embarques/${embarque.folio}/${Date.now()}-${file.name}`
-        console.log("Filename generado:", filename)
+        // Llamar al Server Action
+        const result = await subirFotoAction(formData, embarqueId, embarque.folio, operatorFullName)
 
-        const response = await fetch(`/api/upload?filename=${encodeURIComponent(filename)}`, {
-          method: "POST",
-          body: formData,
-        })
-
-        console.log("Respuesta de upload API:", response.status, response.statusText)
-
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || `Error HTTP ${response.status}`)
+        if (result.success) {
+          console.log("Archivo procesado exitosamente:", file.name)
+          updateFileStatus(index, "uploaded", "¡Completado!")
+          successCount++
+        } else {
+          throw new Error(result.error || "Error desconocido")
         }
-
-        const { url, pathname } = await response.json()
-        console.log("Blob subido exitosamente:", { url, pathname })
-
-        // Guardar la URL en Supabase
-        console.log("Guardando en Supabase...")
-        const savedPhoto = await guardarFotoEmbarque({
-          embarque_id: embarqueId,
-          nombre_archivo: file.name,
-          url_blob: url,
-          tamano_bytes: file.size,
-          tipo_mime: file.type,
-          subido_por: operatorFullName,
-          pathname_blob: pathname,
-        })
-
-        if (!savedPhoto) {
-          throw new Error("No se recibió confirmación de guardado en base de datos")
-        }
-
-        console.log("Archivo procesado exitosamente:", file.name)
-        updateFileStatus(index, "uploaded", "¡Subida exitosa!")
-        successCount++
       } catch (error: any) {
         console.error(`Error procesando archivo ${file.name}:`, error)
         updateFileStatus(index, "failed", error.message || "Error desconocido")
         failCount++
       }
-    })
+    }
 
-    await Promise.all(uploadPromises)
+    console.log(`=== PROCESO COMPLETADO: ${successCount} éxitos, ${failCount} fallos ===`)
 
-    console.log(`=== RESUMEN: ${successCount} éxitos, ${failCount} fallos ===`)
-
+    // Mostrar resultados
     if (failCount === 0) {
       setGlobalSuccess(`¡Todas las ${successCount} imágenes se subieron y registraron exitosamente!`)
       setFiles([])
@@ -259,11 +235,10 @@ export default function SubirFotosEmbarquePage({
       setGlobalSuccess(`${successCount} imágenes se subieron correctamente.`)
       setGlobalError(`${failCount} imágenes fallaron. Revisa los detalles de cada archivo.`)
     } else {
-      setGlobalError("No se pudo subir ninguna imagen. Revisa tu conexión e inténtalo de nuevo.")
+      setGlobalError("No se pudo subir ninguna imagen. Verifica tu conexión e inténtalo de nuevo.")
     }
 
     setIsSubmitting(false)
-    console.log("=== FIN SUBIDA DE FOTOS ===")
   }
 
   if (!embarque) {
@@ -490,13 +465,13 @@ export default function SubirFotosEmbarquePage({
                       className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
                     >
                       {file.status === "uploading" && (
-                        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                        <div className="absolute inset-0 bg-blue-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
                         </div>
                       )}
                       {file.status === "failed" && (
-                        <div className="absolute inset-0 bg-red-500 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                          <XCircle className="h-6 w-6 text-white" />
+                        <div className="absolute inset-0 bg-red-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
+                          <XCircle className="h-6 w-6 text-red-600" />
                         </div>
                       )}
                       {file.status === "uploaded" && (
@@ -513,7 +488,13 @@ export default function SubirFotosEmbarquePage({
                       <p className="text-xs truncate w-full px-1">{file.name}</p>
                       {file.message && (
                         <p
-                          className={`text-xs ${file.status === "failed" ? "text-red-600" : file.status === "uploaded" ? "text-green-600" : "text-gray-600"}`}
+                          className={`text-xs mt-1 ${
+                            file.status === "failed"
+                              ? "text-red-600"
+                              : file.status === "uploaded"
+                                ? "text-green-600"
+                                : "text-blue-600"
+                          }`}
                         >
                           {file.message}
                         </p>

@@ -63,3 +63,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     )
   }
 }
+
+export async function GET() {
+  return new Response("Esta ruta ha sido eliminada. Ahora usamos subida directa.", { status: 404 })
+}

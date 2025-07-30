@@ -4,31 +4,40 @@ CREATE TABLE IF NOT EXISTS fotos_embarques (
     embarque_id UUID NOT NULL REFERENCES embarques(id) ON DELETE CASCADE,
     nombre_archivo TEXT NOT NULL,
     url_blob TEXT NOT NULL,
-    pathname_blob TEXT, -- Para almacenar el pathname de Vercel Blob
-    tamano_bytes BIGINT,
-    tipo_mime TEXT,
-    fecha_subida TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    subido_por TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    pathname_blob TEXT NOT NULL,
+    tamano_bytes BIGINT NOT NULL,
+    tipo_mime TEXT NOT NULL,
+    subido_por TEXT NOT NULL,
+    fecha_subida TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Crear índice para mejorar consultas
+-- Crear índices para mejor rendimiento
 CREATE INDEX IF NOT EXISTS idx_fotos_embarques_embarque_id ON fotos_embarques(embarque_id);
-CREATE INDEX IF NOT EXISTS idx_fotos_embarques_fecha_subida ON fotos_embarques(fecha_subida DESC);
+CREATE INDEX IF NOT EXISTS idx_fotos_embarques_fecha_subida ON fotos_embarques(fecha_subida);
 
--- Función para actualizar updated_at automáticamente
-CREATE OR REPLACE FUNCTION update_fotos_embarques_updated_at()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+-- Habilitar RLS
+ALTER TABLE fotos_embarques ENABLE ROW LEVEL SECURITY;
 
--- Trigger para actualizar updated_at
-DROP TRIGGER IF EXISTS fotos_embarques_updated_at ON fotos_embarques;
-CREATE TRIGGER fotos_embarques_updated_at
-    BEFORE UPDATE ON fotos_embarques
-    FOR EACH ROW
-    EXECUTE FUNCTION update_fotos_embarques_updated_at();
+-- Política para permitir lectura a usuarios autenticados
+CREATE POLICY IF NOT EXISTS "Usuarios pueden ver fotos de embarques" ON fotos_embarques
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+-- Política para permitir inserción a usuarios autenticados
+CREATE POLICY IF NOT EXISTS "Usuarios pueden subir fotos de embarques" ON fotos_embarques
+    FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+
+-- Política para permitir eliminación a usuarios autenticados
+CREATE POLICY IF NOT EXISTS "Usuarios pueden eliminar fotos de embarques" ON fotos_embarques
+    FOR DELETE USING (auth.role() = 'authenticated');
+
+-- Comentarios para documentación
+COMMENT ON TABLE fotos_embarques IS 'Almacena las fotos subidas para cada embarque';
+COMMENT ON COLUMN fotos_embarques.embarque_id IS 'ID del embarque al que pertenece la foto';
+COMMENT ON COLUMN fotos_embarques.nombre_archivo IS 'Nombre original del archivo';
+COMMENT ON COLUMN fotos_embarques.url_blob IS 'URL pública del archivo en Vercel Blob';
+COMMENT ON COLUMN fotos_embarques.pathname_blob IS 'Pathname del archivo en Vercel Blob para eliminación';
+COMMENT ON COLUMN fotos_embarques.tamano_bytes IS 'Tamaño del archivo en bytes';
+COMMENT ON COLUMN fotos_embarques.tipo_mime IS 'Tipo MIME del archivo';
+COMMENT ON COLUMN fotos_embarques.subido_por IS 'Nombre del usuario que subió la foto';
