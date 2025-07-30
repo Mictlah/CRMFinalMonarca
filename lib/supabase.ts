@@ -227,7 +227,7 @@ export interface FotoEmbarque {
   subido_por?: string
   created_at?: string
   updated_at?: string
-  pathname_blob?: string // Campo para almacenar el pathname de Vercel Blob
+  pathname_blob?: string // Nuevo campo para almacenar el pathname de Vercel Blob
 }
 
 export interface OperadorPagoContingencia {
@@ -625,7 +625,7 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
   }
 }
 
-// Funciones para fotos de embarques
+// Nuevas funciones para fotos de embarques
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
     const { data, error } = await supabase
@@ -645,8 +645,29 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
   }
 }
 
-// La función guardarFotoEmbarque ha sido eliminada de aquí
-// porque su lógica se ha movido a app/api/upload/route.ts para mayor seguridad y fiabilidad.
+export const guardarFotoEmbarque = async (
+  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
+): Promise<FotoEmbarque | null> => {
+  try {
+    const { data, error } = await supabase
+      .from("fotos_embarques")
+      .insert({
+        ...foto,
+        fecha_subida: new Date().toISOString(),
+      })
+      .select()
+      .single() // Añadir .select().single() para obtener el registro insertado
+
+    if (error) {
+      console.error("Error guardando foto del embarque en DB:", error)
+      throw new Error(`Failed to save photo record: ${error.message}`)
+    }
+    return data
+  } catch (error) {
+    console.error("Excepción al guardar foto del embarque:", error)
+    throw error
+  }
+}
 
 export const eliminarFotoEmbarqueDB = async (fotoId: string): Promise<boolean> => {
   try {

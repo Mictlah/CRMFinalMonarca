@@ -9,9 +9,14 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
-import { upload } from "@vercel/blob/client" // Importar la función 'upload' del cliente Blob
-import { supabase, type Embarque, obtenerFotosEmbarque, eliminarFotoEmbarqueDB } from "@/lib/supabase"
-import { eliminarFotoEmbarque } from "@/lib/blob" // Importar función de eliminación de blob
+import {
+  supabase,
+  type Embarque,
+  guardarFotoEmbarque,
+  obtenerFotosEmbarque,
+  eliminarFotoEmbarqueDB,
+} from "@/lib/supabase"
+import { eliminarFotoEmbarque } from "@/lib/blob"
 
 interface FilePreview extends File {
   preview: string
@@ -28,13 +33,13 @@ export default function SubirFotosEmbarquePage({
   const { id: embarqueId } = params
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
-  const [files, setFiles] = useState<FilePreview[]>([]) // Archivos nuevos a subir
-  const [existingPhotos, setExistingPhotos] = useState<any[]>([]) // Fotos ya subidas
+  const [files, setFiles] = useState<FilePreview[]>([])
+  const [existingPhotos, setExistingPhotos] = useState<any[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [maxFilesReached, setMaxFilesReached] = useState(false)
-  const [confirmationStep, setConfirmationStep] = useState(0) // 0: initial, 1: first confirmed, 2: second confirmed (ready for upload)
+  const [confirmationStep, setConfirmationStep] = useState(0)
 
   const MAX_FILES = 10
 
@@ -42,14 +47,13 @@ export default function SubirFotosEmbarquePage({
     setGlobalError(null)
     if (!embarqueId) return
 
-    // Cargar embarque
     const { data: embarqueData, error: embarqueError } = await supabase
       .from("embarques")
       .select(
         `
           *,
           cliente:clientes(nombre),
-          operador:operadores(nombre, apellidos),
+          operador:operadores(nombre, apellidos, telefono),
           remolque:remolques(numero_economico, placas)
         `,
       )
@@ -61,19 +65,18 @@ export default function SubirFotosEmbarquePage({
       setGlobalError(
         "No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta o que el embarque exista.",
       )
-      setEmbarque(null) // Clear embarque if there's an error
+      setEmbarque(null)
       return
     }
 
     if (!embarqueData.operador_id || !embarqueData.operador) {
       setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
-      setEmbarque(null) // Clear embarque if no operator
+      setEmbarque(null)
       return
     }
 
     setEmbarque(embarqueData)
 
-    // Cargar fotos existentes
     const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
     setExistingPhotos(existingPhotosData)
     setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
@@ -86,19 +89,11 @@ export default function SubirFotosEmbarquePage({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as FilePreview[]
     const currentTotalFiles = files.length + existingPhotos.length
-
-    if (currentTotalFiles >= MAX_FILES) {
-      setGlobalError(
-        `Ya has alcanzado el límite de ${MAX_FILES} imágenes. Elimina algunas existentes o no selecciones más.`,
-      )
-      e.target.value = "" // Clear the input to prevent re-selection of same files
-      return
-    }
-
     const filesToAddCount = Math.min(selectedFiles.length, MAX_FILES - currentTotalFiles)
 
     if (filesToAddCount <= 0) {
-      setGlobalError(`No se pueden añadir más archivos. Límite de ${MAX_FILES} alcanzado.`)
+      setGlobalError(`Ya has alcanzado el límite de ${MAX_FILES} imágenes.`)
+      setMaxFilesReached(true)
       e.target.value = ""
       return
     }
@@ -111,8 +106,7 @@ export default function SubirFotosEmbarquePage({
     )
     setFiles((prevFiles) => [...prevFiles, ...newFilePreviews])
     setMaxFilesReached(currentTotalFiles + filesToAddCount >= MAX_FILES)
-    setGlobalError(null) // Clear previous error if files are added
-    e.target.value = "" // Clear the input after adding files
+    setGlobalError(null)
   }
 
   const handleRemoveFile = (index: number) => {
@@ -124,19 +118,16 @@ export default function SubirFotosEmbarquePage({
   }
 
   const handleDeleteExistingPhoto = async (photoId: string, pathname: string) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen? Esta acción es irreversible.")) {
+    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen?")) {
       return
     }
     setGlobalError(null)
     setGlobalSuccess(null)
     try {
-      // Eliminar de Vercel Blob
       await eliminarFotoEmbarque(pathname)
-      // Eliminar de Supabase
       await eliminarFotoEmbarqueDB(photoId)
 
       setGlobalSuccess("Imagen eliminada exitosamente.")
-      // Recargar fotos para actualizar la lista
       await loadEmbarqueAndPhotos()
     } catch (error: any) {
       console.error("Error al eliminar la imagen:", error)
@@ -185,49 +176,97 @@ export default function SubirFotosEmbarquePage({
     const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
 
     const uploadPromises = files.map(async (file, index) => {
-      // Skip already uploaded files (shouldn't happen with new logic, but as a safeguard)
       if (file.status === "uploaded") return
 
       try {
-        setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
-
-        // Usar la función 'upload' del cliente Blob, que se comunica con /api/upload
-        const { url, pathname } = await upload(file, {
-          access: "public", // O 'private' si lo configuras así en Vercel Blob
-          handleUploadUrl: "/api/upload", // La ruta de tu API Route Handler
-          clientPayload: JSON.stringify({
-            // Enviar datos adicionales al Server Action
-            embarqueId: embarqueId,
-            operatorName: operatorFullName,
-          }),
+        const response = await fetch(`/api/upload?filename=embarques/${embarque.folio}/${Date.now()}-${file.name}`, {
+          method: "POST",
+          body: file,
         })
 
-        // La inserción en la base de datos ahora se maneja en el Server Action (app/api/upload/route.ts)
-        // por lo que no necesitamos llamar a guardarFotoEmbarque aquí.
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Error al subir la imagen al blob.")
+        }
+
+        const { url, pathname } = await response.json()
+
+        // Guardar la URL en Supabase
+        const savedPhoto = await guardarFotoEmbarque({
+          embarque_id: embarqueId,
+          nombre_archivo: file.name,
+          url_blob: url,
+          tamano_bytes: file.size,
+          tipo_mime: file.type,
+          subido_por: operatorFullName,
+          pathname_blob: pathname,
+        })
+
+        if (!savedPhoto) {
+          throw new Error("Error al guardar el registro de la imagen en la base de datos (retorno nulo).")
+        }
 
         setFiles((prev) =>
           prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
         )
       } catch (error: any) {
-        console.error("Error en la subida/guardado:", error)
+        console.error(`Error uploading or saving file ${file.name}:`, error)
         setFiles((prev) =>
           prev.map((f, i) =>
-            i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
+            i === index ? { ...f, status: "failed", message: error.message || "Error desconocido" } : f,
           ),
         )
-        setGlobalError(`Algunas imágenes no se pudieron subir: ${error.message}`)
       }
     })
 
     await Promise.all(uploadPromises)
 
-    const allUploaded = files.every((f) => f.status === "uploaded")
-    if (allUploaded) {
+    const allUploadedSuccessfully = files.every((f) => f.status === "uploaded")
+
+    if (allUploadedSuccessfully) {
       setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
-      setFiles([]) // Limpiar los archivos nuevos después de una subida exitosa
-      await loadEmbarqueAndPhotos() // Recargar fotos existentes para mostrar las recién subidas
+      setFiles([])
+      await loadEmbarqueAndPhotos()
+
+      // Enviar notificación al operador
+      if (embarque.operador?.telefono) {
+        const operatorPhoneNumber = embarque.operador.telefono
+        const notificationMessage = `¡Hola ${embarque.operador.nombre}! Las fotos para el embarque ${embarque.folio} han sido subidas y registradas correctamente.`
+
+        try {
+          const notificationResponse = await fetch("/api/send-notification", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              to: `whatsapp:${operatorPhoneNumber}`, // Asumiendo WhatsApp, ajusta si es necesario
+              message: notificationMessage,
+            }),
+          })
+
+          if (!notificationResponse.ok) {
+            const errorData = await notificationResponse.json()
+            console.error("Error sending operator notification:", errorData.error)
+            setGlobalError(
+              (prev) =>
+                `${prev || ""} Fotos subidas, pero falló el envío de notificación al operador: ${errorData.error}`,
+            )
+          } else {
+            setGlobalSuccess((prev) => `${prev} Se ha enviado una notificación al operador.`)
+          }
+        } catch (notificationError: any) {
+          console.error("Exception sending operator notification:", notificationError)
+          setGlobalError(
+            (prev) =>
+              `${prev || ""} Fotos subidas, pero hubo un error al intentar notificar al operador: ${notificationError.message}`,
+          )
+        }
+      } else {
+        console.warn("No hay número de teléfono para el operador, no se enviará notificación.")
+      }
     } else {
-      setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
+      setGlobalError("Algunas imágenes no se pudieron subir o registrar. Revisa los detalles de cada archivo.")
     }
     setIsSubmitting(false)
   }
@@ -279,7 +318,6 @@ export default function SubirFotosEmbarquePage({
             </Alert>
           )}
 
-          {/* Detalles del Embarque (siempre visibles) */}
           <div className="space-y-4 border p-4 rounded-lg bg-gray-50">
             <h3 className="text-lg font-semibold text-gray-800 mb-3">Información del Embarque</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -358,7 +396,6 @@ export default function SubirFotosEmbarquePage({
             </div>
           </div>
 
-          {/* Pasos de Confirmación */}
           {confirmationStep === 0 && (
             <div className="space-y-4">
               <Alert>
@@ -397,7 +434,6 @@ export default function SubirFotosEmbarquePage({
             </div>
           )}
 
-          {/* Fotos Existentes */}
           {existingPhotos.length > 0 && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold text-gray-800">
@@ -431,7 +467,6 @@ export default function SubirFotosEmbarquePage({
             </div>
           )}
 
-          {/* Formulario de Subida de Imágenes (solo visible después de la segunda confirmación) */}
           {confirmationStep === 2 && (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
