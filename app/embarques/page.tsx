@@ -1,18 +1,12 @@
-"use client";
+"use client"
 
-import { MainLayout } from "@/components/layout/main-layout";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { MainLayout } from "@/components/layout/main-layout"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Badge } from "@/components/ui/badge"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -20,15 +14,9 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Package,
   Plus,
@@ -42,8 +30,12 @@ import {
   Eye,
   RefreshCw,
   Printer,
-} from "lucide-react";
-import { useState, useEffect } from "react";
+  Link,
+  ImageIcon,
+  Copy,
+} from "lucide-react"
+import { useState, useEffect } from "react"
+import { useToast } from "@/components/ui/use-toast"
 import {
   supabase,
   type Embarque,
@@ -53,36 +45,39 @@ import {
   type Remolque,
   type ContactoCliente,
   type TipoServicio,
+  type FotoEmbarque,
   obtenerContactosCliente,
-} from "@/lib/supabase";
+  obtenerFotosEmbarque,
+} from "@/lib/supabase"
 
 export default function EmbarquesPage() {
-  const [embarques, setEmbarques] = useState<Embarque[]>([]);
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [operadores, setOperadores] = useState<Operador[]>([]);
-  const [camiones, setCamiones] = useState<Camion[]>([]);
-  const [remolques, setRemolques] = useState<Remolque[]>([]);
-  const [contactos, setContactos] = useState<ContactoCliente[]>([]);
-  const [tiposServicio, setTiposServicio] = useState<TipoServicio[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [embarqueEditando, setEmbarqueEditando] = useState<Embarque | null>(
-    null
-  );
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [embarqueDetalle, setEmbarqueDetalle] = useState<Embarque | null>(null);
-  const [showServicesModal, setShowServicesModal] = useState(false);
-  const [showArchivosModal, setShowArchivosModal] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelingEmbarque, setCancelingEmbarque] = useState<Embarque | null>(
-    null
-  );
-  const [cancelReason, setCancelReason] = useState("");
-  const [proximoFolio, setProximoFolio] = useState("");
+  const [embarques, setEmbarques] = useState<Embarque[]>([])
+  const [clientes, setClientes] = useState<Cliente[]>([])
+  const [operadores, setOperadores] = useState<Operador[]>([])
+  const [camiones, setCamiones] = useState<Camion[]>([])
+  const [remolques, setRemolques] = useState<Remolque[]>([])
+  const [contactos, setContactos] = useState<ContactoCliente[]>([])
+  const [tiposServicio, setTiposServicio] = useState<TipoServicio[]>([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [embarqueEditando, setEmbarqueEditando] = useState<Embarque | null>(null)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [embarqueDetalle, setEmbarqueDetalle] = useState<Embarque | null>(null)
+  const [showServicesModal, setShowServicesModal] = useState(false)
+  const [showArchivosModal, setShowArchivosModal] = useState(false)
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelingEmbarque, setCancelingEmbarque] = useState<Embarque | null>(null)
+  const [cancelReason, setCancelReason] = useState("")
+  const [proximoFolio, setProximoFolio] = useState("")
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [generatedLink, setGeneratedLink] = useState("")
+  const [embarqueFotos, setEmbarqueFotos] = useState<FotoEmbarque[]>([])
+
+  const { toast } = useToast()
 
   // Estado para el formulario
   const [formData, setFormData] = useState({
@@ -109,16 +104,16 @@ export default function EmbarquesPage() {
     remolque_manual: false,
     remolque_numero_economico: "",
     remolque_placa: "",
-  });
+  })
 
   // Cargar datos iniciales
   useEffect(() => {
-    loadData();
-    cargarProximoFolio();
-  }, []);
+    loadData()
+    cargarProximoFolio()
+  }, [])
 
   const loadData = async () => {
-    setLoading(true);
+    setLoading(true)
     try {
       await Promise.all([
         loadEmbarques(),
@@ -127,13 +122,13 @@ export default function EmbarquesPage() {
         loadCamiones(),
         loadRemolques(),
         loadTiposServicio(),
-      ]);
+      ])
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.error("Error loading data:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  };
+  }
 
   const loadEmbarques = async () => {
     try {
@@ -146,186 +141,165 @@ export default function EmbarquesPage() {
           operador:operadores(*),
           camion:camiones(*),
           remolque:remolques(*)
-        `
+        `,
         )
-        .order("fecha_creacion", { ascending: false });
+        .order("fecha_creacion", { ascending: false })
 
       if (error) {
-        console.error("Error loading embarques:", error);
-        return;
+        console.error("Error loading embarques:", error)
+        return
       }
 
-      setEmbarques(data || []);
+      setEmbarques(data || [])
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error:", error)
     }
-  };
+  }
 
   const loadClientes = async () => {
     try {
-      const { data, error } = await supabase
-        .from("clientes")
-        .select("*")
-        .eq("estado", "activo")
-        .order("nombre");
+      const { data, error } = await supabase.from("clientes").select("*").eq("estado", "activo").order("nombre")
 
       if (error) {
-        console.error("Error loading clientes:", error);
-        return;
+        console.error("Error loading clientes:", error)
+        return
       }
 
-      setClientes(data || []);
+      setClientes(data || [])
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error:", error)
     }
-  };
+  }
 
   const loadOperadores = async () => {
     try {
-      const { data, error } = await supabase
-        .from("operadores")
-        .select("*")
-        .eq("estado", "activo")
-        .order("nombre");
+      const { data, error } = await supabase.from("operadores").select("*").eq("estado", "activo").order("nombre")
 
       if (error) {
-        console.error("Error loading operadores:", error);
-        return;
+        console.error("Error loading operadores:", error)
+        return
       }
 
-      setOperadores(data || []);
+      setOperadores(data || [])
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error:", error)
     }
-  };
+  }
 
   const loadCamiones = async () => {
     try {
-      const { data, error } = await supabase
-        .from("camiones")
-        .select("*")
-        .order("numero_economico");
+      const { data, error } = await supabase.from("camiones").select("*").order("numero_economico")
 
       if (error) {
-        console.error("Error loading camiones:", error);
-        return;
+        console.error("Error loading camiones:", error)
+        return
       }
 
-      setCamiones(data || []);
+      setCamiones(data || [])
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error:", error)
     }
-  };
+  }
 
   const loadRemolques = async () => {
     try {
-      const { data, error } = await supabase
-        .from("remolques")
-        .select("*")
-        .order("numero_economico");
+      const { data, error } = await supabase.from("remolques").select("*").order("numero_economico")
 
       if (error) {
-        console.error("Error loading remolques:", error);
-        return;
+        console.error("Error loading remolques:", error)
+        return
       }
 
-      setRemolques(data || []);
+      setRemolques(data || [])
     } catch (error) {
-      console.error("Error:", error);
+      console.error("Error:", error)
     }
-  };
+  }
 
   const loadTiposServicio = async () => {
     try {
-      const { data, error } = await supabase
-        .from("tipos_servicio")
-        .select("*")
-        .eq("activo", true)
-        .order("nombre");
+      const { data, error } = await supabase.from("tipos_servicio").select("*").eq("activo", true).order("nombre")
 
       if (error) {
-        console.warn("Tabla tipos_servicio no existe aún:", error);
-        setTiposServicio([]);
-        return;
+        console.warn("Tabla tipos_servicio no existe aún:", error)
+        setTiposServicio([])
+        return
       }
 
-      setTiposServicio(data || []);
+      setTiposServicio(data || [])
     } catch (error) {
-      console.warn(
-        "Error loading tipos servicio (tabla puede no existir):",
-        error
-      );
-      setTiposServicio([]);
+      console.warn("Error loading tipos servicio (tabla puede no existir):", error)
+      setTiposServicio([])
     }
-  };
+  }
 
   const generarFolioEspecifico = async () => {
     try {
-      const now = new Date();
-      const year = now.getFullYear().toString().slice(-2);
-      const month = (now.getMonth() + 1).toString().padStart(2, "0");
+      const now = new Date()
+      const year = now.getFullYear().toString().slice(-2)
+      const month = (now.getMonth() + 1).toString().padStart(2, "0")
 
-      const baseFormat = `TIM-${year}${month}`;
+      const baseFormat = `TIM-${year}${month}`
 
       const { data: existingEmbarques, error } = await supabase
         .from("embarques")
         .select("folio")
         .like("folio", `${baseFormat}-%`)
         .order("folio", { ascending: false })
-        .limit(1);
+        .limit(1)
 
       if (error) {
-        console.error("Error getting existing folios:", error);
-        return `${baseFormat}-001`;
+        console.error("Error getting existing folios:", error)
+        return `${baseFormat}-001`
       }
 
       if (!existingEmbarques || existingEmbarques.length === 0) {
-        return `${baseFormat}-001`;
+        return `${baseFormat}-001`
       }
 
-      const lastFolio = existingEmbarques[0].folio;
-      const consecutiveMatch = lastFolio.match(/-(\d{3})$/);
+      const lastFolio = existingEmbarques[0].folio
+      const consecutiveMatch = lastFolio.match(/-(\d{3})$/)
 
       if (!consecutiveMatch) {
-        return `${baseFormat}-001`;
+        return `${baseFormat}-001`
       }
 
-      const lastConsecutive = Number.parseInt(consecutiveMatch[1]);
-      const nextConsecutive = (lastConsecutive + 1).toString().padStart(3, "0");
+      const lastConsecutive = Number.parseInt(consecutiveMatch[1])
+      const nextConsecutive = (lastConsecutive + 1).toString().padStart(3, "0")
 
-      return `${baseFormat}-${nextConsecutive}`;
+      return `${baseFormat}-${nextConsecutive}`
     } catch (error) {
-      console.error("Error generating folio:", error);
-      return "Error al generar";
+      console.error("Error generating folio:", error)
+      return "Error al generar"
     }
-  };
+  }
 
   const cargarProximoFolio = async () => {
     try {
-      const folio = await generarFolioEspecifico();
-      setProximoFolio(folio);
+      const folio = await generarFolioEspecifico()
+      setProximoFolio(folio)
     } catch (error) {
-      console.error("Error generando folio:", error);
-      setProximoFolio("Error al generar");
+      console.error("Error generando folio:", error)
+      setProximoFolio("Error al generar")
     }
-  };
+  }
 
   const cargarContactos = async (clienteId: string) => {
     if (!clienteId || clienteId === "none") {
-      setContactos([]);
-      return;
+      setContactos([])
+      return
     }
 
     try {
-      console.log("Cargando contactos para cliente:", clienteId);
-      const contactosData = await obtenerContactosCliente(clienteId);
-      console.log("Contactos cargados:", contactosData);
-      setContactos(contactosData);
+      console.log("Cargando contactos para cliente:", clienteId)
+      const contactosData = await obtenerContactosCliente(clienteId)
+      console.log("Contactos cargados:", contactosData)
+      setContactos(contactosData)
     } catch (error) {
-      console.error("Error cargando contactos:", error);
-      setContactos([]);
+      console.error("Error cargando contactos:", error)
+      setContactos([])
     }
-  };
+  }
 
   const resetForm = () => {
     setFormData({
@@ -352,18 +326,18 @@ export default function EmbarquesPage() {
       remolque_manual: false,
       remolque_numero_economico: "",
       remolque_placa: "",
-    });
-    setEmbarqueEditando(null);
-    setContactos([]);
+    })
+    setEmbarqueEditando(null)
+    setContactos([])
     if (!embarqueEditando) {
-      cargarProximoFolio();
+      cargarProximoFolio()
     }
-  };
+  }
 
   const handleCreate = () => {
-    resetForm();
-    setShowCreateModal(true);
-  };
+    resetForm()
+    setShowCreateModal(true)
+  }
 
   const handleEdit = async (embarque: Embarque) => {
     setFormData({
@@ -388,47 +362,37 @@ export default function EmbarquesPage() {
       carta_porte: embarque.carta_porte || "",
       tipo_servicio_id: embarque.tipo_servicio_id || "",
       remolque_manual:
-        !embarque.remolque_id &&
-        (embarque.remolque_numero_economico || embarque.remolque_placa)
-          ? true
-          : false,
+        !embarque.remolque_id && (embarque.remolque_numero_economico || embarque.remolque_placa) ? true : false,
       remolque_numero_economico: embarque.remolque_numero_economico || "",
       remolque_placa: embarque.remolque_placa || "",
-    });
+    })
 
     if (embarque.cliente_id) {
-      await cargarContactos(embarque.cliente_id);
+      await cargarContactos(embarque.cliente_id)
     }
 
-    setEmbarqueEditando(embarque);
-    setShowEditModal(true);
-  };
+    setEmbarqueEditando(embarque)
+    setShowEditModal(true)
+  }
 
   const handleSave = async () => {
     if (!formData.direccion_recolecta || !formData.direccion_entrega) {
-      alert(
-        "Por favor completa los campos obligatorios (dirección de recolecta y dirección de entrega)"
-      );
-      return;
+      alert("Por favor completa los campos obligatorios (dirección de recolecta y dirección de entrega)")
+      return
     }
 
     try {
-      setSaving(true);
+      setSaving(true)
 
-      let folio = formData.folio;
+      let folio = formData.folio
 
       if (!embarqueEditando) {
-        folio = await generarFolioEspecifico();
+        folio = await generarFolioEspecifico()
       }
 
-      let infoContacto = null;
-      if (
-        formData.representante_cliente &&
-        formData.representante_cliente !== "none"
-      ) {
-        const contacto = contactos.find(
-          (c) => c.id === formData.representante_cliente
-        );
+      let infoContacto = null
+      if (formData.representante_cliente && formData.representante_cliente !== "none") {
+        const contacto = contactos.find((c) => c.id === formData.representante_cliente)
         if (contacto) {
           infoContacto = {
             id: contacto.id,
@@ -437,25 +401,16 @@ export default function EmbarquesPage() {
             email: contacto.email,
             puesto: contacto.puesto,
             es_principal: contacto.es_principal,
-          };
+          }
         }
       }
 
       const embarqueData: any = {
         folio,
-        cliente_id:
-          formData.cliente_id && formData.cliente_id !== "none"
-            ? formData.cliente_id
-            : null,
+        cliente_id: formData.cliente_id && formData.cliente_id !== "none" ? formData.cliente_id : null,
         operador_id: null,
-        camion_id:
-          formData.camion_id && formData.camion_id !== "none"
-            ? formData.camion_id
-            : null,
-        remolque_id:
-          formData.remolque_id && formData.remolque_id !== "none"
-            ? formData.remolque_id
-            : null,
+        camion_id: formData.camion_id && formData.camion_id !== "none" ? formData.camion_id : null,
+        remolque_id: formData.remolque_id && formData.remolque_id !== "none" ? formData.remolque_id : null,
         origen: formData.direccion_recolecta || "Por definir",
         destino: formData.direccion_entrega || "Por definir",
         direccion_recolecta: formData.direccion_recolecta,
@@ -472,146 +427,139 @@ export default function EmbarquesPage() {
         aduana_cruce: formData.aduana_cruce || null,
         dueno_mercancia: formData.dueno_mercancia || null,
         representante_cliente:
-          formData.representante_cliente &&
-          formData.representante_cliente !== "none"
+          formData.representante_cliente && formData.representante_cliente !== "none"
             ? formData.representante_cliente
             : null,
         info_representante: infoContacto,
         carta_porte: formData.carta_porte || null,
         tipo_servicio_id:
-          formData.tipo_servicio_id && formData.tipo_servicio_id !== "none"
-            ? formData.tipo_servicio_id
-            : null,
+          formData.tipo_servicio_id && formData.tipo_servicio_id !== "none" ? formData.tipo_servicio_id : null,
         updated_at: new Date().toISOString(),
-        remolque_numero_economico: formData.remolque_manual
-          ? formData.remolque_numero_economico
-          : null,
-        remolque_placa: formData.remolque_manual
-          ? formData.remolque_placa
-          : null,
+        remolque_numero_economico: formData.remolque_manual ? formData.remolque_numero_economico : null,
+        remolque_placa: formData.remolque_manual ? formData.remolque_placa : null,
         // Si el embarque está siendo editado, marcamos como modificado
         modificado: !!embarqueEditando,
-      };
+      }
 
       try {
-        embarqueData.observaciones = formData.observaciones || null;
+        embarqueData.observaciones = formData.observaciones || null
       } catch (error) {
-        console.warn("Campo observaciones no disponible en el esquema actual");
+        console.warn("Campo observaciones no disponible en el esquema actual")
       }
 
-      console.log("Datos a guardar:", embarqueData);
+      console.log("Datos a guardar:", embarqueData)
 
       if (embarqueEditando) {
-        const { error } = await supabase
-          .from("embarques")
-          .update(embarqueData)
-          .eq("id", embarqueEditando.id);
+        const { error } = await supabase.from("embarques").update(embarqueData).eq("id", embarqueEditando.id)
 
         if (error) {
-          console.error("Error actualizando embarque:", error);
-          alert(`Error al actualizar embarque: ${error.message}`);
-          return;
+          console.error("Error actualizando embarque:", error)
+          alert(`Error al actualizar embarque: ${error.message}`)
+          return
         }
       } else {
-        const { error } = await supabase.from("embarques").insert(embarqueData);
+        const { error } = await supabase.from("embarques").insert(embarqueData)
 
         if (error) {
-          console.error("Error creando embarque:", error);
-          alert(`Error al crear embarque: ${error.message}`);
-          return;
+          console.error("Error creando embarque:", error)
+          alert(`Error al crear embarque: ${error.message}`)
+          return
         }
       }
 
-      alert(
-        embarqueEditando
-          ? "Embarque actualizado exitosamente"
-          : "Embarque creado exitosamente"
-      );
-      resetForm();
-      setShowCreateModal(false);
-      setShowEditModal(false);
-      await loadEmbarques();
+      alert(embarqueEditando ? "Embarque actualizado exitosamente" : "Embarque creado exitosamente")
+      resetForm()
+      setShowCreateModal(false)
+      setShowEditModal(false)
+      await loadEmbarques()
     } catch (error) {
-      console.error("Error guardando embarque:", error);
-      alert(`Error al guardar embarque: ${error.message}`);
+      console.error("Error guardando embarque:", error)
+      alert(`Error al guardar embarque: ${error.message}`)
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const handleDelete = async (embarque: Embarque) => {
     try {
-      const { error } = await supabase
-        .from("embarques")
-        .delete()
-        .eq("id", embarque.id);
+      const { error } = await supabase.from("embarques").delete().eq("id", embarque.id)
 
       if (error) {
-        console.error("Error eliminando embarque:", error);
-        alert("Error al eliminar embarque");
-        return;
+        console.error("Error eliminando embarque:", error)
+        alert("Error al eliminar embarque")
+        return
       }
 
-      alert("Embarque eliminado exitosamente");
-      await loadEmbarques();
+      alert("Embarque eliminado exitosamente")
+      await loadEmbarques()
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al eliminar embarque");
+      console.error("Error:", error)
+      alert("Error al eliminar embarque")
     }
-  };
+  }
 
-  const handleViewDetails = (embarque: Embarque) => {
-    setEmbarqueDetalle(embarque);
-    setShowDetailModal(true);
-  };
+  const handleGenerateLink = (embarqueId: string) => {
+    // Asume que tu aplicación está desplegada en un dominio.
+    // En desarrollo, será algo como http://localhost:3000
+    const baseUrl = window.location.origin
+    const link = `${baseUrl}/subir-fotos-embarque/${embarqueId}`
+    setGeneratedLink(link)
+    setShowLinkModal(true)
+  }
+
+  const handleViewDetails = async (embarque: Embarque) => {
+    setEmbarqueDetalle(embarque)
+    setShowDetailModal(true)
+    if (embarque.id) {
+      const fotos = await obtenerFotosEmbarque(embarque.id) // Fetch photos
+      setEmbarqueFotos(fotos) // Set photos in state
+    } else {
+      setEmbarqueFotos([]) // Clear if no embarque ID
+    }
+  }
 
   const cancelarEmbarque = async () => {
     if (!cancelingEmbarque || !cancelReason.trim()) {
-      alert("Por favor ingresa una justificación para la cancelación");
-      return;
+      alert("Por favor ingresa una justificación para la cancelación")
+      return
     }
 
     try {
-      setSaving(true);
+      setSaving(true)
 
       const updateData: any = {
         estado: "cancelado",
         updated_at: new Date().toISOString(),
-      };
+      }
 
       try {
         updateData.observaciones = `${cancelingEmbarque.observaciones || ""}
 
-[CANCELADO] ${cancelReason}`.trim();
+[CANCELADO] ${cancelReason}`.trim()
       } catch (error) {
-        console.warn(
-          "Campo observaciones no disponible, guardando justificación en campo alternativo"
-        );
+        console.warn("Campo observaciones no disponible, guardando justificación en campo alternativo")
       }
 
-      const { error } = await supabase
-        .from("embarques")
-        .update(updateData)
-        .eq("id", cancelingEmbarque.id);
+      const { error } = await supabase.from("embarques").update(updateData).eq("id", cancelingEmbarque.id)
 
       if (error) {
-        console.error("Error cancelando embarque:", error);
-        alert("Error al cancelar embarque");
-        return;
+        console.error("Error cancelando embarque:", error)
+        alert("Error al cancelar embarque")
+        return
       }
 
-      alert("Embarque cancelado exitosamente");
-      setShowCancelModal(false);
-      setCancelingEmbarque(null);
-      setCancelReason("");
-      await loadEmbarques();
+      alert("Embarque cancelado exitosamente")
+      setShowCancelModal(false)
+      setCancelingEmbarque(null)
+      setCancelReason("")
+      await loadEmbarques()
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al cancelar embarque");
+      console.error("Error:", error)
+      alert("Error al cancelar embarque")
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const updateEstado = async (embarque: Embarque, nuevoEstado: string) => {
     try {
@@ -621,24 +569,24 @@ export default function EmbarquesPage() {
           estado: nuevoEstado,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", embarque.id);
+        .eq("id", embarque.id)
 
       if (error) {
-        console.error("Error updating estado:", error);
-        alert("Error al actualizar el estado");
-        return;
+        console.error("Error updating estado:", error)
+        alert("Error al actualizar el estado")
+        return
       }
 
-      await loadEmbarques();
+      await loadEmbarques()
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al actualizar el estado");
+      console.error("Error:", error)
+      alert("Error al actualizar el estado")
     }
-  };
+  }
 
   const marcarComoCompletado = async (embarque: Embarque) => {
     try {
-      setSaving(true);
+      setSaving(true)
 
       const { error } = await supabase
         .from("embarques")
@@ -646,58 +594,47 @@ export default function EmbarquesPage() {
           estado: "listo-para-asignar",
           updated_at: new Date().toISOString(),
         })
-        .eq("id", embarque.id);
+        .eq("id", embarque.id)
 
       if (error) {
-        console.error("Error actualizando embarque:", error);
-        alert("Error al marcar como completado");
-        return;
+        console.error("Error actualizando embarque:", error)
+        alert("Error al marcar como completado")
+        return
       }
 
-      alert("Embarque marcado como completado y enviado a asignación");
-      await loadEmbarques();
+      alert("Embarque marcado como completado y enviado a asignación")
+      await loadEmbarques()
     } catch (error) {
-      console.error("Error:", error);
-      alert("Error al marcar como completado");
+      console.error("Error:", error)
+      alert("Error al marcar como completado")
     } finally {
-      setSaving(false);
+      setSaving(false)
     }
-  };
+  }
 
   const getServiceDisplayName = (serviceId: string) => {
     // Primero buscar en la base de datos
-    const tipoFromDB = tiposServicio.find((tipo) => tipo.id === serviceId);
+    const tipoFromDB = tiposServicio.find((tipo) => tipo.id === serviceId)
     if (tipoFromDB) {
-      return tipoFromDB.nombre;
+      return tipoFromDB.nombre
     }
 
     // Fallback a nombres hardcodeados
     const serviceNames = {
-      "exportacion-cargada-caja-seca-240":
-        "EXPORTACIÓN CARGADA - CAJA SECA 240",
-      "exportacion-cargada-larmex-240":
-        "EXPORTACIÓN CARGADA - CAJA SECA (LARMEX) 240",
-      "exportacion-cargada-thermo-agricultura-240":
-        "EXPORTACIÓN CARGADA - THERMO (AGRICULTURA) 240",
-      "exportacion-cargada-plataforma-240":
-        "EXPORTACIÓN CARGADA - PLATAFORMA 240",
-      "importacion-cargada-caja-seca-240":
-        "IMPORTACIÓN CARGADA - CAJA SECA 240",
-      "importacion-cargada-plataforma-240":
-        "IMPORTACIÓN CARGADA - PLATAFORMA 240",
-      "importacion-vacia-caja-seca-thermo-240":
-        "IMPORTACIÓN VACÍA - CAJA SECA/THERMO 240",
-      "importacion-cargada-plataforma-amarre-240":
-        "IMPORTACIÓN CARGADA - PLATAFORMA CON AMARRE 240",
+      "exportacion-cargada-caja-seca-240": "EXPORTACIÓN CARGADA - CAJA SECA 240",
+      "exportacion-cargada-larmex-240": "EXPORTACIÓN CARGADA - CAJA SECA (LARMEX) 240",
+      "exportacion-cargada-thermo-agricultura-240": "EXPORTACIÓN CARGADA - THERMO (AGRICULTURA) 240",
+      "exportacion-cargada-plataforma-240": "EXPORTACIÓN CARGADA - PLATAFORMA 240",
+      "importacion-cargada-caja-seca-240": "IMPORTACIÓN CARGADA - CAJA SECA 240",
+      "importacion-cargada-plataforma-240": "IMPORTACIÓN CARGADA - PLATAFORMA 240",
+      "importacion-vacia-caja-seca-thermo-240": "IMPORTACIÓN VACÍA - CAJA SECA/THERMO 240",
+      "importacion-cargada-plataforma-amarre-240": "IMPORTACIÓN CARGADA - PLATAFORMA CON AMARRE 240",
       "importacion-en-tractor-240": "IMPORTACIÓN - EN TRACTOR 240",
-      "exportacion-cargada-caja-seca-800":
-        "EXPORTACIÓN CARGADA - CAJA SECA 800",
+      "exportacion-cargada-caja-seca-800": "EXPORTACIÓN CARGADA - CAJA SECA 800",
       "exportacion-vacia-caja-seca-800": "EXPORTACIÓN VACÍA - CAJA SECA 800",
       "exportacion-en-tractor-800": "EXPORTACIÓN - EN TRACTOR 800",
-      "exportacion-cargada-plataforma-800":
-        "EXPORTACIÓN CARGADA - PLATAFORMA 800",
-      "importacion-cargada-caja-seca-800":
-        "IMPORTACIÓN CARGADA - CAJA SECA 800",
+      "exportacion-cargada-plataforma-800": "EXPORTACIÓN CARGADA - PLATAFORMA 800",
+      "importacion-cargada-caja-seca-800": "IMPORTACIÓN CARGADA - CAJA SECA 800",
       "importacion-vacia-plataforma-800": "IMPORTACIÓN VACÍA - PLATAFORMA 800",
       "pagos-extras": "PAGOS EXTRAS",
       "horas-rojo-amarillo": "HORAS ROJO/AMARILLO",
@@ -705,17 +642,15 @@ export default function EmbarquesPage() {
       "movimientos-en-falso": "MOVIMIENTOS EN FALSO",
       "movimientos-locales": "MOVIMIENTOS LOCALES",
       otro: "OTRO",
-    };
-    return serviceNames[serviceId] || serviceId;
-  };
+    }
+    return serviceNames[serviceId] || serviceId
+  }
 
   const imprimirFormulario = () => {
     const printContent = `
       <html>
         <head>
-          <title>Formulario de Embarque - ${
-            embarqueEditando ? formData.folio : proximoFolio
-          }</title>
+          <title>Formulario de Embarque - ${embarqueEditando ? formData.folio : proximoFolio}</title>
           <style>
             body { font-family: Arial, sans-serif; margin: 20px; }
             .header { text-align: center; margin-bottom: 30px; }
@@ -731,23 +666,18 @@ export default function EmbarquesPage() {
           <div class="header">
             <h1>TRANSPORTES MONARCA</h1>
             <h2>FORMULARIO DE EMBARQUE</h2>
-            <p>Folio: <span class="value">${
-              embarqueEditando ? formData.folio : proximoFolio
-            }</span></p>
+            <p>Folio: <span class="value">${embarqueEditando ? formData.folio : proximoFolio}</span></p>
           </div>
           
           <div class="section">
             <h3>INFORMACIÓN BÁSICA</h3>
             <div class="grid">
               <div class="field">
-                <span class="label">Carta Porte:</span> <span class="value">${
-                  formData.carta_porte
-                }</span>
+                <span class="label">Carta Porte:</span> <span class="value">${formData.carta_porte}</span>
               </div>
               <div class="field">
                 <span class="label">Cliente:</span> <span class="value">${
-                  clientes.find((c) => c.id === formData.cliente_id)?.nombre ||
-                  ""
+                  clientes.find((c) => c.id === formData.cliente_id)?.nombre || ""
                 }</span>
               </div>
             </div>
@@ -760,7 +690,7 @@ export default function EmbarquesPage() {
               <span class="value" style="width: 100%; min-height: 40px; display: block;">${
                 formData.direccion_recolecta
               }</span>
-        // ...existing code...
+            </div>
             <div class="field full-width">
               <span class="label">Dirección de Entrega:</span><br>
               <span class="value" style="width: 100%; min-height: 40px; display: block;">${
@@ -773,24 +703,16 @@ export default function EmbarquesPage() {
             <h3>FECHAS Y HORARIOS</h3>
             <div class="grid">
               <div class="field">
-                <span class="label">Fecha Recolecta:</span> <span class="value">${
-                  formData.fecha_recolecta
-                }</span>
+                <span class="label">Fecha Recolecta:</span> <span class="value">${formData.fecha_recolecta}</span>
               </div>
               <div class="field">
-                <span class="label">Hora Recolecta:</span> <span class="value">${
-                  formData.hora_recolecta
-                }</span>
+                <span class="label">Hora Recolecta:</span> <span class="value">${formData.hora_recolecta}</span>
               </div>
               <div class="field">
-                <span class="label">Fecha Entrega:</span> <span class="value">${
-                  formData.fecha_entrega
-                }</span>
+                <span class="label">Fecha Entrega:</span> <span class="value">${formData.fecha_entrega}</span>
               </div>
               <div class="field">
-                <span class="label">Hora Entrega:</span> <span class="value">${
-                  formData.hora_entrega
-                }</span>
+                <span class="label">Hora Entrega:</span> <span class="value">${formData.hora_entrega}</span>
               </div>
             </div>
           </div>
@@ -800,14 +722,12 @@ export default function EmbarquesPage() {
             <div class="grid">
               <div class="field">
                 <span class="label">Tractocamión:</span> <span class="value">${
-                  camiones.find((c) => c.id === formData.camion_id)
-                    ?.numero_economico || ""
+                  camiones.find((c) => c.id === formData.camion_id)?.numero_economico || ""
                 }</span>
               </div>
               <div class="field">
                 <span class="label">Remolque:</span> <span class="value">${
-                  remolques.find((r) => r.id === formData.remolque_id)
-                    ?.numero_economico || ""
+                  remolques.find((r) => r.id === formData.remolque_id)?.numero_economico || ""
                 }</span>
               </div>
             </div>
@@ -817,14 +737,10 @@ export default function EmbarquesPage() {
             <h3>DETALLES DE CARGA</h3>
             <div class="grid">
               <div class="field">
-                <span class="label">Contenido:</span> <span class="value">${
-                  formData.contenido
-                }</span>
+                <span class="label">Contenido:</span> <span class="value">${formData.contenido}</span>
               </div>
               <div class="field">
-                <span class="label">Peso (kg):</span> <span class="value">${
-                  formData.peso
-                }</span>
+                <span class="label">Peso (kg):</span> <span class="value">${formData.peso}</span>
               </div>
             </div>
           </div>
@@ -854,37 +770,25 @@ export default function EmbarquesPage() {
           </div>
         </body>
       </html>
-    `;
+    `
 
-    const printWindow = window.open("", "_blank");
+    const printWindow = window.open("", "_blank")
     if (printWindow) {
-      printWindow.document.write(printContent);
-      printWindow.document.close();
-      printWindow.print();
+      printWindow.document.write(printContent)
+      printWindow.document.close()
+      printWindow.print()
     }
-  };
+  }
 
   // Filtrar embarques
   const embarquesFiltrados = embarques.filter((embarque) => {
-    if (embarque.estado === "archivado") return false;
+    if (embarque.estado === "archivado") return false
     const coincideBusqueda =
       embarque.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (embarque.load_number &&
-        embarque.load_number
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())) ||
-      (embarque.cliente?.nombre &&
-        embarque.cliente.nombre
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())) ||
-      (embarque.direccion_recolecta &&
-        embarque.direccion_recolecta
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase())) ||
-      (embarque.direccion_entrega &&
-        embarque.direccion_entrega
-          .toLowerCase()
-          .includes(searchTerm.toLowerCase()));
+      (embarque.load_number && embarque.load_number.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (embarque.cliente?.nombre && embarque.cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (embarque.direccion_recolecta && embarque.direccion_recolecta.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (embarque.direccion_entrega && embarque.direccion_entrega.toLowerCase().includes(searchTerm.toLowerCase()))
 
     const coincideEstado =
       filtroEstado === "todos" ||
@@ -892,56 +796,35 @@ export default function EmbarquesPage() {
       (filtroEstado === "activos" &&
         embarque.estado !== "cancelado" &&
         embarque.estado !== "archivado" &&
-        embarque.estado !== "finalizado");
+        embarque.estado !== "finalizado")
 
-    return coincideBusqueda && coincideEstado;
-  });
+    return coincideBusqueda && coincideEstado
+  })
 
   // Embarques archivados para el modal
   // Estado y lógica para búsqueda y filtrado en el modal de archivos
-  const [archivosSearch, setArchivosSearch] = useState("");
-  const [archivosTipoServicio, setArchivosTipoServicio] = useState("todos");
-  const embarquesArchivados = embarques.filter(
-    (embarque) => embarque.estado === "archivado"
-  );
-  const tiposServicioArchivados = [
-    ...new Set(
-      embarquesArchivados.map((e) => e.tipo_servicio_id).filter(Boolean)
-    ),
-  ];
-  const embarquesArchivadosFiltrados = embarquesArchivados.filter(
-    (embarque) => {
-      const coincideBusqueda =
-        archivosSearch.trim() === "" ||
-        embarque.folio.toLowerCase().includes(archivosSearch.toLowerCase()) ||
-        (embarque.cliente?.nombre &&
-          embarque.cliente.nombre
-            .toLowerCase()
-            .includes(archivosSearch.toLowerCase())) ||
-        (embarque.load_number &&
-          embarque.load_number
-            .toLowerCase()
-            .includes(archivosSearch.toLowerCase()));
-      const coincideTipo =
-        archivosTipoServicio === "todos" ||
-        embarque.tipo_servicio_id === archivosTipoServicio;
-      return coincideBusqueda && coincideTipo;
-    }
-  );
+  const [archivosSearch, setArchivosSearch] = useState("")
+  const [archivosTipoServicio, setArchivosTipoServicio] = useState("todos")
+  const embarquesArchivados = embarques.filter((embarque) => embarque.estado === "archivado")
+  const tiposServicioArchivados = [...new Set(embarquesArchivados.map((e) => e.tipo_servicio_id).filter(Boolean))]
+  const embarquesArchivadosFiltrados = embarquesArchivados.filter((embarque) => {
+    const coincideBusqueda =
+      archivosSearch.trim() === "" ||
+      embarque.folio.toLowerCase().includes(archivosSearch.toLowerCase()) ||
+      (embarque.cliente?.nombre && embarque.cliente.nombre.toLowerCase().includes(archivosSearch.toLowerCase())) ||
+      (embarque.load_number && embarque.load_number.toLowerCase().includes(archivosSearch.toLowerCase()))
+    const coincideTipo = archivosTipoServicio === "todos" || embarque.tipo_servicio_id === archivosTipoServicio
+    return coincideBusqueda && coincideTipo
+  })
 
   const getEstadoBadge = (estado: string, embarque?: Embarque) => {
     if (
       estado === "creado" &&
       embarque &&
       embarque.updated_at &&
-      new Date(embarque.updated_at).getTime() >
-        new Date(embarque.fecha_creacion).getTime()
+      new Date(embarque.updated_at).getTime() > new Date(embarque.fecha_creacion).getTime()
     ) {
-      return (
-        <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">
-          Modificado
-        </Badge>
-      );
+      return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100">Modificado</Badge>
     }
 
     const estados = {
@@ -959,27 +842,23 @@ export default function EmbarquesPage() {
       entregado: { color: "bg-green-100 text-green-800", label: "Entregado" },
       cancelado: { color: "bg-red-100 text-red-800", label: "Cancelado" },
       archivado: { color: "bg-purple-100 text-purple-800", label: "Archivado" },
-    };
+    }
 
     const estadoInfo = estados[estado as keyof typeof estados] || {
       color: "bg-gray-100 text-gray-800",
       label: estado,
-    };
+    }
 
-    return (
-      <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>
-        {estadoInfo.label}
-      </Badge>
-    );
-  };
+    return <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>{estadoInfo.label}</Badge>
+  }
 
   const getVehicleStatusBadge = (estado: string) => {
     return estado === "disponible" || estado === "activo" ? (
       <Badge className="bg-green-100 text-green-800 text-xs ml-2">Activo</Badge>
     ) : (
       <Badge className="bg-red-100 text-red-800 text-xs ml-2">Inactivo</Badge>
-    );
-  };
+    )
+  }
 
   if (loading) {
     return (
@@ -989,13 +868,13 @@ export default function EmbarquesPage() {
           <span className="ml-2 text-lg">Cargando embarques...</span>
         </div>
       </MainLayout>
-    );
+    )
   }
 
   const llenarDatosPrueba = () => {
-    const clienteEjemplo = clientes[0]?.id || "";
-    const camionEjemplo = camiones[0]?.id || "";
-    const remolqueEjemplo = remolques[0]?.id || "";
+    const clienteEjemplo = clientes[0]?.id || ""
+    const camionEjemplo = camiones[0]?.id || ""
+    const remolqueEjemplo = remolques[0]?.id || ""
 
     setFormData({
       folio: "",
@@ -1005,14 +884,11 @@ export default function EmbarquesPage() {
       contenido: "Mercancía general de prueba",
       peso: "25000",
       observaciones: "Embarque de prueba generado automáticamente",
-      direccion_recolecta:
-        "Av. Revolución 1234, Col. Centro, Tijuana, B.C., México",
+      direccion_recolecta: "Av. Revolución 1234, Col. Centro, Tijuana, B.C., México",
       direccion_entrega: "Main Street 5678, Downtown, San Diego, CA, USA",
       fecha_recolecta: new Date().toISOString().split("T")[0],
       hora_recolecta: "08:00",
-      fecha_entrega: new Date(Date.now() + 86400000)
-        .toISOString()
-        .split("T")[0],
+      fecha_entrega: new Date(Date.now() + 86400000).toISOString().split("T")[0],
       hora_entrega: "16:00",
       load_number: "LD" + Math.floor(Math.random() * 100000),
       patente_agente_aduanal: "3087",
@@ -1024,24 +900,20 @@ export default function EmbarquesPage() {
       remolque_manual: false,
       remolque_numero_economico: "",
       remolque_placa: "",
-    });
+    })
 
     if (clienteEjemplo) {
-      cargarContactos(clienteEjemplo);
+      cargarContactos(clienteEjemplo)
     }
-  };
+  }
 
   return (
     <MainLayout>
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">
-              Gestión de Embarques
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Administrar embarques y asignaciones
-            </p>
+            <h1 className="text-3xl font-bold text-gray-900">Gestión de Embarques</h1>
+            <p className="text-gray-600 mt-2">Administrar embarques y asignaciones</p>
           </div>
           <div className="flex space-x-2">
             {/* Nuevo botón Archivos */}
@@ -1053,10 +925,7 @@ export default function EmbarquesPage() {
               <Package className="h-4 w-4 mr-2" />
               Archivos
             </Button>
-            <Button
-              onClick={handleCreate}
-              className="bg-blue-600 hover:bg-blue-700"
-            >
+            <Button onClick={handleCreate} className="bg-blue-600 hover:bg-blue-700">
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Embarque
             </Button>
@@ -1068,9 +937,8 @@ export default function EmbarquesPage() {
             <DialogHeader>
               <DialogTitle>Consulta de Embarques Archivados</DialogTitle>
               <DialogDescription>
-                Aquí puedes buscar y consultar los embarques que han sido
-                archivados. Usa los filtros para encontrar un registro
-                específico.
+                Aquí puedes buscar y consultar los embarques que han sido archivados. Usa los filtros para encontrar un
+                registro específico.
               </DialogDescription>
             </DialogHeader>
             <div className="mb-4 flex flex-col md:flex-row md:items-end gap-2">
@@ -1085,10 +953,7 @@ export default function EmbarquesPage() {
               </div>
               <div className="w-full md:w-64">
                 <Label htmlFor="archivos-tipo-servicio">Tipo de Servicio</Label>
-                <Select
-                  value={archivosTipoServicio}
-                  onValueChange={setArchivosTipoServicio}
-                >
+                <Select value={archivosTipoServicio} onValueChange={setArchivosTipoServicio}>
                   <SelectTrigger id="archivos-tipo-servicio">
                     <SelectValue placeholder="Filtrar por tipo de servicio" />
                   </SelectTrigger>
@@ -1108,53 +973,29 @@ export default function EmbarquesPage() {
                 <thead>
                   <tr className="bg-purple-50">
                     <th className="px-3 py-2 text-left font-semibold">Folio</th>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Cliente
-                    </th>
+                    <th className="px-3 py-2 text-left font-semibold">Cliente</th>
                     <th className="px-3 py-2 text-left font-semibold">Load</th>
-                    <th className="px-3 py-2 text-left font-semibold">
-                      Tipo de Servicio
-                    </th>
-                    <th className="px-3 py-2 text-center font-semibold">
-                      Acciones
-                    </th>
+                    <th className="px-3 py-2 text-left font-semibold">Tipo de Servicio</th>
+                    <th className="px-3 py-2 text-center font-semibold">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {embarquesArchivadosFiltrados.length === 0 ? (
                     <tr>
-                      <td
-                        colSpan={5}
-                        className="text-center py-8 text-gray-500"
-                      >
+                      <td colSpan={5} className="text-center py-8 text-gray-500">
                         <Package className="h-10 w-10 mx-auto mb-2 text-purple-400" />
                         No hay embarques archivados que coincidan
                       </td>
                     </tr>
                   ) : (
                     embarquesArchivadosFiltrados.map((embarque) => (
-                      <tr
-                        key={embarque.id}
-                        className="border-b hover:bg-purple-50"
-                      >
-                        <td className="px-3 py-2 font-mono">
-                          {embarque.folio}
-                        </td>
-                        <td className="px-3 py-2">
-                          {embarque.cliente?.nombre || ""}
-                        </td>
-                        <td className="px-3 py-2">
-                          {embarque.load_number || ""}
-                        </td>
-                        <td className="px-3 py-2">
-                          {getServiceDisplayName(embarque.tipo_servicio_id)}
-                        </td>
+                      <tr key={embarque.id} className="border-b hover:bg-purple-50">
+                        <td className="px-3 py-2 font-mono">{embarque.folio}</td>
+                        <td className="px-3 py-2">{embarque.cliente?.nombre || ""}</td>
+                        <td className="px-3 py-2">{embarque.load_number || ""}</td>
+                        <td className="px-3 py-2">{getServiceDisplayName(embarque.tipo_servicio_id)}</td>
                         <td className="px-3 py-2 text-center">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleViewDetails(embarque)}
-                          >
+                          <Button variant="outline" size="sm" onClick={() => handleViewDetails(embarque)}>
                             <Eye className="h-4 w-4 mr-1" />
                             Ver Detalles
                           </Button>
@@ -1174,21 +1015,14 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Total Año {new Date().getFullYear()}
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Total Año {new Date().getFullYear()}</p>
                   <p className="text-2xl font-bold">
                     {
-                      embarques.filter(
-                        (e) =>
-                          new Date(e.fecha_creacion).getFullYear() ===
-                          new Date().getFullYear()
-                      ).length
+                      embarques.filter((e) => new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear())
+                        .length
                     }
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Embarques del año actual
-                  </p>
+                  <p className="text-xs text-gray-500">Embarques del año actual</p>
                 </div>
                 <Truck className="h-8 w-8 text-blue-600" />
               </div>
@@ -1198,22 +1032,17 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Cancelados Año
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Cancelados Año</p>
                   <p className="text-2xl font-bold text-red-600">
                     {
                       embarques.filter(
                         (e) =>
                           e.estado === "cancelado" &&
-                          new Date(e.fecha_creacion).getFullYear() ===
-                            new Date().getFullYear()
+                          new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
                       ).length
                     }
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Cancelados en {new Date().getFullYear()}
-                  </p>
+                  <p className="text-xs text-gray-500">Cancelados en {new Date().getFullYear()}</p>
                 </div>
                 <Package className="h-8 w-8 text-red-600" />
               </div>
@@ -1223,22 +1052,17 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Archivados Año
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Archivados Año</p>
                   <p className="text-2xl font-bold text-purple-600">
                     {
                       embarques.filter(
                         (e) =>
                           e.estado === "archivado" &&
-                          new Date(e.fecha_creacion).getFullYear() ===
-                            new Date().getFullYear()
+                          new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
                       ).length
                     }
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Archivados en {new Date().getFullYear()}
-                  </p>
+                  <p className="text-xs text-gray-500">Archivados en {new Date().getFullYear()}</p>
                 </div>
                 <Package className="h-8 w-8 text-purple-600" />
               </div>
@@ -1248,15 +1072,11 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Finalizados
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Finalizados</p>
                   <p className="text-2xl font-bold text-green-600">
                     {embarques.filter((e) => e.estado === "finalizado").length}
                   </p>
-                  <p className="text-xs text-gray-500">
-                    Completados exitosamente
-                  </p>
+                  <p className="text-xs text-gray-500">Completados exitosamente</p>
                 </div>
                 <Package className="h-8 w-8 text-green-600" />
               </div>
@@ -1266,28 +1086,20 @@ export default function EmbarquesPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">
-                    Eficiencia
-                  </p>
+                  <p className="text-sm font-medium text-gray-600">Eficiencia</p>
                   <p className="text-2xl font-bold text-blue-600">
-                    {embarques.filter(
-                      (e) =>
-                        new Date(e.fecha_creacion).getFullYear() ===
-                        new Date().getFullYear()
-                    ).length > 0
+                    {embarques.filter((e) => new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear())
+                      .length > 0
                       ? Math.round(
                           (embarques.filter(
                             (e) =>
                               e.estado === "finalizado" &&
-                              new Date(e.fecha_creacion).getFullYear() ===
-                                new Date().getFullYear()
+                              new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
                           ).length /
                             embarques.filter(
-                              (e) =>
-                                new Date(e.fecha_creacion).getFullYear() ===
-                                new Date().getFullYear()
+                              (e) => new Date(e.fecha_creacion).getFullYear() === new Date().getFullYear(),
                             ).length) *
-                            100
+                            100,
                         )
                       : 0}
                     %
@@ -1323,9 +1135,7 @@ export default function EmbarquesPage() {
                 <SelectItem value="todos">Todos los estados</SelectItem>
                 <SelectItem value="activos">Activos</SelectItem>
                 <SelectItem value="creado">Creado</SelectItem>
-                <SelectItem value="listo-para-asignar">
-                  Listo para Asignar
-                </SelectItem>
+                <SelectItem value="listo-para-asignar">Listo para Asignar</SelectItem>
                 <SelectItem value="asignado">Asignado</SelectItem>
                 <SelectItem value="en-transito">En Tránsito</SelectItem>
                 <SelectItem value="finalizado">Finalizado</SelectItem>
@@ -1346,9 +1156,7 @@ export default function EmbarquesPage() {
             <Card
               key={embarque.id}
               className={`border rounded-lg p-4 hover:bg-gray-50 transition-colors ${
-                embarque.estado === "contingencia"
-                  ? "border-red-500 bg-red-50"
-                  : ""
+                embarque.estado === "contingencia" ? "border-red-500 bg-red-50" : ""
               }`}
             >
               <CardHeader>
@@ -1356,9 +1164,7 @@ export default function EmbarquesPage() {
                   <div>
                     <div className="flex items-center">
                       <CardTitle className="text-lg flex items-center gap-2">
-                        <span className="font-mono">
-                          Folio: {embarque.folio}
-                        </span>
+                        <span className="font-mono">Folio: {embarque.folio}</span>
                         {embarque.estado === "contingencia" && (
                           <span
                             className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-600 text-white text-xs font-semibold shadow-lg ml-1"
@@ -1370,10 +1176,8 @@ export default function EmbarquesPage() {
                       </CardTitle>
                     </div>
                     <CardDescription>
-                      {embarque.cliente?.nombre &&
-                        `Cliente: ${embarque.cliente.nombre}`}
-                      {embarque.operador &&
-                        ` • Operador: ${embarque.operador.nombre} ${embarque.operador.apellidos}`}
+                      {embarque.cliente?.nombre && `Cliente: ${embarque.cliente.nombre}`}
+                      {embarque.operador && ` • Operador: ${embarque.operador.nombre} ${embarque.operador.apellidos}`}
                       {embarque.info_representante &&
                         ` • Representante: ${
                           embarque.info_representante.nombre
@@ -1388,63 +1192,50 @@ export default function EmbarquesPage() {
                           Contingencia
                         </span>
                         <span className="absolute left-0 -top-7 z-10 px-2 py-1 text-xs rounded bg-red-700 text-white shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                          Este embarque fue marcado como contingencia en
-                          asignación y requiere atención especial.
+                          Este embarque fue marcado como contingencia en asignación y requiere atención especial.
                         </span>
                       </div>
                     )}
                     <div className="flex space-x-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleViewDetails(embarque)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => handleViewDetails(embarque)}>
                         <Eye className="h-4 w-4 mr-1" />
-                        {embarque.estado === "archivado"
-                          ? "Ver Archivo"
-                          : "Ver Detalles"}
+                        {embarque.estado === "archivado" ? "Ver Archivo" : "Ver Detalles"}
                       </Button>
 
                       {embarque.estado === "creado" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => marcarComoCompletado(embarque)}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => marcarComoCompletado(embarque)}>
                           <Package className="h-4 w-4 mr-1" />
                           Completar y Enviar
                         </Button>
                       )}
 
                       {embarque.estado === "listo-para-asignar" && (
-                        <Badge className="bg-green-100 text-green-800">
-                          Listo para Asignar
-                        </Badge>
+                        <Badge className="bg-green-100 text-green-800">Listo para Asignar</Badge>
+                      )}
+
+                      {/* Nuevo botón para enviar link si está asignado o en tránsito */}
+                      {(embarque.estado === "asignado" || embarque.estado === "en-transito") && (
+                        <Button variant="outline" size="sm" onClick={() => handleGenerateLink(embarque.id)}>
+                          <Link className="h-4 w-4 mr-1" />
+                          Enviar Link
+                        </Button>
                       )}
 
                       {embarque.estado === "finalizado" && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateEstado(embarque, "archivado")}
-                        >
+                        <Button variant="outline" size="sm" onClick={() => updateEstado(embarque, "archivado")}>
                           Archivar
                         </Button>
                       )}
 
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(embarque)}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(embarque)}>
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setCancelingEmbarque(embarque);
-                          setShowCancelModal(true);
+                          setCancelingEmbarque(embarque)
+                          setShowCancelModal(true)
                         }}
                         disabled={embarque.estado === "listo-para-asignar"}
                       >
@@ -1461,9 +1252,7 @@ export default function EmbarquesPage() {
                     <div>
                       <p className="font-medium">Recolecta</p>
                       {embarque.direccion_recolecta && (
-                        <p className="text-xs text-gray-500">
-                          {embarque.direccion_recolecta}
-                        </p>
+                        <p className="text-xs text-gray-500">{embarque.direccion_recolecta}</p>
                       )}
                     </div>
                   </div>
@@ -1473,11 +1262,8 @@ export default function EmbarquesPage() {
                       <div>
                         <p className="font-medium">Fecha Recolecta</p>
                         <p className="text-gray-600">
-                          {new Date(
-                            embarque.fecha_recolecta
-                          ).toLocaleDateString()}
-                          {embarque.hora_recolecta &&
-                            ` ${embarque.hora_recolecta}`}
+                          {new Date(embarque.fecha_recolecta).toLocaleDateString()}
+                          {embarque.hora_recolecta && ` ${embarque.hora_recolecta}`}
                         </p>
                       </div>
                     </div>
@@ -1487,9 +1273,7 @@ export default function EmbarquesPage() {
                     <div>
                       <p className="font-medium">Entrega</p>
                       {embarque.direccion_entrega && (
-                        <p className="text-xs text-gray-500">
-                          {embarque.direccion_entrega}
-                        </p>
+                        <p className="text-xs text-gray-500">{embarque.direccion_entrega}</p>
                       )}
                     </div>
                   </div>
@@ -1499,9 +1283,7 @@ export default function EmbarquesPage() {
                       <div>
                         <p className="font-medium">Fecha Entrega</p>
                         <p className="text-gray-600">
-                          {new Date(
-                            embarque.fecha_entrega
-                          ).toLocaleDateString()}
+                          {new Date(embarque.fecha_entrega).toLocaleDateString()}
                           {embarque.hora_entrega && ` ${embarque.hora_entrega}`}
                         </p>
                       </div>
@@ -1515,9 +1297,7 @@ export default function EmbarquesPage() {
                       <Truck className="h-4 w-4 text-gray-400" />
                       <div>
                         <p className="font-medium">Camión</p>
-                        <p className="text-xs text-gray-500">
-                          {embarque.camion.numero_economico}
-                        </p>
+                        <p className="text-xs text-gray-500">{embarque.camion.numero_economico}</p>
                       </div>
                     </div>
                   )}
@@ -1527,9 +1307,7 @@ export default function EmbarquesPage() {
                       <Package className="h-4 w-4 text-gray-400" />
                       <div>
                         <p className="font-medium">Tipo de Servicio</p>
-                        <p className="text-xs text-gray-500">
-                          {getServiceDisplayName(embarque.tipo_servicio_id)}
-                        </p>
+                        <p className="text-xs text-gray-500">{getServiceDisplayName(embarque.tipo_servicio_id)}</p>
                       </div>
                     </div>
                   )}
@@ -1540,32 +1318,26 @@ export default function EmbarquesPage() {
                   embarque.aduana_cruce ||
                   embarque.dueno_mercancia) && (
                   <div className="bg-blue-50 p-3 rounded-lg">
-                    <h4 className="font-medium text-sm mb-2">
-                      Información Aduanal
-                    </h4>
+                    <h4 className="font-medium text-sm mb-2">Información Aduanal</h4>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
                       {embarque.load_number && (
                         <div>
-                          <span className="font-medium">Load:</span>{" "}
-                          {embarque.load_number}
+                          <span className="font-medium">Load:</span> {embarque.load_number}
                         </div>
                       )}
                       {embarque.patente_agente_aduanal && (
                         <div>
-                          <span className="font-medium">Patente:</span>{" "}
-                          {embarque.patente_agente_aduanal}
+                          <span className="font-medium">Patente:</span> {embarque.patente_agente_aduanal}
                         </div>
                       )}
                       {embarque.aduana_cruce && (
                         <div>
-                          <span className="font-medium">Aduana:</span>{" "}
-                          {embarque.aduana_cruce}
+                          <span className="font-medium">Aduana:</span> {embarque.aduana_cruce}
                         </div>
                       )}
                       {embarque.dueno_mercancia && (
                         <div>
-                          <span className="font-medium">Dueño:</span>{" "}
-                          {embarque.dueno_mercancia}
+                          <span className="font-medium">Dueño:</span> {embarque.dueno_mercancia}
                         </div>
                       )}
                     </div>
@@ -1589,8 +1361,7 @@ export default function EmbarquesPage() {
                 )}
 
                 <div className="text-xs text-gray-400">
-                  Creado:{" "}
-                  {new Date(embarque.fecha_creacion).toLocaleDateString()}
+                  Creado: {new Date(embarque.fecha_creacion).toLocaleDateString()}
                 </div>
               </CardContent>
             </Card>
@@ -1602,11 +1373,7 @@ export default function EmbarquesPage() {
             <CardContent className="text-center py-8">
               <Truck className="h-12 w-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-500">No se encontraron embarques</p>
-              {searchTerm && (
-                <p className="text-sm text-gray-400 mt-1">
-                  Intenta con otros términos de búsqueda
-                </p>
-              )}
+              {searchTerm && <p className="text-sm text-gray-400 mt-1">Intenta con otros términos de búsqueda</p>}
             </CardContent>
           </Card>
         )}
@@ -1616,30 +1383,24 @@ export default function EmbarquesPage() {
           open={showCreateModal || showEditModal}
           onOpenChange={(open) => {
             if (!open) {
-              setShowCreateModal(false);
-              setShowEditModal(false);
-              setEmbarqueEditando(null);
-              resetForm();
+              setShowCreateModal(false)
+              setShowEditModal(false)
+              setEmbarqueEditando(null)
+              resetForm()
             }
           }}
         >
           <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                {embarqueEditando ? "Modificar Embarque" : "Nuevo Embarque"}
-              </DialogTitle>
-              <DialogDescription>
-                Completa la información del embarque
-              </DialogDescription>
+              <DialogTitle>{embarqueEditando ? "Modificar Embarque" : "Nuevo Embarque"}</DialogTitle>
+              <DialogDescription>Completa la información del embarque</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-6">
               <Card>
                 <CardHeader>
                   <div className="flex justify-between items-center">
-                    <CardTitle className="text-lg">
-                      Información Básica
-                    </CardTitle>
+                    <CardTitle className="text-lg">Información Básica</CardTitle>
                     {!embarqueEditando && (
                       <Button
                         type="button"
@@ -1656,9 +1417,7 @@ export default function EmbarquesPage() {
                 <CardContent className="space-y-4">
                   <Tabs defaultValue="basica" className="w-full">
                     <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="basica">
-                        Información Básica
-                      </TabsTrigger>
+                      <TabsTrigger value="basica">Información Básica</TabsTrigger>
                       <TabsTrigger value="direcciones">Direcciones</TabsTrigger>
                       <TabsTrigger value="vehiculos">Vehículos</TabsTrigger>
                       <TabsTrigger value="detalles">Detalles</TabsTrigger>
@@ -1670,23 +1429,17 @@ export default function EmbarquesPage() {
                           <Label htmlFor="folio">Folio</Label>
                           <Input
                             id="folio"
-                            value={
-                              embarqueEditando ? formData.folio : proximoFolio
-                            }
+                            value={embarqueEditando ? formData.folio : proximoFolio}
                             disabled
                             className="bg-gray-50 font-mono"
                             placeholder="Generando folio..."
                           />
                           <p className="text-xs text-gray-500">
-                            {embarqueEditando
-                              ? "Folio asignado"
-                              : "Folio que se asignará automáticamente"}
+                            {embarqueEditando ? "Folio asignado" : "Folio que se asignará automáticamente"}
                           </p>
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="carta_porte">
-                            Número de Carta Porte
-                          </Label>
+                          <Label htmlFor="carta_porte">Número de Carta Porte</Label>
                           <Input
                             id="carta_porte"
                             value={formData.carta_porte}
@@ -1703,9 +1456,7 @@ export default function EmbarquesPage() {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label htmlFor="tipo_servicio_id">
-                            Tipo de Servicio
-                          </Label>
+                          <Label htmlFor="tipo_servicio_id">Tipo de Servicio</Label>
                           <Select
                             value={formData.tipo_servicio_id || "none"}
                             onValueChange={(value) =>
@@ -1719,9 +1470,7 @@ export default function EmbarquesPage() {
                               <SelectValue
                                 placeholder={
                                   formData.tipo_servicio_id
-                                    ? getServiceDisplayName(
-                                        formData.tipo_servicio_id
-                                      )
+                                    ? getServiceDisplayName(formData.tipo_servicio_id)
                                     : "Seleccionar tipo de servicio"
                                 }
                               />
@@ -1744,8 +1493,7 @@ export default function EmbarquesPage() {
                                     EXPORTACIÓN CARGADA - CAJA SECA (LARMEX) 240
                                   </SelectItem>
                                   <SelectItem value="exportacion-cargada-thermo-agricultura-240">
-                                    EXPORTACIÓN CARGADA - THERMO (AGRICULTURA)
-                                    240
+                                    EXPORTACIÓN CARGADA - THERMO (AGRICULTURA) 240
                                   </SelectItem>
                                   <SelectItem value="exportacion-cargada-plataforma-240">
                                     EXPORTACIÓN CARGADA - PLATAFORMA 240
@@ -1760,8 +1508,7 @@ export default function EmbarquesPage() {
                                     IMPORTACIÓN VACÍA - CAJA SECA/THERMO 240
                                   </SelectItem>
                                   <SelectItem value="importacion-cargada-plataforma-amarre-240">
-                                    IMPORTACIÓN CARGADA - PLATAFORMA CON AMARRE
-                                    240
+                                    IMPORTACIÓN CARGADA - PLATAFORMA CON AMARRE 240
                                   </SelectItem>
                                   <SelectItem value="importacion-en-tractor-240">
                                     IMPORTACIÓN - EN TRACTOR 240
@@ -1784,21 +1531,11 @@ export default function EmbarquesPage() {
                                   <SelectItem value="importacion-vacia-plataforma-800">
                                     IMPORTACIÓN VACÍA - PLATAFORMA 800
                                   </SelectItem>
-                                  <SelectItem value="pagos-extras">
-                                    PAGOS EXTRAS
-                                  </SelectItem>
-                                  <SelectItem value="horas-rojo-amarillo">
-                                    HORAS ROJO/AMARILLO
-                                  </SelectItem>
-                                  <SelectItem value="cargas-descargas">
-                                    CARGAS/DESCARGAS
-                                  </SelectItem>
-                                  <SelectItem value="movimientos-en-falso">
-                                    MOVIMIENTOS EN FALSO
-                                  </SelectItem>
-                                  <SelectItem value="movimientos-locales">
-                                    MOVIMIENTOS LOCALES
-                                  </SelectItem>
+                                  <SelectItem value="pagos-extras">PAGOS EXTRAS</SelectItem>
+                                  <SelectItem value="horas-rojo-amarillo">HORAS ROJO/AMARILLO</SelectItem>
+                                  <SelectItem value="cargas-descargas">CARGAS/DESCARGAS</SelectItem>
+                                  <SelectItem value="movimientos-en-falso">MOVIMIENTOS EN FALSO</SelectItem>
+                                  <SelectItem value="movimientos-locales">MOVIMIENTOS LOCALES</SelectItem>
                                   <SelectItem value="otro">OTRO</SelectItem>
                                 </>
                               )}
@@ -1810,13 +1547,13 @@ export default function EmbarquesPage() {
                           <Select
                             value={formData.cliente_id}
                             onValueChange={(value) => {
-                              console.log("Cliente seleccionado:", value);
+                              console.log("Cliente seleccionado:", value)
                               setFormData({
                                 ...formData,
                                 cliente_id: value,
                                 representante_cliente: "",
-                              });
-                              cargarContactos(value);
+                              })
+                              cargarContactos(value)
                             }}
                           >
                             <SelectTrigger>
@@ -1826,8 +1563,7 @@ export default function EmbarquesPage() {
                               <SelectItem value="none">Sin asignar</SelectItem>
                               {clientes.map((cliente) => (
                                 <SelectItem key={cliente.id} value={cliente.id}>
-                                  {cliente.nombre}{" "}
-                                  {cliente.empresa && `- ${cliente.empresa}`}
+                                  {cliente.nombre} {cliente.empresa && `- ${cliente.empresa}`}
                                 </SelectItem>
                               ))}
                             </SelectContent>
@@ -1836,9 +1572,7 @@ export default function EmbarquesPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <Label htmlFor="representante_cliente">
-                          Contacto del Cliente
-                        </Label>
+                        <Label htmlFor="representante_cliente">Contacto del Cliente</Label>
                         <Select
                           value={formData.representante_cliente}
                           onValueChange={(value) =>
@@ -1847,20 +1581,16 @@ export default function EmbarquesPage() {
                               representante_cliente: value,
                             })
                           }
-                          disabled={
-                            !formData.cliente_id ||
-                            formData.cliente_id === "none"
-                          }
+                          disabled={!formData.cliente_id || formData.cliente_id === "none"}
                         >
                           <SelectTrigger>
                             <SelectValue
                               placeholder={
-                                !formData.cliente_id ||
-                                formData.cliente_id === "none"
+                                !formData.cliente_id || formData.cliente_id === "none"
                                   ? "Primero selecciona un cliente"
                                   : contactos.length === 0
-                                  ? "No hay contactos registrados"
-                                  : "Seleccionar contacto"
+                                    ? "No hay contactos registrados"
+                                    : "Seleccionar contacto"
                               }
                             />
                           </SelectTrigger>
@@ -1868,45 +1598,35 @@ export default function EmbarquesPage() {
                             <SelectItem value="none">Sin asignar</SelectItem>
                             {contactos.length > 0
                               ? contactos.map((contacto) => (
-                                  <SelectItem
-                                    key={contacto.id}
-                                    value={contacto.id}
-                                  >
-                                    {contacto.nombre}{" "}
-                                    {contacto.puesto && `- ${contacto.puesto}`}
+                                  <SelectItem key={contacto.id} value={contacto.id}>
+                                    {contacto.nombre} {contacto.puesto && `- ${contacto.puesto}`}
                                     {contacto.es_principal && " (Principal)"}
                                   </SelectItem>
                                 ))
                               : formData.cliente_id &&
                                 formData.cliente_id !== "none" && (
                                   <SelectItem value="no-contacts" disabled>
-                                    No hay contactos registrados para este
-                                    cliente
+                                    No hay contactos registrados para este cliente
                                   </SelectItem>
                                 )}
                           </SelectContent>
                         </Select>
-                        {formData.cliente_id &&
-                          formData.cliente_id !== "none" && (
-                            <p className="text-xs text-gray-500">
-                              {contactos.length > 0
-                                ? `${contactos.length} contacto(s) disponible(s)`
-                                : "No hay contactos registrados para este cliente"}
-                            </p>
-                          )}
+                        {formData.cliente_id && formData.cliente_id !== "none" && (
+                          <p className="text-xs text-gray-500">
+                            {contactos.length > 0
+                              ? `${contactos.length} contacto(s) disponible(s)`
+                              : "No hay contactos registrados para este cliente"}
+                          </p>
+                        )}
                       </div>
                     </TabsContent>
 
                     <TabsContent value="direcciones" className="space-y-4 mt-6">
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información de Recolecta
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información de Recolecta</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="direccion_recolecta">
-                              Dirección de Recolecta *
-                            </Label>
+                            <Label htmlFor="direccion_recolecta">Dirección de Recolecta *</Label>
                             <Textarea
                               id="direccion_recolecta"
                               value={formData.direccion_recolecta}
@@ -1923,9 +1643,7 @@ export default function EmbarquesPage() {
                           </div>
                           <div className="space-y-4">
                             <div className="space-y-2">
-                              <Label htmlFor="fecha_recolecta">
-                                Fecha de Recolecta
-                              </Label>
+                              <Label htmlFor="fecha_recolecta">Fecha de Recolecta</Label>
                               <Input
                                 id="fecha_recolecta"
                                 type="date"
@@ -1939,9 +1657,7 @@ export default function EmbarquesPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="hora_recolecta">
-                                Hora de Recolecta
-                              </Label>
+                              <Label htmlFor="hora_recolecta">Hora de Recolecta</Label>
                               <Input
                                 id="hora_recolecta"
                                 type="time"
@@ -1959,14 +1675,10 @@ export default function EmbarquesPage() {
                       </div>
 
                       <div className="space-y-4 border-t pt-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información de Entrega
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información de Entrega</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2 md:col-span-2">
-                            <Label htmlFor="direccion_entrega">
-                              Dirección de Entrega *
-                            </Label>
+                            <Label htmlFor="direccion_entrega">Dirección de Entrega *</Label>
                             <Textarea
                               id="direccion_entrega"
                               value={formData.direccion_entrega}
@@ -1983,9 +1695,7 @@ export default function EmbarquesPage() {
                           </div>
                           <div className="space-y-4">
                             <div className="space-y-2">
-                              <Label htmlFor="fecha_entrega">
-                                Fecha de Entrega
-                              </Label>
+                              <Label htmlFor="fecha_entrega">Fecha de Entrega</Label>
                               <Input
                                 id="fecha_entrega"
                                 type="date"
@@ -1999,9 +1709,7 @@ export default function EmbarquesPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="hora_entrega">
-                                Hora de Entrega
-                              </Label>
+                              <Label htmlFor="hora_entrega">Hora de Entrega</Label>
                               <Input
                                 id="hora_entrega"
                                 type="time"
@@ -2020,16 +1728,12 @@ export default function EmbarquesPage() {
                     </TabsContent>
 
                     <TabsContent value="vehiculos" className="space-y-4 mt-6">
-                      <p className="text-xs text-gray-500">
-                        El tractocamión y operador se asignarán posteriormente
-                      </p>
+                      <p className="text-xs text-gray-500">El tractocamión y operador se asignarán posteriormente</p>
                     </TabsContent>
 
                     <TabsContent value="detalles" className="space-y-4 mt-6">
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información Aduanal (Opcional)
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información Aduanal (Opcional)</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="load_number">Load Number</Label>
@@ -2046,9 +1750,7 @@ export default function EmbarquesPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="patente_agente_aduanal">
-                              Patente Agente Aduanal
-                            </Label>
+                            <Label htmlFor="patente_agente_aduanal">Patente Agente Aduanal</Label>
                             <Input
                               id="patente_agente_aduanal"
                               value={formData.patente_agente_aduanal}
@@ -2062,9 +1764,7 @@ export default function EmbarquesPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="aduana_cruce">
-                              Aduana de Cruce
-                            </Label>
+                            <Label htmlFor="aduana_cruce">Aduana de Cruce</Label>
                             <Input
                               id="aduana_cruce"
                               value={formData.aduana_cruce}
@@ -2078,9 +1778,7 @@ export default function EmbarquesPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="dueno_mercancia">
-                              Dueño de la Mercancía
-                            </Label>
+                            <Label htmlFor="dueno_mercancia">Dueño de la Mercancía</Label>
                             <Input
                               id="dueno_mercancia"
                               value={formData.dueno_mercancia}
@@ -2097,9 +1795,7 @@ export default function EmbarquesPage() {
                       </div>
 
                       <div className="space-y-4 border-t pt-4">
-                        <h4 className="font-medium text-gray-900">
-                          Detalles del Embarque
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Detalles del Embarque</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2">
                             <Label htmlFor="contenido">Contenido</Label>
@@ -2162,10 +1858,10 @@ export default function EmbarquesPage() {
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setShowCreateModal(false);
-                    setShowEditModal(false);
-                    setEmbarqueEditando(null);
-                    resetForm();
+                    setShowCreateModal(false)
+                    setShowEditModal(false)
+                    setEmbarqueEditando(null)
+                    resetForm()
                   }}
                   disabled={saving}
                 >
@@ -2194,8 +1890,7 @@ export default function EmbarquesPage() {
             <DialogHeader>
               <DialogTitle>Cancelar Embarque</DialogTitle>
               <DialogDescription>
-                ¿Estás seguro de que deseas cancelar el embarque{" "}
-                {cancelingEmbarque?.folio}?
+                ¿Estás seguro de que deseas cancelar el embarque {cancelingEmbarque?.folio}?
                 <br />
                 <strong>Esta acción no se puede deshacer.</strong>
               </DialogDescription>
@@ -2203,9 +1898,7 @@ export default function EmbarquesPage() {
 
             <div className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="cancel-reason">
-                  Justificación de la cancelación *
-                </Label>
+                <Label htmlFor="cancel-reason">Justificación de la cancelación *</Label>
                 <Textarea
                   id="cancel-reason"
                   value={cancelReason}
@@ -2221,9 +1914,9 @@ export default function EmbarquesPage() {
               <Button
                 variant="outline"
                 onClick={() => {
-                  setShowCancelModal(false);
-                  setCancelingEmbarque(null);
-                  setCancelReason("");
+                  setShowCancelModal(false)
+                  setCancelingEmbarque(null)
+                  setCancelReason("")
                 }}
                 disabled={saving}
               >
@@ -2251,12 +1944,8 @@ export default function EmbarquesPage() {
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>
-                Detalles del Embarque {embarqueDetalle?.folio}
-              </DialogTitle>
-              <DialogDescription>
-                Información completa del embarque
-              </DialogDescription>
+              <DialogTitle>Detalles del Embarque {embarqueDetalle?.folio}</DialogTitle>
+              <DialogDescription>Información completa del embarque</DialogDescription>
             </DialogHeader>
 
             {embarqueDetalle && (
@@ -2264,64 +1953,45 @@ export default function EmbarquesPage() {
                 <Tabs defaultValue="general" className="w-full">
                   <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="general">General</TabsTrigger>
-                    <TabsTrigger value="direcciones">
-                      Direcciones y Fechas
-                    </TabsTrigger>
+                    <TabsTrigger value="direcciones">Direcciones y Fechas</TabsTrigger>
                     <TabsTrigger value="vehiculos">Vehículos</TabsTrigger>
                     <TabsTrigger value="facturacion">Facturación</TabsTrigger>
+                    <TabsTrigger value="archivos">Archivos Adjuntos</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="general" className="space-y-4 mt-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Folio
-                        </Label>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                          {embarqueDetalle.folio}
-                        </p>
+                        <Label className="text-sm font-medium text-gray-700">Folio</Label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">{embarqueDetalle.folio}</p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Load Number
-                        </Label>
+                        <Label className="text-sm font-medium text-gray-700">Load Number</Label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                           {embarqueDetalle.load_number || "Sin asignar"}
                         </p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Estado
-                        </Label>
-                        <div className="mt-1">
-                          {getEstadoBadge(embarqueDetalle.estado)}
-                        </div>
+                        <Label className="text-sm font-medium text-gray-700">Estado</Label>
+                        <div className="mt-1">{getEstadoBadge(embarqueDetalle.estado)}</div>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Cliente
-                        </Label>
+                        <Label className="text-sm font-medium text-gray-700">Cliente</Label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                           {embarqueDetalle.cliente?.nombre || "Sin asignar"}
                         </p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Carta Porte
-                        </Label>
+                        <Label className="text-sm font-medium text-gray-700">Carta Porte</Label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                           {embarqueDetalle.carta_porte || "Sin asignar"}
                         </p>
                       </div>
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Tipo de Servicio
-                        </Label>
+                        <Label className="text-sm font-medium text-gray-700">Tipo de Servicio</Label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                           {embarqueDetalle.tipo_servicio_id
-                            ? getServiceDisplayName(
-                                embarqueDetalle.tipo_servicio_id
-                              )
+                            ? getServiceDisplayName(embarqueDetalle.tipo_servicio_id)
                             : "Sin asignar"}
                         </p>
                       </div>
@@ -2329,20 +1999,14 @@ export default function EmbarquesPage() {
 
                     {embarqueDetalle.contenido && (
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Contenido
-                        </Label>
-                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">
-                          {embarqueDetalle.contenido}
-                        </p>
+                        <Label className="text-sm font-medium text-gray-700">Contenido</Label>
+                        <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">{embarqueDetalle.contenido}</p>
                       </div>
                     )}
 
                     {embarqueDetalle.observaciones && (
                       <div>
-                        <Label className="text-sm font-medium text-gray-700">
-                          Observaciones
-                        </Label>
+                        <Label className="text-sm font-medium text-gray-700">Observaciones</Label>
                         <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">
                           {embarqueDetalle.observaciones}
                         </p>
@@ -2353,29 +2017,20 @@ export default function EmbarquesPage() {
                   <TabsContent value="direcciones" className="space-y-4 mt-6">
                     <div className="space-y-6">
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información de Recolecta
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información de Recolecta</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="md:col-span-2">
-                            <Label className="text-sm font-medium text-gray-700">
-                              Dirección de Recolecta
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Dirección de Recolecta</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">
-                              {embarqueDetalle.direccion_recolecta ||
-                                "Sin especificar"}
+                              {embarqueDetalle.direccion_recolecta || "Sin especificar"}
                             </p>
                           </div>
                           <div className="space-y-4">
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Fecha de Recolecta
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Fecha de Recolecta</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                                 {embarqueDetalle.fecha_recolecta
-                                  ? new Date(
-                                      embarqueDetalle.fecha_recolecta
-                                    ).toLocaleDateString("es-MX", {
+                                  ? new Date(embarqueDetalle.fecha_recolecta).toLocaleDateString("es-MX", {
                                       weekday: "long",
                                       year: "numeric",
                                       month: "long",
@@ -2385,12 +2040,9 @@ export default function EmbarquesPage() {
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Hora de Recolecta
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Hora de Recolecta</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                                {embarqueDetalle.hora_recolecta ||
-                                  "Sin especificar"}
+                                {embarqueDetalle.hora_recolecta || "Sin especificar"}
                               </p>
                             </div>
                           </div>
@@ -2398,29 +2050,20 @@ export default function EmbarquesPage() {
                       </div>
 
                       <div className="space-y-4 border-t pt-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información de Entrega
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información de Entrega</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="md:col-span-2">
-                            <Label className="text-sm font-medium text-gray-700">
-                              Dirección de Entrega
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Dirección de Entrega</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">
-                              {embarqueDetalle.direccion_entrega ||
-                                "Sin especificar"}
+                              {embarqueDetalle.direccion_entrega || "Sin especificar"}
                             </p>
                           </div>
                           <div className="space-y-4">
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Fecha de Entrega
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Fecha de Entrega</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                                 {embarqueDetalle.fecha_entrega
-                                  ? new Date(
-                                      embarqueDetalle.fecha_entrega
-                                    ).toLocaleDateString("es-MX", {
+                                  ? new Date(embarqueDetalle.fecha_entrega).toLocaleDateString("es-MX", {
                                       weekday: "long",
                                       year: "numeric",
                                       month: "long",
@@ -2430,12 +2073,9 @@ export default function EmbarquesPage() {
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Hora de Entrega
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Hora de Entrega</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                                {embarqueDetalle.hora_entrega ||
-                                  "Sin especificar"}
+                                {embarqueDetalle.hora_entrega || "Sin especificar"}
                               </p>
                             </div>
                           </div>
@@ -2450,70 +2090,51 @@ export default function EmbarquesPage() {
                     embarqueDetalle.remolque ||
                     embarqueDetalle.remolque_numero_economico ? (
                       <div className="space-y-4">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Asignación de Recursos
-                        </h3>
+                        <h3 className="text-lg font-semibold text-gray-900">Asignación de Recursos</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                           {embarqueDetalle.operador && (
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Operador
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Operador</Label>
                               <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
-                                {embarqueDetalle.operador.nombre}{" "}
-                                {embarqueDetalle.operador.apellidos}
+                                {embarqueDetalle.operador.nombre} {embarqueDetalle.operador.apellidos}
                               </p>
                               {embarqueDetalle.operador.telefono && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                  Tel: {embarqueDetalle.operador.telefono}
-                                </p>
+                                <p className="text-xs text-gray-500 mt-1">Tel: {embarqueDetalle.operador.telefono}</p>
                               )}
                             </div>
                           )}
                           {embarqueDetalle.camion && (
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Camión
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Camión</Label>
                               <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
-                                {embarqueDetalle.camion.marca}{" "}
-                                {embarqueDetalle.camion.modelo}
+                                {embarqueDetalle.camion.marca} {embarqueDetalle.camion.modelo}
                               </p>
                               <p className="text-xs text-gray-500 mt-1">
-                                Económico:{" "}
-                                {embarqueDetalle.camion.numero_economico} |
-                                Placas: {embarqueDetalle.camion.placas}
+                                Económico: {embarqueDetalle.camion.numero_economico} | Placas:{" "}
+                                {embarqueDetalle.camion.placas}
                               </p>
                             </div>
                           )}
-                          {embarqueDetalle.remolque_numero_economico &&
-                          !embarqueDetalle.remolque ? (
+                          {embarqueDetalle.remolque_numero_economico && !embarqueDetalle.remolque ? (
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Remolque (Manual)
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Remolque (Manual)</Label>
                               <p className="text-sm text-gray-900 bg-yellow-50 p-2 rounded mt-1 border border-yellow-200">
                                 {embarqueDetalle.remolque_numero_economico}
                               </p>
                               <p className="text-xs text-yellow-700 mt-1">
-                                Placas: {embarqueDetalle.remolque_placa} |
-                                Captura temporal
+                                Placas: {embarqueDetalle.remolque_placa} | Captura temporal
                               </p>
                             </div>
                           ) : (
                             embarqueDetalle.remolque && (
                               <div>
-                                <Label className="text-sm font-medium text-gray-700">
-                                  Remolque
-                                </Label>
+                                <Label className="text-sm font-medium text-gray-700">Remolque</Label>
                                 <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
-                                  {embarqueDetalle.remolque.marca}{" "}
-                                  {embarqueDetalle.remolque.modelo}
+                                  {embarqueDetalle.remolque.marca} {embarqueDetalle.remolque.modelo}
                                 </p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  Económico:{" "}
-                                  {embarqueDetalle.remolque.numero_economico} |
-                                  Placas: {embarqueDetalle.remolque.placas}
+                                  Económico: {embarqueDetalle.remolque.numero_economico} | Placas:{" "}
+                                  {embarqueDetalle.remolque.placas}
                                 </p>
                               </div>
                             )
@@ -2523,9 +2144,7 @@ export default function EmbarquesPage() {
                     ) : (
                       <div className="text-center py-8">
                         <Truck className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-500">
-                          No hay vehículos asignados
-                        </p>
+                        <p className="text-gray-500">No hay vehículos asignados</p>
                         <p className="text-sm text-gray-400 mt-1">
                           Los vehículos se asignarán en la fase de asignación
                         </p>
@@ -2536,62 +2155,44 @@ export default function EmbarquesPage() {
                   <TabsContent value="facturacion" className="space-y-4 mt-6">
                     <div className="space-y-6">
                       <div className="space-y-4">
-                        <h4 className="font-medium text-gray-900">
-                          Información de Facturación
-                        </h4>
+                        <h4 className="font-medium text-gray-900">Información de Facturación</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
-                            <Label className="text-sm font-medium text-gray-700">
-                              Empresa Facturadora
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Empresa Facturadora</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                              {embarqueDetalle.cliente?.empresa_facturadora ===
-                              "fernando_carbajo"
+                              {embarqueDetalle.cliente?.empresa_facturadora === "fernando_carbajo"
                                 ? "Fernando Carbajo Transportes"
-                                : embarqueDetalle.cliente
-                                    ?.empresa_facturadora === "monarca"
-                                ? "Transportes Monarca"
-                                : "Por definir"}
+                                : embarqueDetalle.cliente?.empresa_facturadora === "monarca"
+                                  ? "Transportes Monarca"
+                                  : "Por definir"}
                             </p>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium text-gray-700">
-                              Método de Pago
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Método de Pago</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                              {embarqueDetalle.cliente?.metodo_pago ===
-                              "efectivo"
+                              {embarqueDetalle.cliente?.metodo_pago === "efectivo"
                                 ? "Efectivo"
-                                : embarqueDetalle.cliente?.metodo_pago ===
-                                  "transferencia"
-                                ? "Transferencia Bancaria"
-                                : embarqueDetalle.cliente?.metodo_pago ===
-                                  "cheque"
-                                ? "Cheque"
-                                : embarqueDetalle.cliente?.metodo_pago ===
-                                  "credito"
-                                ? "Crédito"
-                                : "No especificado"}
+                                : embarqueDetalle.cliente?.metodo_pago === "transferencia"
+                                  ? "Transferencia Bancaria"
+                                  : embarqueDetalle.cliente?.metodo_pago === "cheque"
+                                    ? "Cheque"
+                                    : embarqueDetalle.cliente?.metodo_pago === "credito"
+                                      ? "Crédito"
+                                      : "No especificado"}
                             </p>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium text-gray-700">
-                              Divisa Preferida
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Divisa Preferida</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                              {embarqueDetalle.cliente?.divisa_preferida ===
-                              "USD"
+                              {embarqueDetalle.cliente?.divisa_preferida === "USD"
                                 ? "Dólares Americanos (USD)"
-                                : embarqueDetalle.cliente?.divisa_preferida ===
-                                  "MXN"
-                                ? "Pesos Mexicanos (MXN)"
-                                : "No especificada"}
+                                : embarqueDetalle.cliente?.divisa_preferida === "MXN"
+                                  ? "Pesos Mexicanos (MXN)"
+                                  : "No especificada"}
                             </p>
                           </div>
                           <div>
-                            <Label className="text-sm font-medium text-gray-700">
-                              Días de Crédito
-                            </Label>
+                            <Label className="text-sm font-medium text-gray-700">Días de Crédito</Label>
                             <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
                               {embarqueDetalle.cliente?.dias_credito
                                 ? `${embarqueDetalle.cliente.dias_credito} días`
@@ -2603,33 +2204,24 @@ export default function EmbarquesPage() {
 
                       {embarqueDetalle.cliente?.rfc && (
                         <div className="space-y-4 border-t pt-4">
-                          <h4 className="font-medium text-gray-900">
-                            Datos Fiscales
-                          </h4>
+                          <h4 className="font-medium text-gray-900">Datos Fiscales</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                RFC
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">RFC</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1 font-mono">
                                 {embarqueDetalle.cliente.rfc}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Razón Social
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Razón Social</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-2 rounded mt-1">
-                                {embarqueDetalle.cliente.razon_social ||
-                                  embarqueDetalle.cliente.nombre}
+                                {embarqueDetalle.cliente.razon_social || embarqueDetalle.cliente.nombre}
                               </p>
                             </div>
                           </div>
                           {embarqueDetalle.cliente.direccion_fiscal && (
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Dirección Fiscal
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Dirección Fiscal</Label>
                               <p className="text-sm text-gray-900 bg-gray-50 p-3 rounded mt-1">
                                 {embarqueDetalle.cliente.direccion_fiscal}
                               </p>
@@ -2640,38 +2232,26 @@ export default function EmbarquesPage() {
 
                       {embarqueDetalle.info_representante && (
                         <div className="space-y-4 border-t pt-4">
-                          <h4 className="font-medium text-gray-900">
-                            Contacto del Cliente
-                          </h4>
+                          <h4 className="font-medium text-gray-900">Contacto del Cliente</h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Nombre del Contacto
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Nombre del Contacto</Label>
                               <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
                                 {embarqueDetalle.info_representante.nombre}
-                                {embarqueDetalle.info_representante
-                                  .es_principal && (
-                                  <Badge className="ml-2 bg-green-100 text-green-800 text-xs">
-                                    Principal
-                                  </Badge>
+                                {embarqueDetalle.info_representante.es_principal && (
+                                  <Badge className="ml-2 bg-green-100 text-green-800 text-xs">Principal</Badge>
                                 )}
                               </p>
                             </div>
                             <div>
-                              <Label className="text-sm font-medium text-gray-700">
-                                Puesto
-                              </Label>
+                              <Label className="text-sm font-medium text-gray-700">Puesto</Label>
                               <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
-                                {embarqueDetalle.info_representante.puesto ||
-                                  "No especificado"}
+                                {embarqueDetalle.info_representante.puesto || "No especificado"}
                               </p>
                             </div>
                             {embarqueDetalle.info_representante.telefono && (
                               <div>
-                                <Label className="text-sm font-medium text-gray-700">
-                                  Teléfono
-                                </Label>
+                                <Label className="text-sm font-medium text-gray-700">Teléfono</Label>
                                 <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
                                   {embarqueDetalle.info_representante.telefono}
                                 </p>
@@ -2679,9 +2259,7 @@ export default function EmbarquesPage() {
                             )}
                             {embarqueDetalle.info_representante.email && (
                               <div>
-                                <Label className="text-sm font-medium text-gray-700">
-                                  Email
-                                </Label>
+                                <Label className="text-sm font-medium text-gray-700">Email</Label>
                                 <p className="text-sm text-gray-900 bg-blue-50 p-2 rounded mt-1">
                                   {embarqueDetalle.info_representante.email}
                                 </p>
@@ -2692,6 +2270,47 @@ export default function EmbarquesPage() {
                       )}
                     </div>
                   </TabsContent>
+
+                  <TabsContent value="archivos" className="space-y-4 mt-6">
+                    <h4 className="font-medium text-gray-900">Imágenes del Embarque</h4>
+                    {embarqueFotos.length > 0 ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                        {embarqueFotos.map((foto) => (
+                          <div key={foto.id} className="relative group overflow-hidden rounded-lg border">
+                            <img
+                              src={foto.url_blob || "/placeholder.svg"}
+                              alt={foto.nombre_archivo}
+                              width={200}
+                              height={200}
+                              className="w-full h-32 object-cover"
+                            />
+                            <div className="p-2 text-xs">
+                              <p className="font-medium truncate">{foto.nombre_archivo}</p>
+                              <p className="text-gray-500">Subido por: {foto.subido_por || "Desconocido"}</p>
+                              <p className="text-gray-500">{new Date(foto.fecha_subida).toLocaleDateString()}</p>
+                            </div>
+                            <a
+                              href={foto.url_blob}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                              aria-label={`Ver imagen ${foto.nombre_archivo}`}
+                            >
+                              <ImageIcon className="h-6 w-6" />
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8">
+                        <ImageIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                        <p className="text-gray-500">No hay imágenes adjuntas para este embarque.</p>
+                        <p className="text-sm text-gray-400 mt-1">
+                          El operador puede subir fotos a través del enlace de subida.
+                        </p>
+                      </div>
+                    )}
+                  </TabsContent>
                 </Tabs>
               </div>
             )}
@@ -2701,7 +2320,45 @@ export default function EmbarquesPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Modal para mostrar el enlace generado */}
+        <Dialog open={showLinkModal} onOpenChange={setShowLinkModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Enlace para Subir Fotos</DialogTitle>
+              <DialogDescription>
+                Copia este enlace y envíaselo al operador para que suba las fotos del embarque.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <Label htmlFor="generated-link">Enlace</Label>
+              <div className="flex space-x-2">
+                <Input id="generated-link" value={generatedLink} readOnly />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    navigator.clipboard.writeText(generatedLink)
+                    toast({
+                      title: "Enlace copiado",
+                      description: "El enlace ha sido copiado al portapapeles.",
+                    })
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Asegúrate de que este enlace sea accesible desde el dispositivo del operador.
+              </p>
+            </div>
+
+            <DialogFooter>
+              <Button onClick={() => setShowLinkModal(false)}>Cerrar</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </MainLayout>
-  );
+  )
 }

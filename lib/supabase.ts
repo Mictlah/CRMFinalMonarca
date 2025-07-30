@@ -149,7 +149,6 @@ export interface Remolque {
   activo?: boolean
   fecha_registro: string
   updated_at: string
-  observaciones?: string
 }
 
 export interface Embarque {
@@ -186,12 +185,18 @@ export interface Embarque {
   carta_porte?: string
   tipo_servicio_id?: string
   precio_flete?: number
+  moneda_flete?: "MXN" | "USD"
   currency?: "MXN" | "USD"
+  flete_falso?: boolean
+  modificado?: boolean
   // Relaciones
   cliente?: Cliente
   operador?: Operador
   camion?: Camion
   remolque?: Remolque
+  remolque_manual?: boolean
+  remolque_numero_economico?: string
+  remolque_placa?: string
 }
 
 export interface Recordatorio {
@@ -216,10 +221,12 @@ export interface FotoEmbarque {
   embarque_id: string
   nombre_archivo: string
   url_blob: string
-  tamaño_bytes?: number
+  tamano_bytes?: number
   tipo_mime?: string
   fecha_subida: string
   subido_por?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface OperadorPagoContingencia {
@@ -594,7 +601,7 @@ export const obtenerRecordatorios = async () => {
     return { data: data || [], error: null }
   } catch (error) {
     console.error("Error:", error)
-    return { data: [], error }
+    return []
   }
 }
 
@@ -614,5 +621,44 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
   } catch (error) {
     console.error("Excepción al obtener IDs de embarques modificados:", error)
     return []
+  }
+}
+
+// Nuevas funciones para fotos de embarques
+export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
+  try {
+    const { data, error } = await supabase
+      .from("fotos_embarque")
+      .select("*")
+      .eq("embarque_id", embarqueId)
+      .order("fecha_subida", { ascending: false })
+
+    if (error) {
+      console.error("Error obteniendo fotos del embarque:", error)
+      return []
+    }
+    return data || []
+  } catch (error) {
+    console.error("Excepción al obtener fotos del embarque:", error)
+    return []
+  }
+}
+
+export const guardarFotoEmbarque = async (
+  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
+) => {
+  try {
+    const { error } = await supabase.from("fotos_embarque").insert({
+      ...foto,
+      fecha_subida: new Date().toISOString(),
+    })
+    if (error) {
+      console.error("Error guardando foto del embarque en DB:", error)
+      return false
+    }
+    return true
+  } catch (error) {
+    console.error("Excepción al guardar foto del embarque:", error)
+    return false
   }
 }

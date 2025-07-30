@@ -21,6 +21,8 @@ import {
   Edit,
   AlertTriangle,
   Save,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react"
 import { useState, useEffect, useCallback, useMemo } from "react"
 import { supabase, obtenerEmbarquesModificadosIds, obtenerTiposServicio } from "@/lib/supabase"
@@ -760,6 +762,7 @@ export default function FacturacionCobranzaPage() {
           .eq("activo", true)
 
         if (creditosError && creditosError.code !== "PGRST116") {
+          // PGRST116 means no rows found
           console.error("Error checking existing credit limit:", creditosError)
           return
         }
@@ -1247,16 +1250,51 @@ export default function FacturacionCobranzaPage() {
   }
 
   const [showClientesModal, setShowClientesModal] = useState(false)
-  const [clientesTab, setClientesTab] = useState("porCliente")
+  const [activeClientesTab, setActiveClientesTab] = useState("detalle") // New state for tabs in Clientes modal
   const [clientesPeriodo, setClientesPeriodo] = useState({
     desde: "",
     hasta: "",
   })
   const [clienteSeleccionado, setClienteSeleccionado] = useState("todos") // Default to "todos"
   const [clienteSearchTerm, setClienteSearchTerm] = useState("") // New state for search input
+  const [filtroStatusCliente, setFiltroStatusCliente] = useState("todos") // New state for status filter
+  const [filtroPeriodoClientes, setFiltroPeriodoClientes] = useState("custom") // New state for quick date filter
 
   const [loadingClienteEmbarques, setLoadingClienteEmbarques] = useState(false)
   const [embarquesClienteFiltrados, setEmbarquesClienteFiltrados] = useState<EmbarqueAsignado[]>([])
+
+  // Pagination states for Cliente Modal
+  const [currentPageClientes, setCurrentPageClientes] = useState(1)
+  const [itemsPerPageClientes, setItemsPerPageClientes] = useState(10)
+
+  const handlePeriodoClientesChange = (value: string) => {
+    setFiltroPeriodoClientes(value)
+    const hoy = new Date()
+    let inicio = ""
+    let fin = ""
+
+    if (value === "current_month") {
+      inicio = new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10)
+      fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10)
+    } else if (value === "last_month") {
+      inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1).toISOString().slice(0, 10)
+      fin = new Date(hoy.getFullYear(), hoy.getMonth(), 0).toISOString().slice(0, 10)
+    } else if (value === "last_2_months") {
+      inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1).toISOString().slice(0, 10) // Start of last month
+      fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10) // End of current month
+    } else if (value === "last_3_months") {
+      inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 2, 1).toISOString().slice(0, 10) // Start of 2 months ago
+      fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10) // End of current month
+    } else if (value === "last_6_months") {
+      inicio = new Date(hoy.getFullYear(), hoy.getMonth() - 5, 1).toISOString().slice(0, 10) // Start of 5 months ago
+      fin = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0).toISOString().slice(0, 10) // End of current month
+    } else {
+      // "custom" or "todos"
+      inicio = ""
+      fin = ""
+    }
+    setClientesPeriodo({ desde: inicio, hasta: fin })
+  }
 
   const consultarEmbarquesPorCliente = useCallback(async () => {
     setLoadingClienteEmbarques(true)
@@ -1271,11 +1309,16 @@ export default function FacturacionCobranzaPage() {
         operador:operadores(id, nombre, apellidos)
       `,
         )
-        .eq("estado", "finalizado")
-        .neq("estado_facturacion", "archivado")
+        // Removed .eq("estado", "finalizado") and .neq("estado_facturacion", "archivado")
+        // to show all records as requested.
+        .order("fecha_creacion", { ascending: false })
 
       if (clienteSeleccionado && clienteSeleccionado !== "todos") {
         query = query.eq("cliente_id", clienteSeleccionado)
+      }
+
+      if (filtroStatusCliente && filtroStatusCliente !== "todos") {
+        query = query.eq("estado_facturacion", filtroStatusCliente)
       }
 
       if (clientesPeriodo.desde) {
@@ -1285,7 +1328,7 @@ export default function FacturacionCobranzaPage() {
         query = query.lte("fecha_creacion", clientesPeriodo.hasta)
       }
 
-      const { data, error } = await query.order("fecha_creacion", { ascending: false })
+      const { data, error } = await query
 
       if (error) {
         console.error("Error al consultar embarques por cliente:", error)
@@ -1319,13 +1362,21 @@ export default function FacturacionCobranzaPage() {
       })
 
       setEmbarquesClienteFiltrados(filteredBySearch)
+      setCurrentPageClientes(1) // Reset to first page on new search/filter
     } catch (error) {
       console.error("Excepción al consultar embarques por cliente:", error)
       alert("Error inesperado al consultar embarques por cliente.")
     } finally {
       setLoadingClienteEmbarques(false)
     }
-  }, [clienteSeleccionado, clientesPeriodo.desde, clientesPeriodo.hasta, clienteSearchTerm, embarquesModificadosIds])
+  }, [
+    clienteSeleccionado,
+    clientesPeriodo.desde,
+    clientesPeriodo.hasta,
+    clienteSearchTerm,
+    embarquesModificadosIds,
+    filtroStatusCliente,
+  ])
 
   useEffect(() => {
     if (showClientesModal) {
@@ -1334,11 +1385,13 @@ export default function FacturacionCobranzaPage() {
   }, [showClientesModal, consultarEmbarquesPorCliente])
 
   const exportarEmbarquesClienteExcel = () => {
-    let csv = "Folio,Cliente,Load,Fecha,Monto Flete,Moneda,Contingencia\n"
+    let csv = "Folio,Cliente,Load,Fecha,Monto Flete,Moneda,Estado,Contingencia\n"
     embarquesClienteFiltrados.forEach((e) => {
       csv += `${e.folio},${e.clienteNombre},${e.numeroLoad},${new Date(
         e.fechaAsignacion!,
-      ).toLocaleDateString()},${e.precioFlete},${e.moneda_flete || "MXN"},${e.modificadoPorEmergencia ? "Sí" : "No"}\n`
+      ).toLocaleDateString()},${e.precioFlete},${e.moneda_flete || "MXN"},${e.estado_facturacion || "N/A"},${
+        e.modificadoPorEmergencia ? "Sí" : "No"
+      }\n`
     })
     const blob = new Blob([csv], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
@@ -1347,6 +1400,20 @@ export default function FacturacionCobranzaPage() {
     a.download = "embarques_por_cliente.csv"
     a.click()
     URL.revokeObjectURL(url)
+  }
+
+  // Pagination logic for Cliente Modal
+  const totalPagesClientes = Math.ceil(embarquesClienteFiltrados.length / itemsPerPageClientes)
+  const paginatedEmbarquesClientes = useMemo(() => {
+    const startIndex = (currentPageClientes - 1) * itemsPerPageClientes
+    const endIndex = startIndex + itemsPerPageClientes
+    return embarquesClienteFiltrados.slice(startIndex, endIndex)
+  }, [embarquesClienteFiltrados, currentPageClientes, itemsPerPageClientes])
+
+  const handlePageChangeClientes = (page: number) => {
+    if (page > 0 && page <= totalPagesClientes) {
+      setCurrentPageClientes(page)
+    }
   }
 
   const operacionesPorPeriodo = embarquesAsignados.filter((e) => {
@@ -1775,6 +1842,87 @@ export default function FacturacionCobranzaPage() {
       return sum + pago
     }, 0)
   }, [embarquesOperadorFiltrados, operadoresContingencia])
+
+  const desglosePorEmpresaData = useMemo(() => {
+    const dataMap = new Map<
+      string,
+      {
+        cliente: any
+        totalFacturadoMXN: number
+        totalFacturadoUSD: number
+        totalPagadoMXN: number
+        totalPagadoUSD: number
+        totalPendienteMXN: number
+        totalPendienteUSD: number
+        numFacturas: number
+        numFacturasPagadas: number
+        numFacturasPendientes: number
+      }
+    >()
+
+    embarquesClienteFiltrados.forEach((embarque) => {
+      const clienteId = embarque.cliente_id || "unknown"
+      const cliente = clientes.find((c) => c.id === clienteId) || { nombre: "Cliente Desconocido" }
+
+      if (!dataMap.has(clienteId)) {
+        dataMap.set(clienteId, {
+          cliente,
+          totalFacturadoMXN: 0,
+          totalFacturadoUSD: 0,
+          totalPagadoMXN: 0,
+          totalPagadoUSD: 0,
+          totalPendienteMXN: 0,
+          totalPendienteUSD: 0,
+          numFacturas: 0,
+          numFacturasPagadas: 0,
+          numFacturasPendientes: 0,
+        })
+      }
+
+      const entry = dataMap.get(clienteId)!
+      const monto = embarque.precioFlete || embarque.montoFacturado || 0
+
+      entry.numFacturas++
+
+      if (embarque.moneda_flete === "USD") {
+        entry.totalFacturadoUSD += monto
+        if (embarque.estado_facturacion === "pagado") {
+          entry.totalPagadoUSD += monto
+          entry.numFacturasPagadas++
+        } else {
+          entry.totalPendienteUSD += monto
+          entry.numFacturasPendientes++
+        }
+      } else {
+        // Assume MXN if not USD
+        entry.totalFacturadoMXN += monto
+        if (embarque.estado_facturacion === "pagado") {
+          entry.totalPagadoMXN += monto
+          entry.numFacturasPagadas++
+        } else {
+          entry.totalPendienteMXN += monto
+          entry.numFacturasPendientes++
+        }
+      }
+    })
+
+    return Array.from(dataMap.values()).sort((a, b) => a.cliente.nombre.localeCompare(b.cliente.nombre))
+  }, [embarquesClienteFiltrados, clientes])
+
+  const exportarDesgloseEmpresaExcel = () => {
+    let csv =
+      "Cliente,Total Facturado MXN,Total Pagado MXN,Total Pendiente MXN,Total Facturado USD,Total Pagado USD,Total Pendiente USD,Num Facturas,Num Facturas Pagadas,Num Facturas Pendientes\n"
+    desglosePorEmpresaData.forEach((data) => {
+      csv += `${data.cliente.nombre},${data.totalFacturadoMXN},${data.totalPagadoMXN},${data.totalPendienteMXN},${data.totalFacturadoUSD},${data.totalPagadoUSD},${data.totalPendienteUSD},${data.numFacturas},${data.numFacturasPagadas},${data.numFacturasPendientes}\n`
+    })
+    const blob = new Blob([csv], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = "desglose_por_empresa.csv"
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   return (
     <MainLayout>
@@ -2525,8 +2673,7 @@ export default function FacturacionCobranzaPage() {
               <DialogHeader>
                 <DialogTitle>Operaciones por Cliente</DialogTitle>
                 <DialogDescription>
-                  Visualiza todas las operaciones realizadas por cliente, por periodo y por tipo de servicio. Puedes ver
-                  si la factura ya fue pagada o no.
+                  Visualiza todas las operaciones realizadas por cliente, filtradas por periodo y estado.
                 </DialogDescription>
               </DialogHeader>
               <div className="flex flex-wrap gap-2 mb-4 items-end">
@@ -2562,6 +2709,37 @@ export default function FacturacionCobranzaPage() {
                   </Select>
                 </div>
                 <div className="flex-1 min-w-[120px]">
+                  <Label htmlFor="filtro-status-cliente">Estado</Label>
+                  <Select value={filtroStatusCliente} onValueChange={(value) => setFiltroStatusCliente(value)}>
+                    <SelectTrigger id="filtro-status-cliente">
+                      <SelectValue placeholder="Filtrar por estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="todos">Todos los estados</SelectItem>
+                      <SelectItem value="pendiente_facturacion">Pendiente Facturación</SelectItem>
+                      <SelectItem value="facturado">Facturado</SelectItem>
+                      <SelectItem value="pagado">Pagado</SelectItem>
+                      <SelectItem value="archivado">Archivado</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[120px]">
+                  <Label htmlFor="filtro-periodo-clientes">Periodo</Label>
+                  <Select value={filtroPeriodoClientes} onValueChange={handlePeriodoClientesChange}>
+                    <SelectTrigger id="filtro-periodo-clientes">
+                      <SelectValue placeholder="Selecciona un periodo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="custom">Personalizado</SelectItem>
+                      <SelectItem value="current_month">Mes actual</SelectItem>
+                      <SelectItem value="last_month">Mes anterior</SelectItem>
+                      <SelectItem value="last_2_months">Últimos 2 meses</SelectItem>
+                      <SelectItem value="last_3_months">Últimos 3 meses</SelectItem>
+                      <SelectItem value="last_6_months">Últimos 6 meses</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex-1 min-w-[120px]">
                   <Label htmlFor="fecha-inicio-clientes">Desde</Label>
                   <Input
                     type="date"
@@ -2573,6 +2751,7 @@ export default function FacturacionCobranzaPage() {
                         desde: e.target.value,
                       }))
                     }
+                    disabled={filtroPeriodoClientes !== "custom"}
                   />
                 </div>
                 <div className="flex-1 min-w-[120px]">
@@ -2587,74 +2766,203 @@ export default function FacturacionCobranzaPage() {
                         hasta: e.target.value,
                       }))
                     }
+                    disabled={filtroPeriodoClientes !== "custom"}
                   />
                 </div>
                 <Button onClick={consultarEmbarquesPorCliente} disabled={loadingClienteEmbarques}>
                   {loadingClienteEmbarques ? "Consultando..." : "Generar Búsqueda"}
                 </Button>
-                <Button
-                  onClick={exportarEmbarquesClienteExcel}
-                  variant="outline"
-                  disabled={embarquesClienteFiltrados.length === 0}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Exportar Excel
-                </Button>
               </div>
-              {loadingClienteEmbarques ? (
-                <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
-                  <span className="ml-2 text-sm text-gray-600">Cargando embarques...</span>
-                </div>
-              ) : embarquesClienteFiltrados.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  No se encontraron embarques para los filtros seleccionados.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="px-2 py-1 text-left">Folio</th>
-                        <th className="px-2 py-1 text-left">Cliente</th>
-                        <th className="px-2 py-1 text-left">Load</th>
-                        <th className="px-2 py-1 text-left">Monto Flete</th>
-                        <th className="px-2 py-1 text-left">Fecha</th>
-                        <th className="px-2 py-1 text-left">Contingencia</th>
-                        <th className="px-2 py-1 text-left">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {embarquesClienteFiltrados.map((embarque) => (
-                        <tr key={embarque.id} className="border-b">
-                          <td className="px-2 py-1">{embarque.folio}</td>
-                          <td className="px-2 py-1">{embarque.clienteNombre}</td>
-                          <td className="px-2 py-1">{embarque.numeroLoad}</td>
-                          <td className="px-2 py-1">
-                            ${embarque.precioFlete?.toLocaleString() || 0} {embarque.moneda_flete || "MXN"}
-                          </td>
-                          <td className="px-2 py-1">{new Date(embarque.fechaAsignacion!).toLocaleDateString()}</td>
-                          <td className="px-2 py-1">
-                            {embarque.modificadoPorEmergencia ? <Badge variant="destructive">Sí</Badge> : "No"}
-                          </td>
-                          <td className="px-2 py-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEmbarqueDetalle(embarque)
-                                setShowDetailModal(true)
-                              }}
-                            >
-                              Ver Detalles
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+              <Tabs value={activeClientesTab} onValueChange={setActiveClientesTab} className="w-full">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="detalle">Detalle de Embarques</TabsTrigger>
+                  <TabsTrigger value="desglose">Desglose por Empresa</TabsTrigger>
+                </TabsList>
+                <TabsContent value="detalle">
+                  {loadingClienteEmbarques ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+                      <span className="ml-2 text-sm text-gray-600">Cargando embarques...</span>
+                    </div>
+                  ) : embarquesClienteFiltrados.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No se encontraron embarques para los filtros seleccionados.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-between items-center mb-4">
+                        <div className="text-sm text-gray-600">
+                          Mostrando {paginatedEmbarquesClientes.length} de {embarquesClienteFiltrados.length} registros.
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Label htmlFor="items-per-page" className="text-sm">
+                            Registros por página:
+                          </Label>
+                          <Select
+                            value={String(itemsPerPageClientes)}
+                            onValueChange={(value) => setItemsPerPageClientes(Number(value))}
+                          >
+                            <SelectTrigger id="items-per-page" className="w-20">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="10">10</SelectItem>
+                              <SelectItem value="20">20</SelectItem>
+                              <SelectItem value="50">50</SelectItem>
+                              <SelectItem value="100">100</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="px-2 py-1 text-left">Folio</th>
+                              <th className="px-2 py-1 text-left">Cliente</th>
+                              <th className="px-2 py-1 text-left">Load</th>
+                              <th className="px-2 py-1 text-left">Monto Flete</th>
+                              <th className="px-2 py-1 text-left">Fecha</th>
+                              <th className="px-2 py-1 text-left">Estado</th>
+                              <th className="px-2 py-1 text-left">Contingencia</th>
+                              <th className="px-2 py-1 text-left">Acciones</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {paginatedEmbarquesClientes.map((embarque) => (
+                              <tr key={embarque.id} className="border-b">
+                                <td className="px-2 py-1">{embarque.folio}</td>
+                                <td className="px-2 py-1">{embarque.clienteNombre}</td>
+                                <td className="px-2 py-1">{embarque.numeroLoad}</td>
+                                <td className="px-2 py-1">
+                                  ${embarque.precioFlete?.toLocaleString() || 0} {embarque.moneda_flete || "MXN"}
+                                </td>
+                                <td className="px-2 py-1">
+                                  {new Date(embarque.fechaAsignacion!).toLocaleDateString()}
+                                </td>
+                                <td className="px-2 py-1">
+                                  <Badge
+                                    variant={
+                                      embarque.estado_facturacion === "pagado"
+                                        ? "default"
+                                        : embarque.estado_facturacion === "facturado"
+                                          ? "secondary"
+                                          : "outline"
+                                    }
+                                  >
+                                    {embarque.estado_facturacion === "pendiente_facturacion"
+                                      ? "Pendiente"
+                                      : embarque.estado_facturacion === "facturado"
+                                        ? "Facturado"
+                                        : embarque.estado_facturacion === "pagado"
+                                          ? "Pagado"
+                                          : embarque.estado_facturacion === "archivado"
+                                            ? "Archivado"
+                                            : "N/A"}
+                                  </Badge>
+                                </td>
+                                <td className="px-2 py-1">
+                                  {embarque.modificadoPorEmergencia ? <Badge variant="destructive">Sí</Badge> : "No"}
+                                </td>
+                                <td className="px-2 py-1">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEmbarqueDetalle(embarque)
+                                      setShowDetailModal(true)
+                                    }}
+                                  >
+                                    Ver Detalles
+                                  </Button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="flex justify-center items-center space-x-2 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChangeClientes(currentPageClientes - 1)}
+                          disabled={currentPageClientes === 1}
+                        >
+                          <ChevronLeft className="h-4 w-4" />
+                          Anterior
+                        </Button>
+                        <span className="text-sm text-gray-700">
+                          Página {currentPageClientes} de {totalPagesClientes}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChangeClientes(currentPageClientes + 1)}
+                          disabled={currentPageClientes === totalPagesClientes}
+                        >
+                          Siguiente
+                          <ChevronRight className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+                <TabsContent value="desglose">
+                  {loadingClienteEmbarques ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+                      <span className="ml-2 text-sm text-gray-600">Calculando desglose por empresa...</span>
+                    </div>
+                  ) : desglosePorEmpresaData.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      No se encontraron datos de desglose para los filtros seleccionados.
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex justify-end mb-4">
+                        <Button onClick={exportarDesgloseEmpresaExcel} variant="outline">
+                          <Download className="h-4 w-4 mr-2" />
+                          Descargar Desglose Excel
+                        </Button>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="px-2 py-1 text-left">Cliente</th>
+                              <th className="px-2 py-1 text-left">Total Facturado MXN</th>
+                              <th className="px-2 py-1 text-left">Total Pagado MXN</th>
+                              <th className="px-2 py-1 text-left">Total Pendiente MXN</th>
+                              <th className="px-2 py-1 text-left">Total Facturado USD</th>
+                              <th className="px-2 py-1 text-left">Total Pagado USD</th>
+                              <th className="px-2 py-1 text-left">Total Pendiente USD</th>
+                              <th className="px-2 py-1 text-left">Num. Facturas</th>
+                              <th className="px-2 py-1 text-left">Num. Pagadas</th>
+                              <th className="px-2 py-1 text-left">Num. Pendientes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {desglosePorEmpresaData.map((data) => (
+                              <tr key={data.cliente.id} className="border-b">
+                                <td className="px-2 py-1 font-medium">{data.cliente.nombre}</td>
+                                <td className="px-2 py-1">${data.totalFacturadoMXN.toLocaleString()}</td>
+                                <td className="px-2 py-1">${data.totalPagadoMXN.toLocaleString()}</td>
+                                <td className="px-2 py-1">${data.totalPendienteMXN.toLocaleString()}</td>
+                                <td className="px-2 py-1">${data.totalFacturadoUSD.toLocaleString()}</td>
+                                <td className="px-2 py-1">${data.totalPagadoUSD.toLocaleString()}</td>
+                                <td className="px-2 py-1">${data.totalPendienteUSD.toLocaleString()}</td>
+                                <td className="px-2 py-1">{data.numFacturas}</td>
+                                <td className="px-2 py-1">{data.numFacturasPagadas}</td>
+                                <td className="px-2 py-1">{data.numFacturasPendientes}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  )}
+                </TabsContent>
+              </Tabs>
             </DialogContent>
           </Dialog>
         </div>
