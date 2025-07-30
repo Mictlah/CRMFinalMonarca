@@ -9,13 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
-import {
-  supabase,
-  type Embarque,
-  guardarFotoEmbarque,
-  obtenerFotosEmbarque,
-  eliminarFotoEmbarqueDB, // Nueva función
-} from "@/lib/supabase"
+import { upload } from "@vercel/blob/client" // Importar la función 'upload' del cliente Blob
+import { supabase, type Embarque, obtenerFotosEmbarque, eliminarFotoEmbarqueDB } from "@/lib/supabase"
 import { eliminarFotoEmbarque } from "@/lib/blob" // Importar función de eliminación de blob
 
 interface FilePreview extends File {
@@ -91,12 +86,20 @@ export default function SubirFotosEmbarquePage({
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as FilePreview[]
     const currentTotalFiles = files.length + existingPhotos.length
+
+    if (currentTotalFiles >= MAX_FILES) {
+      setGlobalError(
+        `Ya has alcanzado el límite de ${MAX_FILES} imágenes. Elimina algunas existentes o no selecciones más.`,
+      )
+      e.target.value = "" // Clear the input to prevent re-selection of same files
+      return
+    }
+
     const filesToAddCount = Math.min(selectedFiles.length, MAX_FILES - currentTotalFiles)
 
     if (filesToAddCount <= 0) {
-      setGlobalError(`Ya has alcanzado el límite de ${MAX_FILES} imágenes.`)
-      setMaxFilesReached(true)
-      e.target.value = "" // Clear the input
+      setGlobalError(`No se pueden añadir más archivos. Límite de ${MAX_FILES} alcanzado.`)
+      e.target.value = ""
       return
     }
 
@@ -109,6 +112,7 @@ export default function SubirFotosEmbarquePage({
     setFiles((prevFiles) => [...prevFiles, ...newFilePreviews])
     setMaxFilesReached(currentTotalFiles + filesToAddCount >= MAX_FILES)
     setGlobalError(null) // Clear previous error if files are added
+    e.target.value = "" // Clear the input after adding files
   }
 
   const handleRemoveFile = (index: number) => {
@@ -120,7 +124,7 @@ export default function SubirFotosEmbarquePage({
   }
 
   const handleDeleteExistingPhoto = async (photoId: string, pathname: string) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen?")) {
+    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen? Esta acción es irreversible.")) {
       return
     }
     setGlobalError(null)
@@ -184,37 +188,35 @@ export default function SubirFotosEmbarquePage({
       // Skip already uploaded files (shouldn't happen with new logic, but as a safeguard)
       if (file.status === "uploaded") return
 
-      // Use the /api/upload route
-      const response = await fetch(`/api/upload?filename=embarques/${embarque.folio}/${Date.now()}-${file.name}`, {
-        method: "POST",
-        body: file, // Send the file directly as body
-      })
+      try {
+        setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Error al subir la imagen.")
+        // Usar la función 'upload' del cliente Blob, que se comunica con /api/upload
+        const { url, pathname } = await upload(file, {
+          access: "public", // O 'private' si lo configuras así en Vercel Blob
+          handleUploadUrl: "/api/upload", // La ruta de tu API Route Handler
+          clientPayload: JSON.stringify({
+            // Enviar datos adicionales al Server Action
+            embarqueId: embarqueId,
+            operatorName: operatorFullName,
+          }),
+        })
+
+        // La inserción en la base de datos ahora se maneja en el Server Action (app/api/upload/route.ts)
+        // por lo que no necesitamos llamar a guardarFotoEmbarque aquí.
+
+        setFiles((prev) =>
+          prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
+        )
+      } catch (error: any) {
+        console.error("Error en la subida/guardado:", error)
+        setFiles((prev) =>
+          prev.map((f, i) =>
+            i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
+          ),
+        )
+        setGlobalError(`Algunas imágenes no se pudieron subir: ${error.message}`)
       }
-
-      const { url, pathname } = await response.json()
-
-      // Guardar la URL en Supabase
-      const saved = await guardarFotoEmbarque({
-        embarque_id: embarqueId,
-        nombre_archivo: file.name,
-        url_blob: url,
-        tamano_bytes: file.size,
-        tipo_mime: file.type,
-        subido_por: operatorFullName,
-        pathname_blob: pathname, // Guardar el pathname para futuras eliminaciones
-      })
-
-      if (!saved) {
-        throw new Error("Error al guardar el registro de la imagen en la base de datos.")
-      }
-
-      setFiles((prev) =>
-        prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
-      )
     })
 
     await Promise.all(uploadPromises)
@@ -222,8 +224,8 @@ export default function SubirFotosEmbarquePage({
     const allUploaded = files.every((f) => f.status === "uploaded")
     if (allUploaded) {
       setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
-      setFiles([]) // Clear new files after successful upload
-      await loadEmbarqueAndPhotos() // Reload existing photos to show newly uploaded ones
+      setFiles([]) // Limpiar los archivos nuevos después de una subida exitosa
+      await loadEmbarqueAndPhotos() // Recargar fotos existentes para mostrar las recién subidas
     } else {
       setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }

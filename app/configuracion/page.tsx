@@ -1,8 +1,10 @@
 "use client"
 
+import { CardDescription } from "@/components/ui/card"
+
 import { useState, useEffect } from "react"
 import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
@@ -14,6 +16,7 @@ import { getCurrentUser, verifyAuditPassword } from "@/lib/auth"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { supabase } from "@/lib/supabase"
+import { testBlobConnection } from "@/lib/blob-config" // Importa la función de prueba
 
 interface AuditLogEntry {
   id: string
@@ -50,6 +53,8 @@ export default function ConfiguracionPage() {
   const currentUser = getCurrentUser()
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [passwordInput, setPasswordInput] = useState("")
+  const [blobStatus, setBlobStatus] = useState<{ success: boolean; message: string } | null>(null)
+  const [loading, setLoading] = useState(false)
 
   // Función para agregar entrada al audit log
   const agregarAuditLog = async (accion: string, modulo: string, detalles: string) => {
@@ -309,6 +314,14 @@ export default function ConfiguracionPage() {
     }
   }
 
+  const handleTestBlobConnection = async () => {
+    setLoading(true)
+    setBlobStatus(null)
+    const result = await testBlobConnection()
+    setBlobStatus(result)
+    setLoading(false)
+  }
+
   return (
     <MainLayout>
       <div className="space-y-6">
@@ -527,6 +540,31 @@ export default function ConfiguracionPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Estado de Vercel Blob Storage */}
+        <div className="text-center">
+          <h3 className="text-lg font-semibold mb-2">Estado de Vercel Blob Storage</h3>
+          <Button onClick={handleTestBlobConnection} disabled={loading}>
+            {loading ? "Probando conexión..." : "Probar Conexión a Vercel Blob"}
+          </Button>
+          {blobStatus && (
+            <div
+              className={`mt-4 p-3 rounded-md ${blobStatus.success ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"}`}
+            >
+              <p className="font-medium">{blobStatus.success ? "Conexión Exitosa" : "Error de Conexión"}</p>
+              <p className="text-sm">{blobStatus.message}</p>
+            </div>
+          )}
+          <p className="text-sm text-gray-500 mt-2">
+            Asegúrate de que la variable de entorno `BLOB_READ_WRITE_TOKEN` esté configurada en Vercel.
+          </p>
+        </div>
+
+        {/* Otras Configuraciones */}
+        <div className="border-t pt-4">
+          <h3 className="text-lg font-semibold mb-2">Otras Configuraciones</h3>
+          <p className="text-gray-600">Aquí podrás gestionar otras configuraciones de la aplicación.</p>
+        </div>
       </div>
     </MainLayout>
   )
