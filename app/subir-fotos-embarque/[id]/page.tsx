@@ -1,16 +1,16 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect, useCallback } from "react"
+
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { UploadCloud, CheckCircle, XCircle, Loader2, MapPin, Truck, User, Package, Trash2 } from "lucide-react"
-import { supabase, type Embarque, obtenerFotosEmbarque } from "@/lib/supabase"
-import { subirFotoAction, eliminarFotoAction } from "../actions" // Importar las Server Actions
+import { UploadCloud, CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { supabase, type Embarque, guardarFotoEmbarque } from "@/lib/supabase"
 
 interface FilePreview extends File {
   preview: string
@@ -27,152 +27,80 @@ export default function SubirFotosEmbarquePage({
   const { id: embarqueId } = params
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
+  const [operatorName, setOperatorName] = useState("")
   const [files, setFiles] = useState<FilePreview[]>([])
-  const [existingPhotos, setExistingPhotos] = useState<any[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [maxFilesReached, setMaxFilesReached] = useState(false)
-  const [confirmationStep, setConfirmationStep] = useState(0)
 
-  const MAX_FILES = 10
+  useEffect(() => {
+    async function loadEmbarque() {
+      if (!embarqueId) return
 
-  const loadEmbarqueAndPhotos = useCallback(async () => {
-    console.log("=== CARGANDO EMBARQUE Y FOTOS ===")
-    console.log("Embarque ID:", embarqueId)
-
-    setGlobalError(null)
-    if (!embarqueId) return
-
-    try {
-      const { data: embarqueData, error: embarqueError } = await supabase
+      const { data, error } = await supabase
         .from("embarques")
-        .select(
-          `
-            *,
-            cliente:clientes(nombre),
-            operador:operadores(nombre, apellidos, telefono),
-            remolque:remolques(numero_economico, placas)
-          `,
-        )
+        .select(`
+          *,
+          remolque:remolques(numero_economico, placas)
+        `)
         .eq("id", embarqueId)
         .single()
 
-      if (embarqueError) {
-        console.error("Error cargando embarque:", embarqueError)
-        setGlobalError("No se pudo cargar la información del embarque. Verifica que el ID sea correcto.")
-        setEmbarque(null)
+      if (error) {
+        console.error("Error cargando embarque:", error)
+        setGlobalError("No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta.")
         return
       }
-
-      console.log("Embarque cargado:", embarqueData.folio)
-
-      if (!embarqueData.operador_id || !embarqueData.operador) {
-        setGlobalError("Este embarque no tiene un operador asignado. Contacta a administración.")
-        setEmbarque(null)
-        return
-      }
-
-      setEmbarque(embarqueData)
-
-      const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
-      setExistingPhotos(existingPhotosData)
-      setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
-
-      console.log("=== FIN CARGA EMBARQUE Y FOTOS ===")
-    } catch (error) {
-      console.error("Error en loadEmbarqueAndPhotos:", error)
-      setGlobalError("Error inesperado al cargar los datos.")
+      setEmbarque(data)
     }
+    loadEmbarque()
   }, [embarqueId])
-
-  useEffect(() => {
-    loadEmbarqueAndPhotos()
-  }, [loadEmbarqueAndPhotos])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as FilePreview[]
-    const currentTotalFiles = files.length + existingPhotos.length
-    const filesToAddCount = Math.min(selectedFiles.length, MAX_FILES - currentTotalFiles)
+    const currentFilesCount = files.length
+    const newFilesCount = selectedFiles.length
 
-    if (filesToAddCount <= 0) {
-      setGlobalError(`Ya has alcanzado el límite de ${MAX_FILES} imágenes.`)
+    if (currentFilesCount + newFilesCount > 10) {
+      alert("Solo puedes subir un máximo de 10 imágenes por embarque.")
       setMaxFilesReached(true)
-      e.target.value = ""
       return
+    } else {
+      setMaxFilesReached(false)
     }
 
-    const newFilePreviews = selectedFiles.slice(0, filesToAddCount).map((file) =>
+    const newFilePreviews = selectedFiles.map((file) =>
       Object.assign(file, {
         preview: URL.createObjectURL(file),
         status: "pending",
       }),
     )
     setFiles((prevFiles) => [...prevFiles, ...newFilePreviews])
-    setMaxFilesReached(currentTotalFiles + filesToAddCount >= MAX_FILES)
-    setGlobalError(null)
   }
 
   const handleRemoveFile = (index: number) => {
     setFiles((prevFiles) => {
       const newFiles = prevFiles.filter((_, i) => i !== index)
-      setMaxFilesReached(newFiles.length + existingPhotos.length < MAX_FILES ? false : true)
+      if (newFiles.length < 10) {
+        setMaxFilesReached(false)
+      }
       return newFiles
     })
   }
 
-  const handleDeleteExistingPhoto = async (photoId: string, pathname: string) => {
-    if (!confirm("¿Estás seguro de que quieres eliminar esta imagen?")) {
-      return
-    }
-    setGlobalError(null)
-    setGlobalSuccess(null)
-
-    try {
-      const result = await eliminarFotoAction(photoId, pathname) // Llamada a Server Action
-
-      if (result.success) {
-        setGlobalSuccess("Imagen eliminada exitosamente.")
-        await loadEmbarqueAndPhotos()
-      } else {
-        setGlobalError(`Error al eliminar la imagen: ${result.error}`)
-      }
-    } catch (error: any) {
-      console.error("Error al eliminar la imagen:", error)
-      setGlobalError(`Error al eliminar la imagen: ${error.message || "Error desconocido"}`)
-    }
-  }
-
-  const handleFirstConfirmation = () => {
-    setGlobalError(null)
-    setGlobalSuccess(null)
-    if (!embarque || !embarque.operador) {
-      setGlobalError("No se pudo verificar la información del embarque o del operador.")
-      return
-    }
-    setConfirmationStep(1)
-  }
-
-  const handleSecondConfirmation = () => {
-    setGlobalError(null)
-    setGlobalSuccess(null)
-    setConfirmationStep(2)
-  }
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("=== INICIANDO PROCESO DE SUBIDA CON SERVER ACTIONS ===")
-
     setGlobalError(null)
     setGlobalSuccess(null)
 
-    if (confirmationStep !== 2) {
-      setGlobalError("Por favor, completa los pasos de confirmación antes de subir las imágenes.")
+    if (!embarque) {
+      setGlobalError("No se ha cargado la información del embarque.")
       return
     }
 
-    if (!embarque || !embarque.operador) {
-      setGlobalError("No se ha cargado la información del embarque o del operador.")
+    if (!operatorName.trim()) {
+      setGlobalError("Por favor, ingresa tu nombre para confirmar.")
       return
     }
 
@@ -183,61 +111,68 @@ export default function SubirFotosEmbarquePage({
 
     setIsSubmitting(true)
 
-    const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
-    let successCount = 0
-    let failCount = 0
+    const uploadPromises = files.map(async (file, index) => {
+      // Skip already uploaded files
+      if (file.status === "uploaded") return
 
-    console.log(`Procesando ${files.length} archivos para embarque ${embarque.folio}`)
-
-    const updateFileStatus = (index: number, status: FilePreview["status"], message?: string) => {
-      setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status, message } : f)))
-    }
-
-    // Procesar archivos uno por uno usando Server Actions
-    for (let index = 0; index < files.length; index++) {
-      const file = files[index]
-
-      if (file.status === "uploaded") continue
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("fileName", `${embarque.folio}-${Date.now()}-${file.name}`)
 
       try {
-        console.log(`--- Procesando archivo ${index + 1}/${files.length}: ${file.name} ---`)
-        updateFileStatus(index, "uploading", "Subiendo...")
+        setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
 
-        // Crear FormData para el Server Action
-        const formData = new FormData()
-        formData.append("file", file)
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
 
-        // Llamar al Server Action
-        const result = await subirFotoAction(formData, embarqueId, embarque.folio, operatorFullName)
-
-        if (result.success) {
-          console.log("Archivo procesado exitosamente:", file.name)
-          updateFileStatus(index, "uploaded", "¡Completado!")
-          successCount++
-        } else {
-          throw new Error(result.error || "Error desconocido")
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Error al subir la imagen.")
         }
+
+        const { url } = await response.json()
+
+        // Guardar la URL en Supabase
+        const saved = await guardarFotoEmbarque({
+          embarque_id: embarqueId,
+          nombre_archivo: file.name,
+          url_blob: url,
+          tamano_bytes: file.size,
+          tipo_mime: file.type,
+          subido_por: operatorName.trim(),
+        })
+
+        if (!saved) {
+          throw new Error("Error al guardar el registro de la imagen en la base de datos.")
+        }
+
+        setFiles((prev) =>
+          prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
+        )
       } catch (error: any) {
-        console.error(`Error procesando archivo ${file.name}:`, error)
-        updateFileStatus(index, "failed", error.message || "Error desconocido")
-        failCount++
+        console.error("Error en la subida/guardado:", error)
+        setFiles((prev) =>
+          prev.map((f, i) =>
+            i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
+          ),
+        )
+        setGlobalError(`Algunas imágenes no se pudieron subir: ${error.message}`)
       }
-    }
+    })
 
-    console.log(`=== PROCESO COMPLETADO: ${successCount} éxitos, ${failCount} fallos ===`)
+    await Promise.all(uploadPromises)
 
-    // Mostrar resultados
-    if (failCount === 0) {
-      setGlobalSuccess(`¡Todas las ${successCount} imágenes se subieron y registraron exitosamente!`)
-      setFiles([])
-      await loadEmbarqueAndPhotos()
-    } else if (successCount > 0) {
-      setGlobalSuccess(`${successCount} imágenes se subieron correctamente.`)
-      setGlobalError(`${failCount} imágenes fallaron. Revisa los detalles de cada archivo.`)
+    const allUploaded = files.every((f) => f.status === "uploaded")
+    if (allUploaded) {
+      setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
+      setFiles([]) // Clear files after successful upload
+      setOperatorName("")
+      // Optionally redirect or show a success message that can be dismissed
     } else {
-      setGlobalError("No se pudo subir ninguna imagen. Verifica tu conexión e inténtalo de nuevo.")
+      setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }
-
     setIsSubmitting(false)
   }
 
@@ -262,12 +197,9 @@ export default function SubirFotosEmbarquePage({
       <Card className="w-full max-w-2xl shadow-lg">
         <CardHeader className="text-center">
           <img
-            src="/images/logo-monarca-transparent.png"
+            src="/public/images/logo-monarca-transparent.png"
             alt="Logo Transportes Monarca"
             className="h-20 mx-auto mb-4"
-            onError={(e) => {
-              e.currentTarget.src = "/placeholder.svg?height=80&width=200&text=Transportes+Monarca"
-            }}
           />
           <CardTitle className="text-2xl font-bold">Subir Fotos de Embarque</CardTitle>
           <CardDescription>Confirma los detalles del embarque y sube las fotos.</CardDescription>
@@ -288,263 +220,124 @@ export default function SubirFotosEmbarquePage({
             </Alert>
           )}
 
-          <div className="space-y-4 border p-4 rounded-lg bg-gray-50">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">Información del Embarque</h3>
+          <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="folio">Número de Embarque</Label>
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-gray-500" />
-                  <Input id="folio" value={embarque.folio} readOnly disabled className="bg-white font-mono" />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="cliente">Cliente</Label>
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-gray-500" />
-                  <Input
-                    id="cliente"
-                    value={embarque.cliente?.nombre || "N/A"}
-                    readOnly
-                    disabled
-                    className="bg-white"
-                  />
-                </div>
+                <Input id="folio" value={embarque.folio} readOnly disabled className="bg-gray-50 font-mono" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="remolque">Remolque Asignado</Label>
-                <div className="flex items-center gap-2">
-                  <Truck className="h-4 w-4 text-gray-500" />
-                  <Input
-                    id="remolque"
-                    value={embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}
-                    readOnly
-                    disabled
-                    className="bg-white"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="operador-asignado">Operador Asignado</Label>
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-gray-500" />
-                  <Input
-                    id="operador-asignado"
-                    value={`${embarque.operador?.nombre || ""} ${embarque.operador?.apellidos || ""}`}
-                    readOnly
-                    disabled
-                    className="bg-white font-medium"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="direccion-recolecta">Lugar de Recolecta</Label>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-gray-500" />
                 <Input
-                  id="direccion-recolecta"
-                  value={embarque.direccion_recolecta || "N/A"}
+                  id="remolque"
+                  value={embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}
                   readOnly
                   disabled
-                  className="bg-white"
+                  className="bg-gray-50"
                 />
               </div>
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="direccion-entrega">Lugar de Entrega</Label>
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-gray-500" />
-                <Input
-                  id="direccion-entrega"
-                  value={embarque.direccion_entrega || "N/A"}
-                  readOnly
-                  disabled
-                  className="bg-white"
-                />
-              </div>
+              <Label htmlFor="operator-name">Tu Nombre *</Label>
+              <Input
+                id="operator-name"
+                value={operatorName}
+                onChange={(e) => setOperatorName(e.target.value)}
+                placeholder="Ingresa tu nombre completo"
+                required
+              />
             </div>
-          </div>
 
-          {confirmationStep === 0 && (
-            <div className="space-y-4">
-              <Alert>
-                <AlertTitle>Confirmación de Datos</AlertTitle>
-                <AlertDescription>
-                  Por favor, verifica que los datos del embarque mostrados arriba y tu nombre como operador asignado son
-                  correctos.
-                </AlertDescription>
-              </Alert>
-              <Button
-                onClick={handleFirstConfirmation}
-                disabled={isSubmitting}
-                className="w-full bg-blue-600 hover:bg-blue-700"
-              >
-                Confirmar Datos y Continuar
-              </Button>
+            <div className="space-y-2">
+              <Label htmlFor="images">Subir Imágenes (Máx. 10)</Label>
+              <Input
+                id="images"
+                type="file"
+                multiple
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={isSubmitting || maxFilesReached}
+                className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
+              />
+              {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
             </div>
-          )}
 
-          {confirmationStep === 1 && (
-            <div className="space-y-4">
-              <Alert variant="warning">
-                <AlertTitle>Segunda Confirmación</AlertTitle>
-                <AlertDescription>
-                  Estás a punto de proceder con la subida de imágenes para este embarque. Asegúrate de que tienes las
-                  fotos listas y que los datos mostrados son correctos.
-                </AlertDescription>
-              </Alert>
-              <Button
-                onClick={handleSecondConfirmation}
-                disabled={isSubmitting}
-                className="w-full bg-green-600 hover:bg-green-700"
-              >
-                Confirmar y Habilitar Subida de Fotos
-              </Button>
-            </div>
-          )}
-
-          {existingPhotos.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Fotos Existentes ({existingPhotos.length}/{MAX_FILES})
-              </h3>
+            {files.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {existingPhotos.map((photo) => (
+                {files.map((file, index) => (
                   <div
-                    key={photo.id}
+                    key={index}
                     className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
                   >
+                    {file.status === "uploading" && (
+                      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                      </div>
+                    )}
+                    {file.status === "failed" && (
+                      <div className="absolute inset-0 bg-red-500 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                        <XCircle className="h-6 w-6 text-white" />
+                      </div>
+                    )}
                     <img
-                      src={photo.url_blob || "/placeholder.svg"}
-                      alt={`Foto ${photo.nombre_archivo}`}
+                      src={file.preview || "/placeholder.svg"}
+                      alt={`Preview ${file.name}`}
                       className="w-24 h-24 object-cover rounded-md mb-2"
+                      onLoad={() => URL.revokeObjectURL(file.preview)}
                     />
-                    <p className="text-xs truncate w-full px-1">{photo.nombre_archivo}</p>
+                    <p className="text-xs truncate w-full px-1">{file.name}</p>
                     <div className="absolute top-1 right-1">
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteExistingPhoto(photo.id, photo.pathname_blob)}
-                        className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
-                        title="Eliminar imagen"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      {file.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
+                      {file.status === "failed" && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(index)}
+                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80"
+                          title="Eliminar imagen fallida"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      )}
+                      {(file.status === "pending" || file.status === "uploading") && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(index)}
+                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
+                          title="Eliminar imagen"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
 
-          {confirmationStep === 2 && (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="images">
-                  Subir Nuevas Imágenes (Máx. {MAX_FILES - existingPhotos.length} disponibles)
-                </Label>
-                <Input
-                  id="images"
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  disabled={isSubmitting || maxFilesReached}
-                  className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
-                />
-                {maxFilesReached && (
-                  <p className="text-sm text-red-600">Has alcanzado el límite de {MAX_FILES} imágenes.</p>
-                )}
-              </div>
-
-              {files.length > 0 && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {files.map((file, index) => (
-                    <div
-                      key={index}
-                      className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
-                    >
-                      {file.status === "uploading" && (
-                        <div className="absolute inset-0 bg-blue-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
-                          <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
-                        </div>
-                      )}
-                      {file.status === "failed" && (
-                        <div className="absolute inset-0 bg-red-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
-                          <XCircle className="h-6 w-6 text-red-600" />
-                        </div>
-                      )}
-                      {file.status === "uploaded" && (
-                        <div className="absolute inset-0 bg-green-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
-                          <CheckCircle className="h-6 w-6 text-green-600" />
-                        </div>
-                      )}
-                      <img
-                        src={file.preview || "/placeholder.svg"}
-                        alt={`Preview ${file.name}`}
-                        className="w-24 h-24 object-cover rounded-md mb-2"
-                        onLoad={() => URL.revokeObjectURL(file.preview)}
-                      />
-                      <p className="text-xs truncate w-full px-1">{file.name}</p>
-                      {file.message && (
-                        <p
-                          className={`text-xs mt-1 ${
-                            file.status === "failed"
-                              ? "text-red-600"
-                              : file.status === "uploaded"
-                                ? "text-green-600"
-                                : "text-blue-600"
-                          }`}
-                        >
-                          {file.message}
-                        </p>
-                      )}
-                      <div className="absolute top-1 right-1">
-                        {file.status === "failed" && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFile(index)}
-                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80"
-                            title="Eliminar imagen fallida"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                        {file.status === "pending" && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFile(index)}
-                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
-                            title="Eliminar imagen"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            <Button
+              type="submit"
+              className="w-full bg-blue-600 hover:bg-blue-700"
+              disabled={
+                isSubmitting ||
+                !operatorName.trim() ||
+                files.length === 0 ||
+                files.some((f) => f.status === "uploading")
+              }
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Subiendo fotos...
+                </>
+              ) : (
+                <>
+                  <UploadCloud className="h-4 w-4 mr-2" />
+                  Confirmar y Subir Fotos
+                </>
               )}
-
-              <Button
-                type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={isSubmitting || files.length === 0}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Subiendo fotos...
-                  </>
-                ) : (
-                  <>
-                    <UploadCloud className="h-4 w-4 mr-2" />
-                    Confirmar y Subir Fotos
-                  </>
-                )}
-              </Button>
-            </form>
-          )}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

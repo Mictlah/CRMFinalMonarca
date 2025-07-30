@@ -1,69 +1,40 @@
+import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
-import { NextResponse } from "next/server"
 
-export async function POST(request: Request): Promise<NextResponse> {
+export async function POST(request: NextRequest) {
   try {
-    console.log("=== INICIO UPLOAD API ===")
-
-    const { searchParams } = new URL(request.url)
-    const filename = searchParams.get("filename")
-
-    console.log("Filename recibido:", filename)
-
-    if (!filename) {
-      console.error("Error: Filename no proporcionado")
-      return NextResponse.json({ error: "Filename is required" }, { status: 400 })
-    }
-
-    // Verificar token
+    // Verificar que el token esté disponible
     if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      console.error("Error: BLOB_READ_WRITE_TOKEN no configurado")
-      return NextResponse.json({ error: "Blob storage not configured" }, { status: 500 })
+      return NextResponse.json({ error: "Token de Vercel Blob no configurado" }, { status: 500 })
     }
 
     const formData = await request.formData()
-    const file = formData.get("file") as File | null
+    const file = formData.get("file") as File
+    const fileName = formData.get("fileName") as string
 
-    console.log("Archivo recibido:", file ? `${file.name} (${file.size} bytes)` : "null")
-
-    if (!file) {
-      console.error("Error: Archivo no encontrado en FormData")
-      return NextResponse.json({ error: "File not found in form data" }, { status: 400 })
+    if (!file || !fileName) {
+      return NextResponse.json({ error: "Archivo o nombre de archivo faltante" }, { status: 400 })
     }
 
-    // Verificar que es un archivo de imagen
-    if (!file.type.startsWith("image/")) {
-      console.error("Error: Archivo no es una imagen:", file.type)
-      return NextResponse.json({ error: "File must be an image" }, { status: 400 })
-    }
+    console.log("Subiendo archivo:", fileName)
 
-    console.log("Intentando subir a Vercel Blob...")
-
-    const blob = await put(filename, file, {
+    // Subir archivo a Vercel Blob
+    const blob = await put(fileName, file, {
       access: "public",
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
-    console.log("Blob subido exitosamente:", blob)
-    console.log("=== FIN UPLOAD API ===")
+    console.log("Archivo subido exitosamente:", blob.url)
 
-    return NextResponse.json(blob)
-  } catch (error: any) {
-    console.error("=== ERROR EN UPLOAD API ===")
-    console.error("Error uploading file to Vercel Blob:", error)
-    console.error("Error stack:", error.stack)
-    console.error("=== FIN ERROR ===")
-
+    return NextResponse.json({
+      url: blob.url,
+      pathname: blob.pathname,
+    })
+  } catch (error) {
+    console.error("Error al subir archivo:", error)
     return NextResponse.json(
-      {
-        error: "Failed to upload file to storage",
-        details: error.message,
-      },
+      { error: `Error al subir archivo: ${error instanceof Error ? error.message : "Error desconocido"}` },
       { status: 500 },
     )
   }
-}
-
-export async function GET() {
-  return new Response("Esta ruta ha sido eliminada. Ahora usamos subida directa.", { status: 404 })
 }

@@ -1,39 +1,20 @@
 import { createClient } from "@supabase/supabase-js"
 
-// Client-side Supabase client (singleton pattern)
-let supabaseClient: ReturnType<typeof createClient> | null = null
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-export function getSupabaseClient() {
-  if (!supabaseClient) {
-    if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-      throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.")
-    }
-    supabaseClient = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-  }
-  return supabaseClient
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.")
 }
 
-// Server-side Supabase client (for Server Components/Actions)
-export function createServerSupabaseClient() {
-  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY environment variables for server client.")
-  }
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: {
-      persistSession: false, // Important for server-side
-    },
-  })
-}
-
-// Export the client for convenience
-export const supabase = getSupabaseClient()
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 // Tipos TypeScript para las tablas
 export interface Operador {
   id: string
   nombre: string
   apellidos: string
-  telefono: string
+  telefono?: string
   email?: string
   licencia?: string
   numero_apto_medico?: string
@@ -157,7 +138,7 @@ export interface Remolque {
   año?: number
   numero_serie?: string
   capacidad?: number
-  placas: string
+  placas?: string
   fecha_ultima_inspeccion?: string
   proxima_inspeccion?: string
   poliza_seguro?: string
@@ -191,8 +172,8 @@ export interface Embarque {
   observaciones?: string
   updated_at: string
   // Nuevos campos
-  direccion_recolecta: string | null
-  direccion_entrega: string | null
+  direccion_recolecta?: string
+  direccion_entrega?: string
   tiempo_entrega?: string
   tiempo_recolecta?: string
   load_number?: string
@@ -204,10 +185,7 @@ export interface Embarque {
   carta_porte?: string
   tipo_servicio_id?: string
   precio_flete?: number
-  moneda_flete?: "MXN" | "USD"
   currency?: "MXN" | "USD"
-  flete_falso?: boolean
-  modificado?: boolean
   // Relaciones
   cliente?: Cliente
   operador?: Operador
@@ -236,17 +214,28 @@ export interface Recordatorio {
 }
 
 export interface FotoEmbarque {
-  id?: string
+  id: string
   embarque_id: string
   nombre_archivo: string
   url_blob: string
-  pathname_blob: string
-  tamano_bytes: number
-  tipo_mime: string
-  subido_por: string
-  fecha_subida?: string
+  tamano_bytes?: number
+  tipo_mime?: string
+  fecha_subida: string
+  subido_por?: string
   created_at?: string
   updated_at?: string
+}
+
+export interface OperadorPagoContingencia {
+  id: string
+  embarque_id: string
+  operador_original_id?: string
+  operador_reemplazo_id?: string
+  monto_original: number
+  monto_reemplazo: number
+  fecha_registro: string
+  registrado_por?: string
+  updated_at: string
 }
 
 // Función para generar folio automático
@@ -569,12 +558,12 @@ export const obtenerEmbarques = async () => {
     const { data, error } = await supabase
       .from("embarques")
       .select(`
-     *,
-     cliente:clientes(nombre),
-     operador:operadores(nombre, apellidos),
-     camion:camiones(numero_economico),
-     remolque:remolques(numero_economico)
-   `)
+      *,
+      cliente:clientes(nombre),
+      operador:operadores(nombre, apellidos),
+      camion:camiones(numero_economico),
+      remolque:remolques(numero_economico)
+    `)
       .order("fecha_creacion", { ascending: false })
 
     if (error) {
@@ -595,10 +584,10 @@ export const obtenerRecordatorios = async () => {
     const { data, error } = await supabase
       .from("recordatorios")
       .select(`
-   *,
-   operador:operadores(nombre, apellidos),
-   camion:camiones(numero_economico)
- `)
+      *,
+      operador:operadores(nombre, apellidos),
+      camion:camiones(numero_economico)
+    `)
       .order("fecha_vencimiento", { ascending: true })
 
     if (error) {
@@ -633,68 +622,18 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
 }
 
 // Nuevas funciones para fotos de embarques
-export const guardarFotoEmbarque = async (
-  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
-): Promise<FotoEmbarque> => {
-  try {
-    console.log("=== GUARDANDO FOTO EMBARQUE ===")
-    console.log("Datos de la foto:", {
-      embarque_id: foto.embarque_id,
-      nombre_archivo: foto.nombre_archivo,
-      url_blob: foto.url_blob?.substring(0, 50) + "...",
-      tamano_bytes: foto.tamano_bytes,
-      tipo_mime: foto.tipo_mime,
-      subido_por: foto.subido_por,
-    })
-
-    const fotoParaInsertar = {
-      ...foto,
-      fecha_subida: new Date().toISOString(),
-    }
-
-    const serverSupabase = createServerSupabaseClient()
-    const { data, error } = await serverSupabase.from("fotos_embarques").insert([fotoParaInsertar]).select().single()
-
-    if (error) {
-      console.error("Error guardando foto del embarque en DB:", error)
-      console.error("Código de error:", error.code)
-      console.error("Detalles del error:", error.details)
-      console.error("Mensaje del error:", error.message)
-      throw new Error(`Error al guardar en base de datos: ${error.message}`)
-    }
-
-    if (!data) {
-      throw new Error("No se recibieron datos después de la inserción")
-    }
-
-    console.log("Foto guardada exitosamente con ID:", data.id)
-    console.log("=== FIN GUARDAR FOTO ===")
-    return data
-  } catch (error) {
-    console.error("Excepción al guardar foto del embarque:", error)
-    throw error
-  }
-}
-
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
-    console.log("=== OBTENIENDO FOTOS EMBARQUE ===")
-    console.log("Embarque ID:", embarqueId)
-
     const { data, error } = await supabase
-      .from("fotos_embarques")
+      .from("fotos_embarque")
       .select("*")
       .eq("embarque_id", embarqueId)
       .order("fecha_subida", { ascending: false })
 
     if (error) {
       console.error("Error obteniendo fotos del embarque:", error)
-      console.error("Detalles del error:", error.details)
       return []
     }
-
-    console.log("Fotos encontradas:", data?.length || 0)
-    console.log("=== FIN OBTENER FOTOS ===")
     return data || []
   } catch (error) {
     console.error("Excepción al obtener fotos del embarque:", error)
@@ -702,21 +641,21 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
   }
 }
 
-export const eliminarFotoEmbarqueDB = async (fotoId: string): Promise<void> => {
+export const guardarFotoEmbarque = async (
+  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
+) => {
   try {
-    console.log("Eliminando foto de DB con ID:", fotoId)
-
-    const serverSupabase = createServerSupabaseClient()
-    const { error } = await serverSupabase.from("fotos_embarques").delete().eq("id", fotoId)
-
+    const { error } = await supabase.from("fotos_embarque").insert({
+      ...foto,
+      fecha_subida: new Date().toISOString(), // Asegurar que la fecha_subida se establezca aquí
+    })
     if (error) {
-      console.error("Error eliminando foto del embarque en DB:", error)
-      return
+      console.error("Error guardando foto del embarque en DB:", error)
+      return false
     }
-
-    console.log("Foto eliminada de DB exitosamente")
+    return true
   } catch (error) {
-    console.error("Excepción al eliminar foto del embarque en DB:", error)
-    throw error
+    console.error("Excepción al guardar foto del embarque:", error)
+    return false
   }
 }
