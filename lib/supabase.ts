@@ -628,6 +628,9 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
 // Nuevas funciones para fotos de embarques
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
+    console.log("=== OBTENIENDO FOTOS EMBARQUE ===")
+    console.log("Embarque ID:", embarqueId)
+
     const { data, error } = await supabase
       .from("fotos_embarques")
       .select("*")
@@ -638,6 +641,9 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
       console.error("Error obteniendo fotos del embarque:", error)
       return []
     }
+
+    console.log("Fotos encontradas:", data?.length || 0)
+    console.log("=== FIN OBTENER FOTOS ===")
     return data || []
   } catch (error) {
     console.error("Excepción al obtener fotos del embarque:", error)
@@ -649,6 +655,9 @@ export const guardarFotoEmbarque = async (
   foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
 ): Promise<FotoEmbarque | null> => {
   try {
+    console.log("=== GUARDANDO FOTO EMBARQUE ===")
+    console.log("Datos de la foto:", foto)
+
     const { data, error } = await supabase
       .from("fotos_embarques")
       .insert({
@@ -656,12 +665,17 @@ export const guardarFotoEmbarque = async (
         fecha_subida: new Date().toISOString(),
       })
       .select()
-      .single() // Añadir .select().single() para obtener el registro insertado
+      .single()
 
     if (error) {
       console.error("Error guardando foto del embarque en DB:", error)
+      console.error("Detalles del error:", error.details)
+      console.error("Mensaje del error:", error.message)
       throw new Error(`Failed to save photo record: ${error.message}`)
     }
+
+    console.log("Foto guardada exitosamente:", data)
+    console.log("=== FIN GUARDAR FOTO ===")
     return data
   } catch (error) {
     console.error("Excepción al guardar foto del embarque:", error)

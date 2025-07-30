@@ -44,6 +44,9 @@ export default function SubirFotosEmbarquePage({
   const MAX_FILES = 10
 
   const loadEmbarqueAndPhotos = useCallback(async () => {
+    console.log("=== CARGANDO EMBARQUE Y FOTOS ===")
+    console.log("Embarque ID:", embarqueId)
+
     setGlobalError(null)
     if (!embarqueId) return
 
@@ -69,6 +72,8 @@ export default function SubirFotosEmbarquePage({
       return
     }
 
+    console.log("Embarque cargado:", embarqueData)
+
     if (!embarqueData.operador_id || !embarqueData.operador) {
       setGlobalError("Este embarque no tiene un operador asignado. Por favor, contacta a administración.")
       setEmbarque(null)
@@ -80,6 +85,8 @@ export default function SubirFotosEmbarquePage({
     const existingPhotosData = await obtenerFotosEmbarque(embarqueId)
     setExistingPhotos(existingPhotosData)
     setMaxFilesReached(existingPhotosData.length >= MAX_FILES)
+
+    console.log("=== FIN CARGA EMBARQUE Y FOTOS ===")
   }, [embarqueId])
 
   useEffect(() => {
@@ -153,6 +160,8 @@ export default function SubirFotosEmbarquePage({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("=== INICIANDO SUBIDA DE FOTOS ===")
+
     setGlobalError(null)
     setGlobalSuccess(null)
 
@@ -174,28 +183,46 @@ export default function SubirFotosEmbarquePage({
     setIsSubmitting(true)
 
     const operatorFullName = `${embarque.operador.nombre} ${embarque.operador.apellidos}`
-    let allUploadedSuccessfully = true
+    let successCount = 0
+    let failCount = 0
+
+    console.log(`Iniciando subida de ${files.length} archivos`)
+
+    const updateFileStatus = (index: number, status: FilePreview["status"], message?: string) => {
+      setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status, message } : f)))
+    }
 
     const uploadPromises = files.map(async (file, index) => {
       if (file.status === "uploaded") return // Skip already uploaded files
 
       try {
-        const formData = new FormData()
-        formData.append("file", file) // Adjuntar el archivo al FormData
+        console.log(`--- Procesando archivo ${index + 1}: ${file.name} ---`)
 
-        const response = await fetch(`/api/upload?filename=embarques/${embarque.folio}/${Date.now()}-${file.name}`, {
+        updateFileStatus(index, "uploading", "Subiendo...")
+
+        const formData = new FormData()
+        formData.append("file", file)
+
+        const filename = `embarques/${embarque.folio}/${Date.now()}-${file.name}`
+        console.log("Filename generado:", filename)
+
+        const response = await fetch(`/api/upload?filename=${encodeURIComponent(filename)}`, {
           method: "POST",
-          body: formData, // Enviar FormData
+          body: formData,
         })
+
+        console.log("Respuesta de upload API:", response.status, response.statusText)
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Error al subir la imagen al blob.")
+          throw new Error(errorData.error || `Error HTTP ${response.status}`)
         }
 
         const { url, pathname } = await response.json()
+        console.log("Blob subido exitosamente:", { url, pathname })
 
         // Guardar la URL en Supabase
+        console.log("Guardando en Supabase...")
         const savedPhoto = await guardarFotoEmbarque({
           embarque_id: embarqueId,
           nombre_archivo: file.name,
@@ -207,33 +234,36 @@ export default function SubirFotosEmbarquePage({
         })
 
         if (!savedPhoto) {
-          throw new Error("Error al guardar el registro de la imagen en la base de datos (retorno nulo).")
+          throw new Error("No se recibió confirmación de guardado en base de datos")
         }
 
-        setFiles((prev) =>
-          prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
-        )
+        console.log("Archivo procesado exitosamente:", file.name)
+        updateFileStatus(index, "uploaded", "¡Subida exitosa!")
+        successCount++
       } catch (error: any) {
-        console.error(`Error uploading or saving file ${file.name}:`, error)
-        allUploadedSuccessfully = false // Marcar que al menos una falló
-        setFiles((prev) =>
-          prev.map((f, i) =>
-            i === index ? { ...f, status: "failed", message: error.message || "Error desconocido" } : f,
-          ),
-        )
+        console.error(`Error procesando archivo ${file.name}:`, error)
+        updateFileStatus(index, "failed", error.message || "Error desconocido")
+        failCount++
       }
     })
 
     await Promise.all(uploadPromises)
 
-    if (allUploadedSuccessfully) {
-      setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
+    console.log(`=== RESUMEN: ${successCount} éxitos, ${failCount} fallos ===`)
+
+    if (failCount === 0) {
+      setGlobalSuccess(`¡Todas las ${successCount} imágenes se subieron y registraron exitosamente!`)
       setFiles([])
       await loadEmbarqueAndPhotos()
+    } else if (successCount > 0) {
+      setGlobalSuccess(`${successCount} imágenes se subieron correctamente.`)
+      setGlobalError(`${failCount} imágenes fallaron. Revisa los detalles de cada archivo.`)
     } else {
-      setGlobalError("Algunas imágenes no se pudieron subir o registrar. Revisa los detalles de cada archivo.")
+      setGlobalError("No se pudo subir ninguna imagen. Revisa tu conexión e inténtalo de nuevo.")
     }
+
     setIsSubmitting(false)
+    console.log("=== FIN SUBIDA DE FOTOS ===")
   }
 
   if (!embarque) {
@@ -469,6 +499,11 @@ export default function SubirFotosEmbarquePage({
                           <XCircle className="h-6 w-6 text-white" />
                         </div>
                       )}
+                      {file.status === "uploaded" && (
+                        <div className="absolute inset-0 bg-green-500 bg-opacity-25 flex items-center justify-center rounded-lg z-10">
+                          <CheckCircle className="h-6 w-6 text-green-600" />
+                        </div>
+                      )}
                       <img
                         src={file.preview || "/placeholder.svg"}
                         alt={`Preview ${file.name}`}
@@ -476,8 +511,14 @@ export default function SubirFotosEmbarquePage({
                         onLoad={() => URL.revokeObjectURL(file.preview)}
                       />
                       <p className="text-xs truncate w-full px-1">{file.name}</p>
+                      {file.message && (
+                        <p
+                          className={`text-xs ${file.status === "failed" ? "text-red-600" : file.status === "uploaded" ? "text-green-600" : "text-gray-600"}`}
+                        >
+                          {file.message}
+                        </p>
+                      )}
                       <div className="absolute top-1 right-1">
-                        {file.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
                         {file.status === "failed" && (
                           <button
                             type="button"
@@ -488,7 +529,7 @@ export default function SubirFotosEmbarquePage({
                             <XCircle className="h-4 w-4" />
                           </button>
                         )}
-                        {(file.status === "pending" || file.status === "uploading") && (
+                        {file.status === "pending" && (
                           <button
                             type="button"
                             onClick={() => handleRemoveFile(index)}
@@ -507,7 +548,7 @@ export default function SubirFotosEmbarquePage({
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={isSubmitting || files.length === 0 || files.some((f) => f.status === "uploading")}
+                disabled={isSubmitting || files.length === 0}
               >
                 {isSubmitting ? (
                   <>

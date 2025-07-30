@@ -37,22 +37,20 @@ export async function subirFotoEmbarque(
   }
 }
 
-export async function eliminarFotoEmbarque(pathname: string): Promise<void> {
+export const eliminarFotoEmbarque = async (pathname: string): Promise<boolean> => {
   try {
-    // Usar la variable de entorno disponible
-    const token = process.env.BLOB_READ_WRITE_TOKEN
-    if (!token) {
-      console.warn("Token de Blob no disponible, saltando eliminación de archivo:", pathname)
-      return // No lanzar error, solo advertir
+    if (!pathname) {
+      throw new Error("Pathname is required for deletion")
     }
 
     await del(pathname, {
-      token: token,
+      token: process.env.BLOB_READ_WRITE_TOKEN,
     })
+
+    return true
   } catch (error) {
-    console.error("Error al eliminar foto:", error)
-    // No lanzar error para evitar que falle toda la eliminación
-    console.warn("Continuando con la eliminación a pesar del error en blob storage")
+    console.error("Error eliminando archivo de Vercel Blob:", error)
+    throw error
   }
 }
 
