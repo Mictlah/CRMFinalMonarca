@@ -9,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -32,9 +31,9 @@ import {
   Eye,
   CheckCircle,
   AlertTriangle,
-  ArrowLeft,
   Camera,
   X,
+  ArrowLeft,
 } from "lucide-react"
 import {
   supabase,
@@ -56,15 +55,12 @@ export default function SubirFotosEmbarquePage() {
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
   const [fotos, setFotos] = useState<FotoEmbarque[]>([])
   const [loading, setLoading] = useState(true)
-  const [subiendo, setSubiendo] = useState(false)
-  const [eliminando, setEliminando] = useState<string | null>(null)
-  const [confirmandoOperador, setConfirmandoOperador] = useState(false)
-  const [operadorConfirmado, setOperadorConfirmado] = useState<any>(null)
-
-  // Estados del formulario
-  const [archivosSeleccionados, setArchivosSeleccionados] = useState<File[]>([])
-  const [nombreOperador, setNombreOperador] = useState("")
-  const [observaciones, setObservaciones] = useState("")
+  const [uploading, setUploading] = useState(false)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [operadorNombre, setOperadorNombre] = useState("")
+  const [confirmacionGuardada, setConfirmacionGuardada] = useState(false)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -74,10 +70,13 @@ export default function SubirFotosEmbarquePage() {
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      console.log("Cargando datos para embarque:", embarqueId)
+      setError("")
 
-      // Primero intentar buscar por ID directo
-      let { data: embarqueData, error: embarqueError } = await supabase
+      // Buscar embarque por ID o folio
+      let embarqueData: Embarque | null = null
+
+      // Primero intentar buscar por ID
+      const { data: embarquePorId, error: errorId } = await supabase
         .from("embarques")
         .select(`
           *,
@@ -88,239 +87,162 @@ export default function SubirFotosEmbarquePage() {
         .eq("id", embarqueId)
         .single()
 
-      // Si no se encuentra por ID, intentar buscar por folio
-      if (embarqueError || !embarqueData) {
-        console.log("No encontrado por ID, buscando por folio:", embarqueId)
+      if (!errorId && embarquePorId) {
+        embarqueData = embarquePorId
+      } else {
+        // Si no se encuentra por ID, intentar por folio
         embarqueData = await buscarEmbarquePorFolio(embarqueId)
       }
 
       if (!embarqueData) {
-        console.error("Embarque no encontrado:", embarqueId)
-        alert("Embarque no encontrado")
-        router.push("/embarques")
+        setError("No se encontró el embarque especificado")
         return
       }
 
-      console.log("Embarque encontrado:", embarqueData)
       setEmbarque(embarqueData)
 
-      // Cargar fotos del embarque
+      // Cargar fotos existentes
       const fotosData = await obtenerFotosEmbarque(embarqueData.id)
-      console.log("Fotos cargadas:", fotosData.length)
       setFotos(fotosData)
 
-      // Cargar confirmación del operador si existe
+      // Verificar si ya hay confirmación del operador
       const confirmacion = await obtenerConfirmacionOperador(embarqueData.id)
       if (confirmacion) {
-        setOperadorConfirmado(confirmacion)
-        setNombreOperador(confirmacion.operador_nombre)
+        setConfirmacionGuardada(true)
+        setOperadorNombre(confirmacion.operador_nombre)
       }
     } catch (error) {
       console.error("Error cargando datos:", error)
-      alert("Error al cargar los datos del embarque")
+      setError("Error al cargar los datos del embarque")
     } finally {
       setLoading(false)
     }
   }
 
-  const manejarSeleccionArchivos = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const archivos = Array.from(event.target.files || [])
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || [])
 
     // Validar archivos
-    const archivosValidos = archivos.filter((archivo) => {
-      // Validar tamaño (máximo 10MB)
-      if (archivo.size > 10 * 1024 * 1024) {
-        alert(`El archivo ${archivo.name} es muy grande. Máximo 10MB.`)
+    const archivosValidos = files.filter((file) => {
+      const esImagen = file.type.startsWith("image/")
+      const esPDF = file.type === "application/pdf"
+      const tamañoValido = file.size <= 10 * 1024 * 1024 // 10MB máximo
+
+      if (!esImagen && !esPDF) {
+        setError(`${file.name}: Solo se permiten imágenes y archivos PDF`)
         return false
       }
 
-      // Validar tipo
-      const tiposPermitidos = ["image/jpeg", "image/jpg", "image/png", "image/gif", "application/pdf"]
-      if (!tiposPermitidos.includes(archivo.type)) {
-        alert(`El archivo ${archivo.name} no es un tipo válido. Solo se permiten imágenes y PDFs.`)
+      if (!tamañoValido) {
+        setError(`${file.name}: El archivo es muy grande (máximo 10MB)`)
         return false
       }
 
       return true
     })
 
-    setArchivosSeleccionados((prev) => [...prev, ...archivosValidos])
+    setSelectedFiles((prev) => [...prev, ...archivosValidos])
+    setError("")
   }
 
-  const eliminarArchivoSeleccionado = (index: number) => {
-    setArchivosSeleccionados((prev) => prev.filter((_, i) => i !== index))
+  const removeSelectedFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
   const subirArchivos = async () => {
-    if (!embarque || archivosSeleccionados.length === 0) {
-      alert("Selecciona al menos un archivo para subir")
-      return
-    }
+    if (!embarque || selectedFiles.length === 0) return
 
-    if (!nombreOperador.trim()) {
-      alert("Ingresa el nombre del operador")
+    if (!operadorNombre.trim()) {
+      setError("Por favor ingresa el nombre del operador")
       return
     }
 
     try {
-      setSubiendo(true)
-      console.log("Iniciando subida de", archivosSeleccionados.length, "archivos")
+      setUploading(true)
+      setError("")
+      setSuccess("")
 
       let archivosSubidos = 0
-      let errores = 0
 
-      for (const archivo of archivosSeleccionados) {
+      for (const file of selectedFiles) {
         try {
-          console.log("Subiendo archivo:", archivo.name)
-
           // Crear nombre único que incluya el folio del embarque
           const timestamp = Date.now()
-          const extension = archivo.name.split(".").pop()
-          const nombreUnico = `${embarque.folio}-${timestamp}-${archivo.name}`
+          const extension = file.name.split(".").pop()
+          const nombreOperador = operadorNombre.replace(/\s+/g, "-")
+          const nombreArchivo = `${embarque.folio}-${timestamp}-${nombreOperador}.${extension}`
 
           // Subir archivo a blob storage
-          const { url, pathname } = await subirFotoEmbarque(archivo, embarque.folio, nombreOperador.trim())
-          console.log("Archivo subido a blob:", url)
+          const { url, pathname } = await subirFotoEmbarque(file, embarque.folio, nombreOperador)
 
           // Guardar información en la base de datos
-          const fotoData = {
+          const fotoGuardada = await guardarFotoEmbarque({
             embarque_id: embarque.id,
-            nombre_archivo: nombreUnico,
+            nombre_archivo: nombreArchivo,
             url_blob: url,
-            tamano_bytes: archivo.size,
-            tipo_mime: archivo.type,
-            subido_por: nombreOperador.trim(),
-          }
+            tamano_bytes: file.size,
+            tipo_mime: file.type,
+            subido_por: operadorNombre.trim(),
+          })
 
-          const guardado = await guardarFotoEmbarque(fotoData)
-          if (guardado) {
+          if (fotoGuardada) {
             archivosSubidos++
-            console.log("Foto guardada en BD:", nombreUnico)
-          } else {
-            errores++
-            console.error("Error guardando foto en BD:", nombreUnico)
           }
         } catch (error) {
-          console.error("Error subiendo archivo:", archivo.name, error)
-          errores++
+          console.error(`Error subiendo ${file.name}:`, error)
+          setError(`Error subiendo ${file.name}: ${error instanceof Error ? error.message : "Error desconocido"}`)
         }
       }
 
-      // Guardar confirmación del operador si no existe
-      if (!operadorConfirmado) {
-        const confirmacionGuardada = await guardarConfirmacionOperador(embarque.id, nombreOperador.trim())
-        if (confirmacionGuardada) {
-          setOperadorConfirmado({
-            embarque_id: embarque.id,
-            operador_nombre: nombreOperador.trim(),
-            fecha_confirmacion: new Date().toISOString(),
-          })
-        }
-      }
-
-      // Mostrar resultado
       if (archivosSubidos > 0) {
-        alert(
-          `${archivosSubidos} archivo(s) subido(s) exitosamente${errores > 0 ? `. ${errores} archivo(s) fallaron.` : "."}`,
-        )
+        // Guardar confirmación del operador si no existe
+        if (!confirmacionGuardada) {
+          const confirmacionExitosa = await guardarConfirmacionOperador(embarque.id, operadorNombre.trim())
+          if (confirmacionExitosa) {
+            setConfirmacionGuardada(true)
+          }
+        }
 
-        // Limpiar formulario
-        setArchivosSeleccionados([])
-        setObservaciones("")
+        setSuccess(`${archivosSubidos} archivo(s) subido(s) exitosamente`)
+        setSelectedFiles([])
 
         // Recargar fotos
-        await cargarDatos()
-      } else {
-        alert("No se pudo subir ningún archivo. Revisa la consola para más detalles.")
+        const fotosActualizadas = await obtenerFotosEmbarque(embarque.id)
+        setFotos(fotosActualizadas)
       }
     } catch (error) {
-      console.error("Error en proceso de subida:", error)
-      alert("Error durante la subida de archivos")
+      console.error("Error en subida:", error)
+      setError("Error al subir archivos")
     } finally {
-      setSubiendo(false)
-    }
-  }
-
-  const confirmarOperador = async () => {
-    if (!embarque || !nombreOperador.trim()) {
-      alert("Ingresa el nombre del operador")
-      return
-    }
-
-    try {
-      setConfirmandoOperador(true)
-
-      const confirmacionGuardada = await guardarConfirmacionOperador(embarque.id, nombreOperador.trim())
-
-      if (confirmacionGuardada) {
-        setOperadorConfirmado({
-          embarque_id: embarque.id,
-          operador_nombre: nombreOperador.trim(),
-          fecha_confirmacion: new Date().toISOString(),
-        })
-        alert("Operador confirmado exitosamente")
-      } else {
-        alert("Error al confirmar operador")
-      }
-    } catch (error) {
-      console.error("Error confirmando operador:", error)
-      alert("Error al confirmar operador")
-    } finally {
-      setConfirmandoOperador(false)
+      setUploading(false)
     }
   }
 
   const eliminarFoto = async (foto: FotoEmbarque) => {
-    if (!confirm(`¿Estás seguro de eliminar la foto ${foto.nombre_archivo}?`)) {
-      return
-    }
-
     try {
-      setEliminando(foto.id)
-      console.log("Eliminando foto:", foto.nombre_archivo)
-
       // Eliminar de blob storage
-      if (foto.url_blob) {
-        // Extraer pathname de la URL
-        const url = new URL(foto.url_blob)
-        const pathname = url.pathname.substring(1) // Remover el primer "/"
-        await eliminarFotoEmbarque(pathname)
-        console.log("Foto eliminada de blob storage")
-      }
+      const pathname = foto.url_blob.split("/").pop() || ""
+      await eliminarFotoEmbarque(`embarques/${embarque?.folio}/${pathname}`)
 
-      // Eliminar de la base de datos
+      // Eliminar de base de datos
       const { error } = await supabase.from("fotos_embarques").delete().eq("id", foto.id)
 
       if (error) {
         console.error("Error eliminando foto de BD:", error)
-        alert("Error al eliminar la foto de la base de datos")
+        setError("Error al eliminar la foto")
         return
       }
 
-      console.log("Foto eliminada de BD")
-      alert("Foto eliminada exitosamente")
-
-      // Recargar fotos
-      await cargarDatos()
+      // Actualizar lista local
+      setFotos((prev) => prev.filter((f) => f.id !== foto.id))
+      setSuccess("Foto eliminada exitosamente")
     } catch (error) {
       console.error("Error eliminando foto:", error)
-      alert("Error al eliminar la foto")
-    } finally {
-      setEliminando(null)
+      setError("Error al eliminar la foto")
     }
   }
 
-  const descargarFoto = (foto: FotoEmbarque) => {
-    const link = document.createElement("a")
-    link.href = foto.url_blob
-    link.download = foto.nombre_archivo
-    link.target = "_blank"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
-  const formatearTamano = (bytes: number) => {
+  const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes"
     const k = 1024
     const sizes = ["Bytes", "KB", "MB", "GB"]
@@ -346,11 +268,11 @@ export default function SubirFotosEmbarquePage() {
       <MainLayout>
         <div className="text-center py-12">
           <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-500" />
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Embarque no encontrado</h2>
-          <p className="text-gray-600 mb-4">No se pudo encontrar el embarque solicitado</p>
-          <Button onClick={() => router.push("/embarques")}>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Embarque no encontrado</h1>
+          <p className="text-gray-600 mb-4">No se pudo encontrar el embarque especificado</p>
+          <Button onClick={() => router.back()}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver a Embarques
+            Regresar
           </Button>
         </div>
       </MainLayout>
@@ -363,39 +285,27 @@ export default function SubirFotosEmbarquePage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <Button variant="outline" onClick={() => router.push("/embarques")} className="mb-4">
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Volver a Embarques
-            </Button>
             <h1 className="text-3xl font-bold text-gray-900">Subir Fotos del Embarque</h1>
-            <p className="text-gray-600 mt-2">
+            <p className="text-gray-600 mt-1">
               Folio: <span className="font-semibold">{embarque.folio}</span>
             </p>
           </div>
-          <div className="text-right">
-            <Badge variant={operadorConfirmado ? "default" : "secondary"} className="mb-2">
-              {operadorConfirmado ? "Operador Confirmado" : "Pendiente Confirmación"}
-            </Badge>
-            {operadorConfirmado && (
-              <p className="text-sm text-gray-600">
-                Por: {operadorConfirmado.operador_nombre}
-                <br />
-                {new Date(operadorConfirmado.fecha_confirmacion).toLocaleString()}
-              </p>
-            )}
-          </div>
+          <Button variant="outline" onClick={() => router.back()}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Regresar
+          </Button>
         </div>
 
         {/* Información del embarque */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
-              <FileText className="h-5 w-5" />
+              <Camera className="h-5 w-5" />
               <span>Información del Embarque</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-medium text-gray-600">Cliente</Label>
                 <p className="text-sm">{embarque.cliente?.nombre || "No especificado"}</p>
@@ -407,145 +317,90 @@ export default function SubirFotosEmbarquePage() {
                 </p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-gray-600">Origen - Destino</Label>
+                <Label className="text-sm font-medium text-gray-600">Origen → Destino</Label>
                 <p className="text-sm">
                   {embarque.origen} → {embarque.destino}
                 </p>
-              </div>
-              <div>
-                <Label className="text-sm font-medium text-gray-600">Estado</Label>
-                <Badge variant="outline">{embarque.estado}</Badge>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Estadísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Fotos</p>
-                  <p className="text-2xl font-bold">{fotos.length}</p>
-                </div>
-                <ImageIcon className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Tamaño Total</p>
-                  <p className="text-2xl font-bold">
-                    {formatearTamano(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
-                  </p>
-                </div>
-                <Upload className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Estado</p>
-                  <p className="text-lg font-bold text-green-600">{operadorConfirmado ? "Confirmado" : "Pendiente"}</p>
-                </div>
-                {operadorConfirmado ? (
-                  <CheckCircle className="h-8 w-8 text-green-600" />
-                ) : (
-                  <AlertTriangle className="h-8 w-8 text-orange-600" />
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Alertas */}
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {success && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )}
 
         {/* Formulario de subida */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Camera className="h-5 w-5" />
-              <span>Subir Nuevas Fotos</span>
-            </CardTitle>
-            <CardDescription>
-              Selecciona las fotos o documentos del embarque. Formatos permitidos: JPG, PNG, GIF, PDF (máx. 10MB cada
-              uno)
-            </CardDescription>
+            <CardTitle>Subir Fotos</CardTitle>
+            <CardDescription>Selecciona las fotos o documentos relacionados con este embarque</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Confirmación del operador */}
-            {!operadorConfirmado && (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>Primero confirma tu identidad como operador antes de subir fotos.</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="nombreOperador">Nombre del Operador *</Label>
-                <Input
-                  id="nombreOperador"
-                  value={nombreOperador}
-                  onChange={(e) => setNombreOperador(e.target.value)}
-                  placeholder="Ingresa tu nombre completo"
-                  disabled={operadorConfirmado}
-                />
-                {!operadorConfirmado && (
-                  <Button
-                    onClick={confirmarOperador}
-                    disabled={confirmandoOperador || !nombreOperador.trim()}
-                    size="sm"
-                  >
-                    {confirmandoOperador ? "Confirmando..." : "Confirmar Operador"}
-                  </Button>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="observaciones">Observaciones (Opcional)</Label>
-                <Textarea
-                  id="observaciones"
-                  value={observaciones}
-                  onChange={(e) => setObservaciones(e.target.value)}
-                  placeholder="Comentarios adicionales sobre las fotos..."
-                  rows={3}
-                />
-              </div>
+            <div className="space-y-2">
+              <Label htmlFor="operador">Nombre del Operador *</Label>
+              <Input
+                id="operador"
+                value={operadorNombre}
+                onChange={(e) => setOperadorNombre(e.target.value)}
+                placeholder="Ingresa tu nombre completo"
+                disabled={confirmacionGuardada}
+              />
+              {confirmacionGuardada && (
+                <div className="flex items-center space-x-2 text-green-600 text-sm">
+                  <CheckCircle className="h-4 w-4" />
+                  <span>Operador confirmado</span>
+                </div>
+              )}
             </div>
 
             {/* Selector de archivos */}
             <div className="space-y-2">
-              <Label htmlFor="archivos">Seleccionar Archivos</Label>
+              <Label htmlFor="files">Seleccionar Archivos</Label>
               <Input
-                id="archivos"
+                id="files"
                 type="file"
                 multiple
                 accept="image/*,.pdf"
-                onChange={manejarSeleccionArchivos}
-                disabled={subiendo || !operadorConfirmado}
+                onChange={handleFileSelect}
+                disabled={uploading}
               />
+              <p className="text-xs text-gray-500">
+                Formatos permitidos: Imágenes (JPG, PNG, etc.) y PDF. Tamaño máximo: 10MB por archivo.
+              </p>
             </div>
 
             {/* Vista previa de archivos seleccionados */}
-            {archivosSeleccionados.length > 0 && (
+            {selectedFiles.length > 0 && (
               <div className="space-y-2">
-                <Label>Archivos Seleccionados ({archivosSeleccionados.length})</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {archivosSeleccionados.map((archivo, index) => (
+                <Label>Archivos Seleccionados ({selectedFiles.length})</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  {selectedFiles.map((file, index) => (
                     <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{archivo.name}</p>
-                        <p className="text-xs text-gray-500">{formatearTamano(archivo.size)}</p>
+                      <div className="flex items-center space-x-2">
+                        {file.type.startsWith("image/") ? (
+                          <ImageIcon className="h-4 w-4 text-blue-500" />
+                        ) : (
+                          <FileText className="h-4 w-4 text-red-500" />
+                        )}
+                        <div>
+                          <p className="text-sm font-medium truncate max-w-48">{file.name}</p>
+                          <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => eliminarArchivoSeleccionado(index)}
-                        disabled={subiendo}
-                      >
+                      <Button variant="ghost" size="sm" onClick={() => removeSelectedFile(index)} disabled={uploading}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -555,41 +410,42 @@ export default function SubirFotosEmbarquePage() {
             )}
 
             {/* Botón de subida */}
-            <div className="flex justify-end">
-              <Button
-                onClick={subirArchivos}
-                disabled={subiendo || archivosSeleccionados.length === 0 || !operadorConfirmado}
-                className="min-w-[120px]"
-              >
-                {subiendo ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Subiendo...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Subir Fotos
-                  </>
-                )}
-              </Button>
-            </div>
+            <Button
+              onClick={subirArchivos}
+              disabled={uploading || selectedFiles.length === 0 || !operadorNombre.trim()}
+              className="w-full"
+            >
+              {uploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Subiendo archivos...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Subir {selectedFiles.length} archivo(s)
+                </>
+              )}
+            </Button>
           </CardContent>
         </Card>
 
-        {/* Galería de fotos */}
+        {/* Galería de fotos existentes */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <ImageIcon className="h-5 w-5" />
+            <CardTitle className="flex items-center justify-between">
               <span>Fotos del Embarque ({fotos.length})</span>
+              <Badge variant="outline">
+                {fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0) > 0 &&
+                  formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
+              </Badge>
             </CardTitle>
-            <CardDescription>Todas las fotos y documentos subidos para este embarque</CardDescription>
+            <CardDescription>Todas las fotos y documentos asociados a este embarque</CardDescription>
           </CardHeader>
           <CardContent>
             {fotos.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
-                <ImageIcon className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <Camera className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                 <p className="text-lg font-medium">No hay fotos subidas</p>
                 <p className="text-sm mt-1">Las fotos aparecerán aquí una vez que las subas</p>
               </div>
@@ -623,15 +479,11 @@ export default function SubirFotosEmbarquePage() {
                         </div>
                       )}
 
-                      {/* Overlay con acciones */}
+                      {/* Overlay con información */}
                       <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <div className="flex space-x-2">
-                          <Button size="sm" variant="secondary" onClick={() => window.open(foto.url_blob, "_blank")}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button size="sm" variant="secondary" onClick={() => descargarFoto(foto)}>
-                            <Download className="h-4 w-4" />
-                          </Button>
+                        <div className="text-white text-center">
+                          <Eye className="h-6 w-6 mx-auto mb-1" />
+                          <span className="text-xs">Click para ver</span>
                         </div>
                       </div>
                     </div>
@@ -639,15 +491,18 @@ export default function SubirFotosEmbarquePage() {
                     {/* Información del archivo */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium truncate flex-1">{foto.nombre_archivo}</p>
-                        <span className="text-xs text-gray-500 ml-2">
-                          {foto.tamano_bytes ? formatearTamano(foto.tamano_bytes) : "N/A"}
+                        <p className="text-sm font-medium truncate">{foto.nombre_archivo}</p>
+                        <span className="text-xs text-gray-500">
+                          {foto.tamano_bytes && formatFileSize(foto.tamano_bytes)}
                         </span>
                       </div>
 
                       {foto.subido_por && <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>}
 
-                      <p className="text-xs text-gray-400">{new Date(foto.fecha_subida).toLocaleString()}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
+                        {new Date(foto.fecha_subida).toLocaleTimeString()}
+                      </p>
 
                       {/* Acciones */}
                       <div className="flex space-x-2 pt-2">
@@ -664,19 +519,23 @@ export default function SubirFotosEmbarquePage() {
                           variant="outline"
                           size="sm"
                           className="flex-1 bg-transparent"
-                          onClick={() => descargarFoto(foto)}
+                          onClick={() => {
+                            const link = document.createElement("a")
+                            link.href = foto.url_blob
+                            link.download = foto.nombre_archivo
+                            link.target = "_blank"
+                            document.body.appendChild(link)
+                            link.click()
+                            document.body.removeChild(link)
+                          }}
                         >
                           <Download className="h-3 w-3 mr-1" />
                           Descargar
                         </Button>
                         <AlertDialog>
                           <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm" disabled={eliminando === foto.id}>
-                              {eliminando === foto.id ? (
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-red-600" />
-                              ) : (
-                                <Trash2 className="h-3 w-3 text-red-600" />
-                              )}
+                            <Button variant="outline" size="sm">
+                              <Trash2 className="h-3 w-3 text-red-500" />
                             </Button>
                           </AlertDialogTrigger>
                           <AlertDialogContent>
@@ -700,6 +559,41 @@ export default function SubirFotosEmbarquePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Estadísticas */}
+        {fotos.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Estadísticas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-blue-600">{fotos.length}</p>
+                  <p className="text-sm text-gray-600">Total de archivos</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-green-600">
+                    {fotos.filter((f) => f.tipo_mime?.startsWith("image/")).length}
+                  </p>
+                  <p className="text-sm text-gray-600">Imágenes</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-red-600">
+                    {fotos.filter((f) => f.tipo_mime?.includes("pdf")).length}
+                  </p>
+                  <p className="text-sm text-gray-600">Documentos PDF</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-2xl font-bold text-purple-600">
+                    {formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
+                  </p>
+                  <p className="text-sm text-gray-600">Tamaño total</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </MainLayout>
   )

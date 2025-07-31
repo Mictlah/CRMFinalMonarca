@@ -101,3 +101,99 @@ export async function uploadFile(fileName: string, file: File): Promise<{ url: s
     throw new Error(`Error al subir el archivo: ${error instanceof Error ? error.message : "Error desconocido"}`)
   }
 }
+
+// Nueva función específica para documentos de operadores
+export async function subirDocumentoOperador(
+  operadorId: string,
+  file: File,
+  tipoDocumento: string,
+  numeroDocumento?: string,
+): Promise<{ url: string; pathname: string }> {
+  try {
+    console.log("Subiendo documento de operador:", { operadorId, tipoDocumento, fileName: file.name })
+
+    // Validar archivo
+    if (!file) {
+      throw new Error("No se proporcionó archivo")
+    }
+
+    // Validar tamaño (máximo 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      throw new Error("El archivo es muy grande. Tamaño máximo: 10MB")
+    }
+
+    // Validar tipo de archivo
+    const tiposPermitidos = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/gif",
+      "image/bmp",
+      "image/webp",
+      "application/pdf",
+    ]
+    if (!tiposPermitidos.includes(file.type)) {
+      throw new Error("Tipo de archivo no permitido. Solo se permiten imágenes (JPG, PNG, GIF, BMP, WebP) y PDFs")
+    }
+
+    // Crear nombre único para el archivo
+    const timestamp = Date.now()
+    const extension = file.name.split(".").pop()
+    const nombreArchivo = `operadores/${operadorId}/${tipoDocumento}_${timestamp}.${extension}`
+
+    console.log("Nombre de archivo generado:", nombreArchivo)
+
+    // Usar la API route para subir el archivo
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("fileName", nombreArchivo)
+
+    const response = await fetch("/api/upload", {
+      method: "POST",
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Error en respuesta del servidor:", errorText)
+      throw new Error(`Error del servidor: ${response.status} - ${errorText}`)
+    }
+
+    const result = await response.json()
+    console.log("Documento subido exitosamente:", result)
+
+    return {
+      url: result.url,
+      pathname: result.pathname,
+    }
+  } catch (error) {
+    console.error("Error al subir documento de operador:", error)
+    throw new Error(`Error al subir el documento: ${error instanceof Error ? error.message : "Error desconocido"}`)
+  }
+}
+
+// Función para eliminar documento de operador
+export async function eliminarDocumentoOperador(pathname: string): Promise<void> {
+  try {
+    console.log("Eliminando documento de operador:", pathname)
+
+    const response = await fetch("/api/upload", {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ pathname }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("Error eliminando archivo:", errorText)
+      throw new Error(`Error al eliminar archivo: ${response.status}`)
+    }
+
+    console.log("Documento eliminado exitosamente")
+  } catch (error) {
+    console.error("Error al eliminar documento:", error)
+    throw error
+  }
+}
