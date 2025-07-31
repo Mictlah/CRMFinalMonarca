@@ -77,12 +77,12 @@ export default function AsignarOperadoresPage() {
         .from("embarques")
         .select(
           `
-         *,
-         cliente:clientes(*),
-         operador:operadores(*),
-         camion:camiones(*),
-         remolque:remolques(*)
-       `,
+          *,
+          cliente:clientes(*),
+          operador:operadores(*),
+          camion:camiones(*),
+          remolque:remolques(*)
+        `,
         )
         .in("estado", ["listo-para-asignar", "asignado", "en-transito"])
         .order("fecha_creacion", { ascending: false })
@@ -168,12 +168,12 @@ export default function AsignarOperadoresPage() {
         .from("embarques")
         .select(
           `
-       *,
-       cliente:clientes(*),
-       operador:operadores(*),
-       camion:camiones(*),
-       remolque:remolques(*)
-     `,
+        *,
+        cliente:clientes(*),
+        operador:operadores(*),
+        camion:camiones(*),
+        remolque:remolques(*)
+      `,
         )
         .eq("estado", "finalizado")
         .order("updated_at", { ascending: false })
@@ -185,12 +185,12 @@ export default function AsignarOperadoresPage() {
           .from("embarques")
           .select(
             `
-           *,
-           cliente:clientes(*),
-           operador:operadores(*),
-           camion:camiones(*),
-           remolque:remolques(*)
-         `,
+            *,
+            cliente:clientes(*),
+            operador:operadores(*),
+            camion:camiones(*),
+            remolque:remolques(*)
+          `,
           )
           .eq("estado", "finalizado")
           .order("updated_at", { ascending: false })
@@ -699,182 +699,182 @@ export default function AsignarOperadoresPage() {
 
     const printContent = `
 <html>
- <head>
-   <title>Detalles del Embarque - ${embarqueDetalle.folio}</title>
-   <style>
-     body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
-     .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
-     .section { margin-bottom: 25px; }
-     .section-title { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
-     .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
-     .field { margin-bottom: 10px; }
-     .field-label { font-weight: bold; font-size: 12px; color: #666; text-transform: uppercase; }
-     .field-value { font-size: 14px; color: #333; margin-top: 2px; padding: 5px; border-bottom: 1px solid #ddd; }
-     .full-width { grid-column: 1 / -1; }
-     .address-field { background-color: #f9f9f9; padding: 10px; border-left: 3px solid #007bff; }
-     @media print { body { margin: 0; } }
-   </style>
- </head>
- <body>
-   <div class="header">
-     <h1>TRANSPORTES MONARCA</h1>
-     <h2>DETALLES COMPLETOS DEL EMBARQUE</h2>
-     <p><strong>Folio:</strong> ${embarqueDetalle.folio}</p>
-     <p><strong>Estado:</strong> ${embarqueDetalle.estado}</p>
-     <p><strong>Fecha de Impresión:</strong> ${new Date().toLocaleString()}</p>
-   </div>
-   
-   <div class="section">
-     <div class="section-title">INFORMACIÓN DEL CLIENTE</div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Cliente</div>
-         <div class="field-value">${embarqueDetalle.cliente?.nombre || "Sin asignar"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Contacto del Cliente</div>
-         <div class="field-value">${contactoNombre}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Teléfono</div>
-         <div class="field-value">${embarqueDetalle.cliente?.telefono || "No especificado"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Email</div>
-         <div class="field-value">${embarqueDetalle.cliente?.email || "No especificado"}</div>
-       </div>
-     </div>
-   </div>
+  <head>
+    <title>Detalles del Embarque - ${embarqueDetalle.folio}</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 20px; line-height: 1.4; }
+      .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
+      .section { margin-bottom: 25px; }
+      .section-title { font-size: 16px; font-weight: bold; color: #333; margin-bottom: 15px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+      .field-group { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px; }
+      .field { margin-bottom: 10px; }
+      .field-label { font-weight: bold; font-size: 12px; color: #666; text-transform: uppercase; }
+      .field-value { font-size: 14px; color: #333; margin-top: 2px; padding: 5px; border-bottom: 1px solid #ddd; }
+      .full-width { grid-column: 1 / -1; }
+      .address-field { background-color: #f9f9f9; padding: 10px; border-left: 3px solid #007bff; }
+      @media print { body { margin: 0; } }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <h1>TRANSPORTES MONARCA</h1>
+      <h2>DETALLES COMPLETOS DEL EMBARQUE</h2>
+      <p><strong>Folio:</strong> ${embarqueDetalle.folio}</p>
+      <p><strong>Estado:</strong> ${embarqueDetalle.estado}</p>
+      <p><strong>Fecha de Impresión:</strong> ${new Date().toLocaleString()}</p>
+    </div>
+    
+    <div class="section">
+      <div class="section-title">INFORMACIÓN DEL CLIENTE</div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Cliente</div>
+          <div class="field-value">${embarqueDetalle.cliente?.nombre || "Sin asignar"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Contacto del Cliente</div>
+          <div class="field-value">${contactoNombre}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Teléfono</div>
+          <div class="field-value">${embarqueDetalle.cliente?.telefono || "No especificado"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Email</div>
+          <div class="field-value">${embarqueDetalle.cliente?.email || "No especificado"}</div>
+        </div>
+      </div>
+    </div>
 
-   <div class="section">
-     <div class="section-title">INFORMACIÓN DEL EMBARQUE</div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Carta Porte</div>
-         <div class="field-value">${embarqueDetalle.carta_porte || "Sin asignar"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Fecha de Creación</div>
-         <div class="field-value">${new Date(embarqueDetalle.fecha_creacion).toLocaleDateString()}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Contenido</div>
-         <div class="field-value">${embarqueDetalle.contenido || "No especificado"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Peso</div>
-         <div class="field-value">${embarqueDetalle.peso || "No especificado"}</div>
-       </div>
-     </div>
-   </div>
+    <div class="section">
+      <div class="section-title">INFORMACIÓN DEL EMBARQUE</div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Carta Porte</div>
+          <div class="field-value">${embarqueDetalle.carta_porte || "Sin asignar"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Fecha de Creación</div>
+          <div class="field-value">${new Date(embarqueDetalle.fecha_creacion).toLocaleDateString()}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Contenido</div>
+          <div class="field-value">${embarqueDetalle.contenido || "No especificado"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Peso</div>
+          <div class="field-value">${embarqueDetalle.peso || "No especificado"}</div>
+        </div>
+      </div>
+    </div>
 
-   <div class="section">
-     <div class="section-title">UBICACIONES Y FECHAS</div>
-     <div class="field full-width">
-       <div class="field-label">Dirección de Recolecta</div>
-       <div class="field-value address-field">${
-         embarqueDetalle.direccion_recolecta || embarqueDetalle.origen || "No especificada"
-       }</div>
-     </div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Fecha de Recolecta</div>
-         <div class="field-value">${
-           embarqueDetalle.fecha_recolecta
-             ? new Date(embarqueDetalle.fecha_recolecta).toLocaleDateString()
-             : "No especificada"
-         }</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Hora de Recolecta</div>
-         <div class="field-value">${embarqueDetalle.hora_recolecta || "No especificada"}</div>
-       </div>
-     </div>
-     <div class="field full-width">
-       <div class="field-label">Dirección de Entrega</div>
-       <div class="field-value address-field">${
-         embarqueDetalle.direccion_entrega || embarqueDetalle.destino || "No especificada"
-       }</div>
-     </div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Fecha de Entrega</div>
-         <div class="field-value">${
-           embarqueDetalle.fecha_entrega
-             ? new Date(embarqueDetalle.fecha_entrega).toLocaleDateString()
-             : "No especificada"
-         }</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Hora de Entrega</div>
-         <div class="field-value">${embarqueDetalle.hora_entrega || "No especificada"}</div>
-       </div>
-     </div>
-   </div>
+    <div class="section">
+      <div class="section-title">UBICACIONES Y FECHAS</div>
+      <div class="field full-width">
+        <div class="field-label">Dirección de Recolecta</div>
+        <div class="field-value address-field">${
+          embarqueDetalle.direccion_recolecta || embarqueDetalle.origen || "No especificada"
+        }</div>
+      </div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Fecha de Recolecta</div>
+          <div class="field-value">${
+            embarqueDetalle.fecha_recolecta
+              ? new Date(embarqueDetalle.fecha_recolecta).toLocaleDateString()
+              : "No especificada"
+          }</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Hora de Recolecta</div>
+          <div class="field-value">${embarqueDetalle.hora_recolecta || "No especificada"}</div>
+        </div>
+      </div>
+      <div class="field full-width">
+        <div class="field-label">Dirección de Entrega</div>
+        <div class="field-value address-field">${
+          embarqueDetalle.direccion_entrega || embarqueDetalle.destino || "No especificada"
+        }</div>
+      </div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Fecha de Entrega</div>
+          <div class="field-value">${
+            embarqueDetalle.fecha_entrega
+              ? new Date(embarqueDetalle.fecha_entrega).toLocaleDateString()
+              : "No especificada"
+          }</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Hora de Entrega</div>
+          <div class="field-value">${embarqueDetalle.hora_entrega || "No especificada"}</div>
+        </div>
+      </div>
+    </div>
 
-   <div class="section">
-     <div class="section-title">RECURSOS ASIGNADOS</div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Operador</div>
-         <div class="field-value">${
-           embarqueDetalle.operador
-             ? `${embarqueDetalle.operador.nombre} ${embarqueDetalle.operador.apellidos}`
-             : "Sin asignar"
-         }</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Teléfono Operador</div>
-         <div class="field-value">${embarqueDetalle.operador?.telefono || "No especificado"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Tractocamión</div>
-         <div class="field-value">${embarqueDetalle.camion?.numero_economico || "Sin asignar"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Marca Tractocamión</div>
-         <div class="field-value">${embarqueDetalle.camion?.marca || "No especificada"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Remolque</div>
-         <div class="field-value">${embarqueDetalle.remolque?.numero_economico || "Sin asignar"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Tipo Remolque</div>
-         <div class="field-value">${embarqueDetalle.remolque?.tipo || "No especificado"}</div>
-       </div>
-     </div>
-   </div>
+    <div class="section">
+      <div class="section-title">RECURSOS ASIGNADOS</div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Operador</div>
+          <div class="field-value">${
+            embarqueDetalle.operador
+              ? `${embarqueDetalle.operador.nombre} ${embarqueDetalle.operador.apellidos}`
+              : "Sin asignar"
+          }</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Teléfono Operador</div>
+          <div class="field-value">${embarqueDetalle.operador?.telefono || "No especificado"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Tractocamión</div>
+          <div class="field-value">${embarqueDetalle.camion?.numero_economico || "Sin asignar"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Marca Tractocamión</div>
+          <div class="field-value">${embarqueDetalle.camion?.marca || "No especificada"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Remolque</div>
+          <div class="field-value">${embarqueDetalle.remolque?.numero_economico || "Sin asignar"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Tipo Remolque</div>
+          <div class="field-value">${embarqueDetalle.remolque?.tipo || "No especificado"}</div>
+        </div>
+      </div>
+    </div>
 
-   <div class="section">
-     <div class="section-title">INFORMACIÓN FINANCIERA</div>
-     <div class="field-group">
-       <div class="field">
-         <div class="field-label">Precio Flete</div>
-         <div class="field-value">${
-           embarqueDetalle.precio_flete ? `$${embarqueDetalle.precio_flete}` : "Sin definir"
-         }</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Moneda</div>
-         <div class="field-value">${embarqueDetalle.moneda_flete || "MXN"}</div>
-       </div>
-       <div class="field">
-         <div class="field-label">Flete en Falso</div>
-         <div class="field-value">${embarqueDetalle.flete_falso ? "Sí" : "No"}</div>
-       </div>
-     </div>
-   </div>
+    <div class="section">
+      <div class="section-title">INFORMACIÓN FINANCIERA</div>
+      <div class="field-group">
+        <div class="field">
+          <div class="field-label">Precio Flete</div>
+          <div class="field-value">${
+            embarqueDetalle.precio_flete ? `$${embarqueDetalle.precio_flete}` : "Sin definir"
+          }</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Moneda</div>
+          <div class="field-value">${embarqueDetalle.moneda_flete || "MXN"}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Flete en Falso</div>
+          <div class="field-value">${embarqueDetalle.flete_falso ? "Sí" : "No"}</div>
+        </div>
+      </div>
+    </div>
 
-   <div class="section">
-     <div class="section-title">OBSERVACIONES</div>
-     <div class="field full-width">
-       <div class="field-value" style="min-height: 60px; background-color: #f9f9f9; padding: 10px;">${
-         embarqueDetalle.observaciones || "Sin observaciones"
-       }</div>
-     </div>
-   </div>
- </body>
+    <div class="section">
+      <div class="section-title">OBSERVACIONES</div>
+      <div class="field full-width">
+        <div class="field-value" style="min-height: 60px; background-color: #f9f9f9; padding: 10px;">${
+          embarqueDetalle.observaciones || "Sin observaciones"
+        }</div>
+      </div>
+    </div>
+  </body>
 </html>
 `
 
@@ -1504,7 +1504,7 @@ export default function AsignarOperadoresPage() {
                         <p className="text-sm text-gray-700">{embarque.carta_porte || "Sin asignar"}</p>
                       </div>
                       <div className="space-y-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Remolque!</label>
+                        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Remolque</label>
                         <p className="text-sm text-gray-700">
                           {embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "Sin asignar"}
                           {embarque.remolque_numero_economico && !embarque.remolque && (
@@ -1523,7 +1523,7 @@ export default function AsignarOperadoresPage() {
                         </p>
                         {embarque.precio_flete && embarque.moneda_flete && (
                           <p className="text-xs text-gray-500">
-                            {embarque.moneda_flete === "USD" ? "Dólares Americanos" : "Pesos Mexican"}
+                            {embarque.moneda_flete === "USD" ? "Dólares Americanos" : "Pesos Mexicanos"}
                           </p>
                         )}
                       </div>
@@ -1756,19 +1756,19 @@ export default function AsignarOperadoresPage() {
                                   const camionSeleccionado = camiones.find((cam) => cam.id === asignacion.camion_id)
 
                                   const confirmacion = confirm(
-                                    `¿Estás seguro de que deseas asignar los siguientes recursos al embarque ${
-                                      embarque.folio
-                                    }?\n\nOperador: ${
-                                      operadorSeleccionado
-                                        ? `${operadorSeleccionado.nombre} ${operadorSeleccionado.apellidos}`
-                                        : "No seleccionado"
-                                    }\nTractocamión: ${
-                                      camionSeleccionado
-                                        ? `${camionSeleccionado.numero_economico} - ${camionSeleccionado.marca}`
-                                        : "No seleccionado"
-                                    }\nPrecio Flete: $${asignacion.precio_flete} ${
-                                      asignacion.moneda_flete
-                                    }\n\nEsta acción cambiará el estado del embarque a "Asignado".`,
+                                    `¿Estás seguro de que deseas asignar los siguientes recursos al embarque ${embarque.folio}?\n\n` +
+                                      `Operador: ${
+                                        operadorSeleccionado
+                                          ? `${operadorSeleccionado.nombre} ${operadorSeleccionado.apellidos}`
+                                          : "No seleccionado"
+                                      }\n` +
+                                      `Tractocamión: ${
+                                        camionSeleccionado
+                                          ? `${camionSeleccionado.numero_economico} - ${camionSeleccionado.marca}`
+                                          : "No seleccionado"
+                                      }\n` +
+                                      `Precio Flete: $${asignacion.precio_flete} ${asignacion.moneda_flete}\n\n` +
+                                      `Esta acción cambiará el estado del embarque a "Asignado".`,
                                   )
 
                                   if (confirmacion) {
