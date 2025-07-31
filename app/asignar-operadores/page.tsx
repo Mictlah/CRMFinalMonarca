@@ -1,576 +1,80 @@
-"use client"
+"use client";
 
-import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { useState, useEffect } from "react"
-import { supabase, type Embarque, type Operador, type Camion, type Remolque } from "@/lib/supabase"
-import { useToast } from "@/components/ui/use-toast"
-import { Truck, Users, Search, Eye, UserCheck, AlertTriangle, Settings, Link, Copy } from "lucide-react"
+import { MainLayout } from "@/components/layout/main-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import {
+  Truck,
+  Users,
+  Search,
+  Eye,
+  UserCheck,
+  AlertTriangle,
+  Settings,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import {
+  supabase,
+  type Embarque,
+  type Operador,
+  type Camion,
+  type Remolque,
+} from "@/lib/supabase";
 
 export default function AsignarOperadoresPage() {
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [filtroEstado, setFiltroEstado] = useState("todos")
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
-  const [showModifyModal, setShowModifyModal] = useState(false)
-  const [embarqueDetalle, setEmbarqueDetalle] = useState<Embarque | null>(null)
-  const [embarqueAModificar, setEmbarqueAModificar] = useState<Embarque | null>(null)
-  const [activeTab, setActiveTab] = useState("general")
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filtroEstado, setFiltroEstado] = useState("todos");
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showModifyModal, setShowModifyModal] = useState(false);
+  const [embarqueDetalle, setEmbarqueDetalle] = useState<Embarque | null>(null);
+  const [embarqueAModificar, setEmbarqueAModificar] = useState<Embarque | null>(
+    null
+  );
+  const [activeTab, setActiveTab] = useState("general");
 
-  const [showCompletedModal, setShowCompletedModal] = useState(false)
-  const [embarquesFinalizados, setEmbarquesFinalizados] = useState<Embarque[]>([])
-  const [loadingCompleted, setLoadingCompleted] = useState(false)
-
-  // Estados para el modal de link de fotos
-  const [showLinkModal, setShowLinkModal] = useState(false)
-  const [generatedLink, setGeneratedLink] = useState("")
+  const [showCompletedModal, setShowCompletedModal] = useState(false);
+  const [embarquesFinalizados, setEmbarquesFinalizados] = useState<Embarque[]>(
+    []
+  );
+  const [loadingCompleted, setLoadingCompleted] = useState(false);
 
   // Estados para los datos
-  const [embarques, setEmbarques] = useState<Embarque[]>([])
-  const [operadores, setOperadores] = useState<Operador[]>([])
-  const [camiones, setCamiones] = useState<Camion[]>([])
-  const [remolques, setRemolques] = useState<Remolque[]>([])
-  const [contactosClientes, setContactosClientes] = useState<any[]>([])
-
-  // Estados para asignación\
-  const [asignaciones, setAsignaciones<{\
-    [key: string]: {\
-      operador_id: string\
-      camion_id: string\
-      precio_flete: string\
-      moneda_flete: string\
-}
-\
-  }>(
-{
-}
-)
-
-// Estados para modificación\
-const [modificacionData, setModificacionData({\
-    razon: "",\
-    cambiar_operador: false,\
-    cambiar_camion: false,\
-    cambiar_remolque: false,\
-    cambiar_flete: false,\
-    nuevo_operador_id: "no-change",\
-    sueldo_operador_original: "",\
-    moneda_sueldo_operador_original: "MXN",\
-    sueldo_operador_nuevo: "",\
-    moneda_sueldo_operador_nuevo: "MXN",\
-    nuevo_camion_id: "no-change",\
-    nuevo_remolque_id: "no-change",\
-    nuevo_precio_flete: "",\
-    nueva_moneda_flete: "MXN",\
-    flete_en_falso: false,\
-})
-\
-const [activeModifyTab, setActiveModifyTab(\"justificacion\")\
-// Cargar datos desde Supabase\
-const cargarDatos = async () => {
-try {
-  setLoading(true)
-
-  const { data: embarquesData, error: embarquesError } = await supabase
-    .from("embarques")
-    .select(
-      `
-          *,
-          cliente:clientes(*),
-          operador:operadores(*),
-          camion:camiones(*),
-          remolque:remolques(*)
-        `,
-    )
-    .in("estado", ["listo-para-asignar", "asignado", "en-transito"])
-    .order("fecha_creacion", { ascending: false })
-
-  if (embarquesError) {
-    console.error("Error cargando embarques:", embarquesError)
-    setEmbarques([])
-  } else {
-    const embarquesConModificaciones = await Promise.all(
-      (embarquesData || []).map(async (embarque) => {
-        const modificado = await verificarModificacion(embarque.id)
-        return { ...embarque, modificado }
-      }),
-    )
-    setEmbarques(embarquesConModificaciones)
-  }
-
-  const { data: operadoresData, error: operadoresError } = await supabase
-    .from("operadores")
-    .select("*")
-    .eq("estado", "activo")
-    .order("nombre")
-
-  if (operadoresError) {
-    console.error("Error cargando operadores:", operadoresError)
-    setOperadores([])
-  } else {
-    setOperadores(operadoresData || [])
-  }
-
-  const { data: camionesData, error: camionesError } = await supabase
-    .from("camiones")
-    .select("*")
-    .neq("estado", "fuera-de-servicio")
-    .order("numero_economico")
-
-  if (camionesError) {
-    console.error("Error cargando camiones:", camionesError)
-    setCamiones([])
-  } else {
-    setCamiones(camionesData || [])
-  }
-
-  const { data: remolquesData, error: remolquesError } = await supabase
-    .from("remolques")
-    .select("*")
-    .order("numero_economico")
-
-  if (remolquesError) {
-    console.error("Error cargando remolques:", remolquesError)
-    setRemolques([])
-  } else {
-    setRemolques(remolquesData || [])
-  }
-
-  const { data: contactosData, error: contactosError } = await supabase
-    .from("contactos_clientes")
-    .select("*")
-    .order("nombre")
-
-  if (contactosError) {
-    console.error("Error cargando contactos:", contactosError)
-    setContactosClientes([])
-  } else {
-    setContactosClientes(contactosData || [])
-  }
-} catch (error) {
-  console.error("Error general:", error)
-  setEmbarques([])
-  setOperadores([])
-  setCamiones([])
-  setRemolques([])
-} finally {
-  setLoading(false)
-}
-}
-
-const cargarEmbarquesFinalizados = async () => {
-  try {
-    setLoadingCompleted(true)
-
-    let { data: embarquesData, error: embarquesError } = await supabase
-      .from("embarques")
-      .select(
-        `
-        *,
-        cliente:clientes(*),
-        operador:operadores(*),
-        camion:camiones(*),
-        remolque:remolques(*)
-      `,
-      )
-      .eq("estado", "finalizado")
-      .order("updated_at", { ascending: false })
-
-    if (embarquesError && embarquesError.message.includes("fecha_finalizacion")) {
-      console.warn("fecha_finalizacion column not found, using updated_at for ordering")
-
-      const { data: fallbackData, error: fallbackError } = await supabase
-        .from("embarques")
-        .select(
-          `
-            *,
-            cliente:clientes(*),
-            operador:operadores(*),
-            camion:camiones(*),
-            remolque:remolques(*)
-          `,
-        )
-        .eq("estado", "finalizado")
-        .order("updated_at", { ascending: false })
-
-      if (fallbackError) {
-        console.error("Error cargando embarques finalizados (fallback):", fallbackError)
-        setEmbarquesFinalizados([])
-        return
-      }
-
-      embarquesData = fallbackData
-    } else if (embarquesError) {
-      console.error("Error cargando embarques finalizados:", embarquesError)
-      setEmbarquesFinalizados([])
-      return
-    }
-
-    setEmbarquesFinalizados(embarquesData || [])
-  } catch (error) {
-    console.error("Error general:", error)
-    setEmbarquesFinalizados([])
-  } finally {
-    setLoadingCompleted(false)
-  }
-}
-
-useEffect(() => {
-  cargarDatos()
-}, [])
-
-const asignarRecursos = async (embarqueId: string) => {
-  const asignacion = asignaciones[embarqueId]
-  if (!asignacion || !asignacion.operador_id || !asignacion.camion_id) {
-    alert("Por favor selecciona operador y camión")
-    return
-  }
-
-  try {
-    setSaving(true)
-
-    const { error } = await supabase
-      .from("embarques")
-      .update({
-        operador_id: asignacion.operador_id,
-        camion_id: asignacion.camion_id,
-        precio_flete: asignacion.precio_flete ? Number.parseFloat(asignacion.precio_flete) : null,
-        moneda_flete: asignacion.moneda_flete || embarques.find((e) => e.id === embarqueId)?.moneda_flete || "MXN",
-        estado: "asignado",
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", embarqueId)
-
-    if (error) {
-      console.error("Error asignando recursos:", error)
-      alert("Error al asignar recursos")
-      return
-    }
-
-    alert("Recursos asignados exitosamente")
-    await cargarDatos()
-
-    setAsignaciones((prev) => {
-      const newAsignaciones = { ...prev }
-      delete newAsignaciones[embarqueId]
-      return newAsignaciones
-    })
-  } catch (error) {
-    console.error("Error:", error)
-    alert("Error al asignar recursos")
-  } finally {
-    setSaving(false)
-  }
-}
-
-const guardarModificacion = async () => {
-  if (!embarqueAModificar || !modificacionData.razon.trim()) {
-    alert("Por favor ingresa una justificación para la modificación")
-    return
-  }
-
-  if (
-    !modificacionData.cambiar_operador &&
-    !modificacionData.cambiar_camion &&
-    !modificacionData.cambiar_remolque &&
-    !modificacionData.cambiar_flete
-  ) {
-    alert("Por favor selecciona al menos un elemento a modificar")
-    return
-  }
-
-  try {
-    setSaving(true)
-
-    const updateData: any = {
-      updated_at: new Date().toISOString(),
-    }
-
-    if (
-      modificacionData.cambiar_operador &&
-      modificacionData.nuevo_operador_id &&
-      modificacionData.nuevo_operador_id !== "no-change"
-    ) {
-      updateData.operador_id = modificacionData.nuevo_operador_id
-    }
-
-    if (
-      modificacionData.cambiar_camion &&
-      modificacionData.nuevo_camion_id &&
-      modificacionData.nuevo_camion_id !== "no-change"
-    ) {
-      updateData.camion_id = modificacionData.nuevo_camion_id
-    }
-
-    if (
-      modificacionData.cambiar_remolque &&
-      modificacionData.nuevo_remolque_id !== "no-change" &&
-      modificacionData.nuevo_remolque_id !== "sin-remolque"
-    ) {
-      if (modificacionData.nuevo_remolque_id === "sin-remolque") {
-        updateData.remolque_id = null
-      } else {
-        updateData.remolque_id = modificacionData.nuevo_remolque_id
-      }
-    }
-
-    if (modificacionData.cambiar_flete) {
-      if (modificacionData.nuevo_precio_flete) {
-        updateData.precio_flete = Number.parseFloat(modificacionData.nuevo_precio_flete)
-        updateData.moneda_flete = modificacionData.nueva_moneda_flete
-      }
-      updateData.flete_falso = modificacionData.flete_en_falso
-    }
-
-    const { error: updateError } = await supabase.from("embarques").update(updateData).eq("id", embarqueAModificar.id)
-
-    if (updateError) {
-      console.error("Error actualizando embarque:", updateError)
-      alert("Error al actualizar embarque: " + updateError.message)
-      return
-    }
-
-    const operadorOriginal = operadores.find((op) => op.id === embarqueAModificar.operador_id)
-    const operadorNuevo = operadores.find((op) => op.id === modificacionData.nuevo_operador_id)
-    const camionOriginal = camiones.find((cam) => cam.id === embarqueAModificar.camion_id)
-    const camionNuevo = camiones.find((cam) => cam.id === modificacionData.nuevo_camion_id)
-    const remolqueOriginal = remolques.find((rem) => rem.id === embarqueAModificar.remolque_id)
-    const remolqueNuevo = remolques.find((rem) => rem.id === modificacionData.nuevo_remolque_id)
-
-    const auditData: any = {
-      embarque_id: embarqueAModificar.id,
-      razon: modificacionData.razon,
-      usuario_modificacion: "Sistema",
-      fecha_modificacion: new Date().toISOString(),
-    }
-
-    if (embarqueAModificar.operador_id) {
-      auditData.operador_original_id = embarqueAModificar.operador_id
-    }
-    if (operadorOriginal) {
-      auditData.operador_original_nombre = `${operadorOriginal.nombre} ${operadorOriginal.apellidos}`
-    }
-    if (
-      modificacionData.sueldo_operador_original &&
-      !isNaN(Number.parseFloat(modificacionData.sueldo_operador_original))
-    ) {
-      auditData.sueldo_operador_original = Number.parseFloat(modificacionData.sueldo_operador_original)
-      auditData.moneda_sueldo_operador_original = modificacionData.moneda_sueldo_operador_original
-    }
-
-    if (modificacionData.cambiar_operador && modificacionData.nuevo_operador_id !== "no-change") {
-      auditData.operador_nuevo_id = modificacionData.nuevo_operador_id
-      if (operadorNuevo) {
-        auditData.operador_nuevo_nombre = `${operadorNuevo.nombre} ${operadorNuevo.apellidos}`
-      }
-      if (modificacionData.sueldo_operador_nuevo && !isNaN(Number.parseFloat(modificacionData.sueldo_operador_nuevo))) {
-        auditData.sueldo_operador_nuevo = Number.parseFloat(modificacionData.sueldo_operador_nuevo)
-        auditData.moneda_sueldo_operador_nuevo = modificacionData.moneda_sueldo_operador_nuevo
-      }
-    }
-
-    if (embarqueAModificar.camion_id) {
-      auditData.camion_original_id = embarqueAModificar.camion_id
-      if (camionOriginal) {
-        auditData.camion_original_numero = camionOriginal.numero_economico
-      }
-    }
-
-    if (modificacionData.cambiar_camion && modificacionData.nuevo_camion_id !== "no-change") {
-      auditData.camion_nuevo_id = modificacionData.nuevo_camion_id
-      if (camionNuevo) {
-        auditData.camion_nuevo_numero = camionNuevo.numero_economico
-      }
-    }
-
-    if (embarqueAModificar.remolque_id) {
-      auditData.remolque_original_id = embarqueAModificar.remolque_id
-      if (remolqueOriginal) {
-        auditData.remolque_original_numero = remolqueOriginal.numero_economico
-      }
-    }
-
-    if (
-      modificacionData.cambiar_remolque &&
-      modificacionData.nuevo_remolque_id !== "no-change" &&
-      modificacionData.nuevo_remolque_id !== "sin-remolque"
-    ) {
-      auditData.remolque_nuevo_id = modificacionData.nuevo_remolque_id
-      if (remolqueNuevo) {
-        auditData.remolque_nuevo_numero = remolqueNuevo.numero_economico
-      }
-    }
-
-    if (embarqueAModificar.precio_flete) {
-      auditData.precio_flete_original = embarqueAModificar.precio_flete
-      auditData.moneda_flete_original = embarqueAModificar.moneda_flete
-    }
-
-    if (
-      modificacionData.cambiar_flete &&
-      modificacionData.nuevo_precio_flete &&
-      !isNaN(Number.parseFloat(modificacionData.nuevo_precio_flete))
-    ) {
-      auditData.precio_flete_nuevo = Number.parseFloat(modificacionData.nuevo_precio_flete)
-      auditData.moneda_flete_nueva = modificacionData.nueva_moneda_flete
-    }
-
-    if (modificacionData.flete_en_falso) {
-      auditData.flete_en_falso = modificacionData.flete_en_falso
-    }
-
-    try {
-      const { error: logError } = await supabase.from("embarque_modificaciones").insert(auditData)
-
-      if (logError) {
-        console.error("Error registrando modificación:", logError)
-        if (logError.message.includes("Could not find") && logError.message.includes("column")) {
-          alert(`Modificación guardada exitosamente, pero hay un problema con la tabla de auditoría. 
-                   Por favor ejecuta el script SQL 33 para corregir la estructura de la base de datos.
-                   Error técnico: ${logError.message}`)
-        } else {
-          alert("Modificación guardada, pero hubo un problema registrando la auditoría: " + logError.message)
-        }
-      } else {
-        alert("Modificación guardada exitosamente con registro de auditoría completo")
-      }
-    } catch (auditError) {
-      console.error("Error en auditoría:", auditError)
-      alert("Modificación guardada exitosamente, pero no se pudo registrar en auditoría. Contacta al administrador.")
-    }
-
-    setShowModifyModal(false)
-    setEmbarqueAModificar(null)
-    resetModificacionData()
-    await cargarDatos()
-  } catch (error) {
-    console.error("Error:", error)
-    alert("Error al guardar modificación")
-  } finally {
-    setSaving(false)
-  }
-}
-
-const finalizarEmbarque = async (embarqueId: string) => {
-  const embarque = embarques.find((e) => e.id === embarqueId)
-  if (!embarque) return
-
-  const confirmacion = confirm(
-    `¿Estás seguro de que deseas finalizar el embarque ${embarque.folio}?\n\n` +
-      `Este embarque pasará al área de Facturación y Cobranza y se marcará como completado.`,
-  )
-
-  if (!confirmacion) return
-
-  try {
-    setSaving(true)
-
-    const updateData: any = {
-      estado: "finalizado",
-      updated_at: new Date().toISOString(),
-    }
-
-    const { error } = await supabase
-      .from("embarques")
-      .update({
-        ...updateData,
-        fecha_finalizacion: new Date().toISOString(),
-      })
-      .eq("id", embarqueId)
-
-    if (error && error.message.includes("fecha_finalizacion")) {
-      console.warn("fecha_finalizacion column not found, updating without it...")
-
-      const { error: retryError } = await supabase.from("embarques").update(updateData).eq("id", embarqueId)
-
-      if (retryError) {
-        console.error("Error finalizando embarque (retry):", retryError)
-        alert("Error al finalizar embarque: " + retryError.message)
-        return
-      }
-    } else if (error) {
-      console.error("Error finalizando embarque:", error)
-      alert("Error al finalizar embarque: " + error.message)
-      return
-    }
-
-    const embarqueCompletado = {
-      id: embarque.id,
-      folio: embarque.folio,
-      clienteNombre: embarque.cliente?.nombre || "Cliente no especificado",
-      numeroLoad: embarque.load_number || "N/A",
-      direccionEnganche: embarque.direccion_recolecta || "No especificada",
-      fechaEnganche: embarque.fecha_recolecta || new Date().toISOString().split("T")[0],
-      horaEnganche: embarque.hora_recolecta || "00:00",
-      comentarios: embarque.observaciones || "",
-      operadorAsignado: {
-        id: embarque.operador_id || "",
-        nombre: embarque.operador
-          ? `${embarque.operador.nombre} ${embarque.operador.apellidos}`
-          : "Operador no especificado",
-      },
-      camionAsignado: {
-        id: embarque.camion_id || "",
-        marca: embarque.camion?.marca || "Marca",
-        modelo: embarque.camion?.modelo || "Modelo",
-        numeroEconomico: embarque.camion?.numero_economico || "000",
-      },
-      fechaAsignacion: new Date().toISOString().split("T")[0],
-      fechaCompletado: new Date().toISOString().split("T")[0],
-      fecha_finalizacion: new Date().toISOString(),
-      estado: "completado",
-      montoFacturado: embarque.precio_flete || 0,
-      precioFlete: embarque.precio_flete || 0,
-      precio_flete: embarque.precio_flete || 0,
-      moneda_flete: embarque.moneda_flete || "MXN",
-      fechaEntrega: "",
-      observacionesFacturacion: "",
-      observacionesFinalizacion: `Embarque finalizado el ${new Date().toLocaleDateString()}`,
-      pagado: false,
-      fechaPago: "",
-      modificado: embarque.modificado || false,
-      alertaModificacion: embarque.modificado ? "⚠️ EMBARQUE MODIFICADO POR SITUACIÓN DE EMERGENCIA/CONTINGENCIA" : null,
-      requiereAtencionEspecial: embarque.modificado || false,
-      colorAlerta: embarque.modificado ? "red" : null,
-      mensajeParaFacturacion: embarque.modificado
-        ? "ATENCIÓN: Este embarque fue modificado por situaciones de emergencia/contingencia. Verificar procedimientos especiales de pago y documentación antes de procesar."
-        : null,
-    }
-
-    const embarquesCompletados = JSON.parse(localStorage.getItem("embarquesCompletados") || "[]")
-    const embarquesCompletadosActualizados = [
-      ...embarquesCompletados.filter((e: any) => e.id !== embarque.id),
-      embarqueCompletado,
-    ]
-    localStorage.setItem("embarquesCompletados", JSON.stringify(embarquesCompletadosActualizados))
-
-    const embarquesAsignados = JSON.parse(localStorage.getItem("embarquesAsignados") || "[]")
-    const embarquesAsignadosActualizados = [
-      ...embarquesAsignados.filter((e: any) => e.id !== embarque.id),
-      { ...embarqueCompletado, estado: "finalizado" },
-    ]
-    localStorage.setItem("embarquesAsignados", JSON.stringify(embarquesAsignadosActualizados))
-
-    alert(
-      `Embarque ${embarque.folio} finalizado exitosamente.\nAhora está disponible en el área de Facturación y Cobranza.`,
-    )
-    await cargarDatos()
-  } catch (error) {
-    console.error("Error:", error)
-    alert("Error al finalizar embarque")
-  } finally {
-    setSaving(false)
-  }
-}
-
-const resetModificacionData = () => {
-  setModificacionData({
+  const [embarques, setEmbarques] = useState<Embarque[]>([]);
+  const [operadores, setOperadores] = useState<Operador[]>([]);
+  const [camiones, setCamiones] = useState<Camion[]>([]);
+  const [remolques, setRemolques] = useState<Remolque[]>([]);
+  const [contactosClientes, setContactosClientes] = useState<any[]>([]);
+
+  // Estados para asignación
+  const [asignaciones, setAsignaciones] = useState<{
+    [key: string]: {
+      operador_id: string;
+      camion_id: string;
+      precio_flete: string;
+      moneda_flete: string;
+    };
+  }>({});
+
+  // Estados para modificación
+  const [modificacionData, setModificacionData] = useState({
     razon: "",
     cambiar_operador: false,
     cambiar_camion: false,
@@ -586,95 +90,701 @@ const resetModificacionData = () => {
     nuevo_precio_flete: "",
     nueva_moneda_flete: "MXN",
     flete_en_falso: false,
-  })
-  setActiveModifyTab("justificacion")
-}
+  });
 
-const verificarModificacion = async (embarqueId: string) => {
-  try {
-    const { data, error } = await supabase
-      .from("embarque_modificaciones")
-      .select("id")
-      .eq("embarque_id", embarqueId)
-      .limit(1)
+  const [activeModifyTab, setActiveModifyTab] = useState("justificacion");
 
-    if (error) {
-      console.error("Error verificando modificaciones:", error)
-      return false
+  // Cargar datos desde Supabase
+  const cargarDatos = async () => {
+    try {
+      setLoading(true);
+
+      const { data: embarquesData, error: embarquesError } = await supabase
+        .from("embarques")
+        .select(
+          `
+          *,
+          cliente:clientes(*),
+          operador:operadores(*),
+          camion:camiones(*),
+          remolque:remolques(*)
+        `
+        )
+        .in("estado", ["listo-para-asignar", "asignado", "en-transito"])
+        .order("fecha_creacion", { ascending: false });
+
+      if (embarquesError) {
+        console.error("Error cargando embarques:", embarquesError);
+        setEmbarques([]);
+      } else {
+        const embarquesConModificaciones = await Promise.all(
+          (embarquesData || []).map(async (embarque) => {
+            const modificado = await verificarModificacion(embarque.id);
+            return { ...embarque, modificado };
+          })
+        );
+        setEmbarques(embarquesConModificaciones);
+      }
+
+      const { data: operadoresData, error: operadoresError } = await supabase
+        .from("operadores")
+        .select("*")
+        .eq("estado", "activo")
+        .order("nombre");
+
+      if (operadoresError) {
+        console.error("Error cargando operadores:", operadoresError);
+        setOperadores([]);
+      } else {
+        setOperadores(operadoresData || []);
+      }
+
+      const { data: camionesData, error: camionesError } = await supabase
+        .from("camiones")
+        .select("*")
+        .neq("estado", "fuera-de-servicio")
+        .order("numero_economico");
+
+      if (camionesError) {
+        console.error("Error cargando camiones:", camionesError);
+        setCamiones([]);
+      } else {
+        setCamiones(camionesData || []);
+      }
+
+      const { data: remolquesData, error: remolquesError } = await supabase
+        .from("remolques")
+        .select("*")
+        .order("numero_economico");
+
+      if (remolquesError) {
+        console.error("Error cargando remolques:", remolquesError);
+        setRemolques([]);
+      } else {
+        setRemolques(remolquesData || []);
+      }
+
+      const { data: contactosData, error: contactosError } = await supabase
+        .from("contactos_clientes")
+        .select("*")
+        .order("nombre");
+
+      if (contactosError) {
+        console.error("Error cargando contactos:", contactosError);
+        setContactosClientes([]);
+      } else {
+        setContactosClientes(contactosData || []);
+      }
+    } catch (error) {
+      console.error("Error general:", error);
+      setEmbarques([]);
+      setOperadores([]);
+      setCamiones([]);
+      setRemolques([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cargarEmbarquesFinalizados = async () => {
+    try {
+      setLoadingCompleted(true);
+
+      let { data: embarquesData, error: embarquesError } = await supabase
+        .from("embarques")
+        .select(
+          `
+        *,
+        cliente:clientes(*),
+        operador:operadores(*),
+        camion:camiones(*),
+        remolque:remolques(*)
+      `
+        )
+        .eq("estado", "finalizado")
+        .order("updated_at", { ascending: false });
+
+      if (
+        embarquesError &&
+        embarquesError.message.includes("fecha_finalizacion")
+      ) {
+        console.warn(
+          "fecha_finalizacion column not found, using updated_at for ordering"
+        );
+
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from("embarques")
+          .select(
+            `
+            *,
+            cliente:clientes(*),
+            operador:operadores(*),
+            camion:camiones(*),
+            remolque:remolques(*)
+          `
+          )
+          .eq("estado", "finalizado")
+          .order("updated_at", { ascending: false });
+
+        if (fallbackError) {
+          console.error(
+            "Error cargando embarques finalizados (fallback):",
+            fallbackError
+          );
+          setEmbarquesFinalizados([]);
+          return;
+        }
+
+        embarquesData = fallbackData;
+      } else if (embarquesError) {
+        console.error("Error cargando embarques finalizados:", embarquesError);
+        setEmbarquesFinalizados([]);
+        return;
+      }
+
+      setEmbarquesFinalizados(embarquesData || []);
+    } catch (error) {
+      console.error("Error general:", error);
+      setEmbarquesFinalizados([]);
+    } finally {
+      setLoadingCompleted(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
+
+  const asignarRecursos = async (embarqueId: string) => {
+    const asignacion = asignaciones[embarqueId];
+    if (!asignacion || !asignacion.operador_id || !asignacion.camion_id) {
+      alert("Por favor selecciona operador y camión");
+      return;
     }
 
-    return data && data.length > 0
-  } catch (error) {
-    console.error("Error:", error)
-    return false
-  }
-}
+    try {
+      setSaving(true);
 
-const { toast } = useToast()
+      const { error } = await supabase
+        .from("embarques")
+        .update({
+          operador_id: asignacion.operador_id,
+          camion_id: asignacion.camion_id,
+          precio_flete: asignacion.precio_flete
+            ? Number.parseFloat(asignacion.precio_flete)
+            : null,
+          moneda_flete:
+            asignacion.moneda_flete ||
+            embarques.find((e) => e.id === embarqueId)?.moneda_flete ||
+            "MXN",
+          estado: "asignado",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", embarqueId);
 
-const handleGenerateLink = (embarqueId: string) => {
-  const baseUrl = window.location.origin
-  const link = `${baseUrl}/subir-fotos-embarque/${embarqueId}`
-  setGeneratedLink(link)
-  setShowLinkModal(true)
-}
+      if (error) {
+        console.error("Error asignando recursos:", error);
+        alert("Error al asignar recursos");
+        return;
+      }
 
-const getEstadoBadge = (estado: string) => {
-  const estados = {
-    "listo-para-asignar": {
-      color: "bg-blue-100 text-blue-800",
-      label: "Listo para Asignar",
-    },
-    asignado: { color: "bg-yellow-100 text-yellow-800", label: "Asignado" },
-    "en-transito": {
-      color: "bg-orange-100 text-orange-800",
-      label: "En Tránsito",
-    },
-    entregado: { color: "bg-green-100 text-green-800", label: "Entregado" },
-    finalizado: { color: "bg-green-100 text-green-800", label: "Finalizado" },
-  }
+      alert("Recursos asignados exitosamente");
+      await cargarDatos();
 
-  const estadoInfo = estados[estado as keyof typeof estados] || {
-    color: "bg-gray-100 text-gray-800",
-    label: estado,
-  }
-  return <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>{estadoInfo.label}</Badge>
-}
+      setAsignaciones((prev) => {
+        const newAsignaciones = { ...prev };
+        delete newAsignaciones[embarqueId];
+        return newAsignaciones;
+      });
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error al asignar recursos");
+    } finally {
+      setSaving(false);
+    }
+  };
 
-const getVehicleStatusBadge = (estado: string) => {
-  return estado === "disponible" || estado === "activo" ? (
-    <Badge className="bg-green-100 text-green-800 text-xs ml-2">Disponible</Badge>
-  ) : (
-    <Badge className="bg-red-100 text-red-800 text-xs ml-2">No Disponible</Badge>
-  )
-}
+  const guardarModificacion = async () => {
+    if (!embarqueAModificar || !modificacionData.razon.trim()) {
+      alert("Por favor ingresa una justificación para la modificación");
+      return;
+    }
 
-const embarquesFiltrados = embarques.filter((embarque) => {
-  const matchesSearch =
-    embarque.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (embarque.cliente?.nombre && embarque.cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (embarque.direccion_recolecta && embarque.direccion_recolecta.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (embarque.direccion_entrega && embarque.direccion_entrega.toLowerCase().includes(searchTerm.toLowerCase()))
+    if (
+      !modificacionData.cambiar_operador &&
+      !modificacionData.cambiar_camion &&
+      !modificacionData.cambiar_remolque &&
+      !modificacionData.cambiar_flete
+    ) {
+      alert("Por favor selecciona al menos un elemento a modificar");
+      return;
+    }
 
-  const matchesFilter =
-    filtroEstado === "todos"
-      ? embarque.estado !== "finalizado"
-      : filtroEstado === "finalizados"
+    try {
+      setSaving(true);
+
+      const updateData: any = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (
+        modificacionData.cambiar_operador &&
+        modificacionData.nuevo_operador_id &&
+        modificacionData.nuevo_operador_id !== "no-change"
+      ) {
+        updateData.operador_id = modificacionData.nuevo_operador_id;
+      }
+
+      if (
+        modificacionData.cambiar_camion &&
+        modificacionData.nuevo_camion_id &&
+        modificacionData.nuevo_camion_id !== "no-change"
+      ) {
+        updateData.camion_id = modificacionData.nuevo_camion_id;
+      }
+
+      if (
+        modificacionData.cambiar_remolque &&
+        modificacionData.nuevo_remolque_id !== "no-change" &&
+        modificacionData.nuevo_remolque_id !== "sin-remolque"
+      ) {
+        if (modificacionData.nuevo_remolque_id === "sin-remolque") {
+          updateData.remolque_id = null;
+        } else {
+          updateData.remolque_id = modificacionData.nuevo_remolque_id;
+        }
+      }
+
+      if (modificacionData.cambiar_flete) {
+        if (modificacionData.nuevo_precio_flete) {
+          updateData.precio_flete = Number.parseFloat(
+            modificacionData.nuevo_precio_flete
+          );
+          updateData.moneda_flete = modificacionData.nueva_moneda_flete;
+        }
+        updateData.flete_falso = modificacionData.flete_en_falso;
+      }
+
+      const { error: updateError } = await supabase
+        .from("embarques")
+        .update(updateData)
+        .eq("id", embarqueAModificar.id);
+
+      if (updateError) {
+        console.error("Error actualizando embarque:", updateError);
+        alert("Error al actualizar embarque: " + updateError.message);
+        return;
+      }
+
+      const operadorOriginal = operadores.find(
+        (op) => op.id === embarqueAModificar.operador_id
+      );
+      const operadorNuevo = operadores.find(
+        (op) => op.id === modificacionData.nuevo_operador_id
+      );
+      const camionOriginal = camiones.find(
+        (cam) => cam.id === embarqueAModificar.camion_id
+      );
+      const camionNuevo = camiones.find(
+        (cam) => cam.id === modificacionData.nuevo_camion_id
+      );
+      const remolqueOriginal = remolques.find(
+        (rem) => rem.id === embarqueAModificar.remolque_id
+      );
+      const remolqueNuevo = remolques.find(
+        (rem) => rem.id === modificacionData.nuevo_remolque_id
+      );
+
+      const auditData: any = {
+        embarque_id: embarqueAModificar.id,
+        razon: modificacionData.razon,
+        usuario_modificacion: "Sistema",
+        fecha_modificacion: new Date().toISOString(),
+      };
+
+      if (embarqueAModificar.operador_id) {
+        auditData.operador_original_id = embarqueAModificar.operador_id;
+      }
+      if (operadorOriginal) {
+        auditData.operador_original_nombre = `${operadorOriginal.nombre} ${operadorOriginal.apellidos}`;
+      }
+      if (
+        modificacionData.sueldo_operador_original &&
+        !isNaN(Number.parseFloat(modificacionData.sueldo_operador_original))
+      ) {
+        auditData.sueldo_operador_original = Number.parseFloat(
+          modificacionData.sueldo_operador_original
+        );
+        auditData.moneda_sueldo_operador_original =
+          modificacionData.moneda_sueldo_operador_original;
+      }
+
+      if (
+        modificacionData.cambiar_operador &&
+        modificacionData.nuevo_operador_id !== "no-change"
+      ) {
+        auditData.operador_nuevo_id = modificacionData.nuevo_operador_id;
+        if (operadorNuevo) {
+          auditData.operador_nuevo_nombre = `${operadorNuevo.nombre} ${operadorNuevo.apellidos}`;
+        }
+        if (
+          modificacionData.sueldo_operador_nuevo &&
+          !isNaN(Number.parseFloat(modificacionData.sueldo_operador_nuevo))
+        ) {
+          auditData.sueldo_operador_nuevo = Number.parseFloat(
+            modificacionData.sueldo_operador_nuevo
+          );
+          auditData.moneda_sueldo_operador_nuevo =
+            modificacionData.moneda_sueldo_operador_nuevo;
+        }
+      }
+
+      if (embarqueAModificar.camion_id) {
+        auditData.camion_original_id = embarqueAModificar.camion_id;
+        if (camionOriginal) {
+          auditData.camion_original_numero = camionOriginal.numero_economico;
+        }
+      }
+
+      if (
+        modificacionData.cambiar_camion &&
+        modificacionData.nuevo_camion_id !== "no-change"
+      ) {
+        auditData.camion_nuevo_id = modificacionData.nuevo_camion_id;
+        if (camionNuevo) {
+          auditData.camion_nuevo_numero = camionNuevo.numero_economico;
+        }
+      }
+
+      if (embarqueAModificar.remolque_id) {
+        auditData.remolque_original_id = embarqueAModificar.remolque_id;
+        if (remolqueOriginal) {
+          auditData.remolque_original_numero =
+            remolqueOriginal.numero_economico;
+        }
+      }
+
+      if (
+        modificacionData.cambiar_remolque &&
+        modificacionData.nuevo_remolque_id !== "no-change" &&
+        modificacionData.nuevo_remolque_id !== "sin-remolque"
+      ) {
+        auditData.remolque_nuevo_id = modificacionData.nuevo_remolque_id;
+        if (remolqueNuevo) {
+          auditData.remolque_nuevo_numero = remolqueNuevo.numero_economico;
+        }
+      }
+
+      if (embarqueAModificar.precio_flete) {
+        auditData.precio_flete_original = embarqueAModificar.precio_flete;
+        auditData.moneda_flete_original = embarqueAModificar.moneda_flete;
+      }
+
+      if (
+        modificacionData.cambiar_flete &&
+        modificacionData.nuevo_precio_flete &&
+        !isNaN(Number.parseFloat(modificacionData.nuevo_precio_flete))
+      ) {
+        auditData.precio_flete_nuevo = Number.parseFloat(
+          modificacionData.nuevo_precio_flete
+        );
+        auditData.moneda_flete_nueva = modificacionData.nueva_moneda_flete;
+      }
+
+      if (modificacionData.flete_en_falso) {
+        auditData.flete_en_falso = modificacionData.flete_en_falso;
+      }
+
+      try {
+        const { error: logError } = await supabase
+          .from("embarque_modificaciones")
+          .insert(auditData);
+
+        if (logError) {
+          console.error("Error registrando modificación:", logError);
+          if (
+            logError.message.includes("Could not find") &&
+            logError.message.includes("column")
+          ) {
+            alert(`Modificación guardada exitosamente, pero hay un problema con la tabla de auditoría. 
+                   Por favor ejecuta el script SQL 33 para corregir la estructura de la base de datos.
+                   Error técnico: ${logError.message}`);
+          } else {
+            alert(
+              "Modificación guardada, pero hubo un problema registrando la auditoría: " +
+                logError.message
+            );
+          }
+        } else {
+          alert(
+            "Modificación guardada exitosamente con registro de auditoría completo"
+          );
+        }
+      } catch (auditError) {
+        console.error("Error en auditoría:", auditError);
+        alert(
+          "Modificación guardada exitosamente, pero no se pudo registrar en auditoría. Contacta al administrador."
+        );
+      }
+
+      setShowModifyModal(false);
+      setEmbarqueAModificar(null);
+      resetModificacionData();
+      await cargarDatos();
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error al guardar modificación");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const finalizarEmbarque = async (embarqueId: string) => {
+    const embarque = embarques.find((e) => e.id === embarqueId);
+    if (!embarque) return;
+
+    const confirmacion = confirm(
+      `¿Estás seguro de que deseas finalizar el embarque ${embarque.folio}?\n\n` +
+        `Este embarque pasará al área de Facturación y Cobranza y se marcará como completado.`
+    );
+
+    if (!confirmacion) return;
+
+    try {
+      setSaving(true);
+
+      const updateData: any = {
+        estado: "finalizado",
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("embarques")
+        .update({
+          ...updateData,
+          fecha_finalizacion: new Date().toISOString(),
+        })
+        .eq("id", embarqueId);
+
+      if (error && error.message.includes("fecha_finalizacion")) {
+        console.warn(
+          "fecha_finalizacion column not found, updating without it..."
+        );
+
+        const { error: retryError } = await supabase
+          .from("embarques")
+          .update(updateData)
+          .eq("id", embarqueId);
+
+        if (retryError) {
+          console.error("Error finalizando embarque (retry):", retryError);
+          alert("Error al finalizar embarque: " + retryError.message);
+          return;
+        }
+      } else if (error) {
+        console.error("Error finalizando embarque:", error);
+        alert("Error al finalizar embarque: " + error.message);
+        return;
+      }
+
+      const embarqueCompletado = {
+        id: embarque.id,
+        folio: embarque.folio,
+        clienteNombre: embarque.cliente?.nombre || "Cliente no especificado",
+        numeroLoad: embarque.load_number || "N/A",
+        direccionEnganche: embarque.direccion_recolecta || "No especificada",
+        fechaEnganche:
+          embarque.fecha_recolecta || new Date().toISOString().split("T")[0],
+        horaEnganche: embarque.hora_recolecta || "00:00",
+        comentarios: embarque.observaciones || "",
+        operadorAsignado: {
+          id: embarque.operador_id || "",
+          nombre: embarque.operador
+            ? `${embarque.operador.nombre} ${embarque.operador.apellidos}`
+            : "Operador no especificado",
+        },
+        camionAsignado: {
+          id: embarque.camion_id || "",
+          marca: embarque.camion?.marca || "Marca",
+          modelo: embarque.camion?.modelo || "Modelo",
+          numeroEconomico: embarque.camion?.numero_economico || "000",
+        },
+        fechaAsignacion: new Date().toISOString().split("T")[0],
+        fechaCompletado: new Date().toISOString().split("T")[0],
+        fecha_finalizacion: new Date().toISOString(),
+        estado: "completado",
+        montoFacturado: embarque.precio_flete || 0,
+        precioFlete: embarque.precio_flete || 0,
+        precio_flete: embarque.precio_flete || 0,
+        moneda_flete: embarque.moneda_flete || "MXN",
+        fechaEntrega: "",
+        observacionesFacturacion: "",
+        observacionesFinalizacion: `Embarque finalizado el ${new Date().toLocaleDateString()}`,
+        pagado: false,
+        fechaPago: "",
+        modificado: embarque.modificado || false,
+        alertaModificacion: embarque.modificado
+          ? "⚠️ EMBARQUE MODIFICADO POR SITUACIÓN DE EMERGENCIA/CONTINGENCIA"
+          : null,
+        requiereAtencionEspecial: embarque.modificado || false,
+        colorAlerta: embarque.modificado ? "red" : null,
+        mensajeParaFacturacion: embarque.modificado
+          ? "ATENCIÓN: Este embarque fue modificado por situaciones de emergencia/contingencia. Verificar procedimientos especiales de pago y documentación antes de procesar."
+          : null,
+      };
+
+      const embarquesCompletados = JSON.parse(
+        localStorage.getItem("embarquesCompletados") || "[]"
+      );
+      const embarquesCompletadosActualizados = [
+        ...embarquesCompletados.filter((e: any) => e.id !== embarque.id),
+        embarqueCompletado,
+      ];
+      localStorage.setItem(
+        "embarquesCompletados",
+        JSON.stringify(embarquesCompletadosActualizados)
+      );
+
+      const embarquesAsignados = JSON.parse(
+        localStorage.getItem("embarquesAsignados") || "[]"
+      );
+      const embarquesAsignadosActualizados = [
+        ...embarquesAsignados.filter((e: any) => e.id !== embarque.id),
+        { ...embarqueCompletado, estado: "finalizado" },
+      ];
+      localStorage.setItem(
+        "embarquesAsignados",
+        JSON.stringify(embarquesAsignadosActualizados)
+      );
+
+      alert(
+        `Embarque ${embarque.folio} finalizado exitosamente.\nAhora está disponible en el área de Facturación y Cobranza.`
+      );
+      await cargarDatos();
+    } catch (error) {
+      console.error("Error:", error);
+      alert("Error al finalizar embarque");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetModificacionData = () => {
+    setModificacionData({
+      razon: "",
+      cambiar_operador: false,
+      cambiar_camion: false,
+      cambiar_remolque: false,
+      cambiar_flete: false,
+      nuevo_operador_id: "no-change",
+      sueldo_operador_original: "",
+      moneda_sueldo_operador_original: "MXN",
+      sueldo_operador_nuevo: "",
+      moneda_sueldo_operador_nuevo: "MXN",
+      nuevo_camion_id: "no-change",
+      nuevo_remolque_id: "no-change",
+      nuevo_precio_flete: "",
+      nueva_moneda_flete: "MXN",
+      flete_en_falso: false,
+    });
+    setActiveModifyTab("justificacion");
+  };
+
+  const verificarModificacion = async (embarqueId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("embarque_modificaciones")
+        .select("id")
+        .eq("embarque_id", embarqueId)
+        .limit(1);
+
+      if (error) {
+        console.error("Error verificando modificaciones:", error);
+        return false;
+      }
+
+      return data && data.length > 0;
+    } catch (error) {
+      console.error("Error:", error);
+      return false;
+    }
+  };
+
+  const getEstadoBadge = (estado: string) => {
+    const estados = {
+      "listo-para-asignar": {
+        color: "bg-blue-100 text-blue-800",
+        label: "Listo para Asignar",
+      },
+      asignado: { color: "bg-yellow-100 text-yellow-800", label: "Asignado" },
+      "en-transito": {
+        color: "bg-orange-100 text-orange-800",
+        label: "En Tránsito",
+      },
+      entregado: { color: "bg-green-100 text-green-800", label: "Entregado" },
+      finalizado: { color: "bg-green-100 text-green-800", label: "Finalizado" },
+    };
+
+    const estadoInfo = estados[estado as keyof typeof estados] || {
+      color: "bg-gray-100 text-gray-800",
+      label: estado,
+    };
+    return (
+      <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>
+        {estadoInfo.label}
+      </Badge>
+    );
+  };
+
+  const getVehicleStatusBadge = (estado: string) => {
+    return estado === "disponible" || estado === "activo" ? (
+      <Badge className="bg-green-100 text-green-800 text-xs ml-2">
+        Disponible
+      </Badge>
+    ) : (
+      <Badge className="bg-red-100 text-red-800 text-xs ml-2">
+        No Disponible
+      </Badge>
+    );
+  };
+
+  const embarquesFiltrados = embarques.filter((embarque) => {
+    const matchesSearch =
+      embarque.folio.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (embarque.cliente?.nombre &&
+        embarque.cliente.nombre
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())) ||
+      (embarque.direccion_recolecta &&
+        embarque.direccion_recolecta
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())) ||
+      (embarque.direccion_entrega &&
+        embarque.direccion_entrega
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase()));
+
+    const matchesFilter =
+      filtroEstado === "todos"
+        ? embarque.estado !== "finalizado"
+        : filtroEstado === "finalizados"
         ? embarque.estado === "finalizado"
-        : embarque.estado === filtroEstado
+        : embarque.estado === filtroEstado;
 
-  return matchesSearch && matchesFilter
-})
+    return matchesSearch && matchesFilter;
+  });
 
-const imprimirDetalles = () => {
-  if (!embarqueDetalle) return
+  const imprimirDetalles = () => {
+    if (!embarqueDetalle) return;
 
-  const contactoCliente = contactosClientes.find((c) => c.cliente_id === embarqueDetalle.cliente?.id)
-  const contactoNombre = contactoCliente
-    ? `${contactoCliente.nombre} ${contactoCliente.apellidos || ""}`
-    : "No especificado"
+    const contactoCliente = contactosClientes.find(
+      (c) => c.cliente_id === embarqueDetalle.cliente?.id
+    );
+    const contactoNombre = contactoCliente
+      ? `${contactoCliente.nombre} ${contactoCliente.apellidos || ""}`
+      : "No especificado";
 
-  const printContent = `
+    const printContent = `
 <html>
   <head>
     <title>Detalles del Embarque - ${embarqueDetalle.folio}</title>
@@ -706,7 +816,9 @@ const imprimirDetalles = () => {
       <div class="field-group">
         <div class="field">
           <div class="field-label">Cliente</div>
-          <div class="field-value">${embarqueDetalle.cliente?.nombre || "Sin asignar"}</div>
+          <div class="field-value">${
+            embarqueDetalle.cliente?.nombre || "Sin asignar"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Contacto del Cliente</div>
@@ -714,11 +826,15 @@ const imprimirDetalles = () => {
         </div>
         <div class="field">
           <div class="field-label">Teléfono</div>
-          <div class="field-value">${embarqueDetalle.cliente?.telefono || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.cliente?.telefono || "No especificado"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Email</div>
-          <div class="field-value">${embarqueDetalle.cliente?.email || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.cliente?.email || "No especificado"
+          }</div>
         </div>
       </div>
     </div>
@@ -728,19 +844,27 @@ const imprimirDetalles = () => {
       <div class="field-group">
         <div class="field">
           <div class="field-label">Carta Porte</div>
-          <div class="field-value">${embarqueDetalle.carta_porte || "Sin asignar"}</div>
+          <div class="field-value">${
+            embarqueDetalle.carta_porte || "Sin asignar"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Fecha de Creación</div>
-          <div class="field-value">${new Date(embarqueDetalle.fecha_creacion).toLocaleDateString()}</div>
+          <div class="field-value">${new Date(
+            embarqueDetalle.fecha_creacion
+          ).toLocaleDateString()}</div>
         </div>
         <div class="field">
           <div class="field-label">Contenido</div>
-          <div class="field-value">${embarqueDetalle.contenido || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.contenido || "No especificado"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Peso</div>
-          <div class="field-value">${embarqueDetalle.peso || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.peso || "No especificado"
+          }</div>
         </div>
       </div>
     </div>
@@ -750,7 +874,9 @@ const imprimirDetalles = () => {
       <div class="field full-width">
         <div class="field-label">Dirección de Recolecta</div>
         <div class="field-value address-field">${
-          embarqueDetalle.direccion_recolecta || embarqueDetalle.origen || "No especificada"
+          embarqueDetalle.direccion_recolecta ||
+          embarqueDetalle.origen ||
+          "No especificada"
         }</div>
       </div>
       <div class="field-group">
@@ -764,13 +890,17 @@ const imprimirDetalles = () => {
         </div>
         <div class="field">
           <div class="field-label">Hora de Recolecta</div>
-          <div class="field-value">${embarqueDetalle.hora_recolecta || "No especificada"}</div>
+          <div class="field-value">${
+            embarqueDetalle.hora_recolecta || "No especificada"
+          }</div>
         </div>
       </div>
       <div class="field full-width">
         <div class="field-label">Dirección de Entrega</div>
         <div class="field-value address-field">${
-          embarqueDetalle.direccion_entrega || embarqueDetalle.destino || "No especificada"
+          embarqueDetalle.direccion_entrega ||
+          embarqueDetalle.destino ||
+          "No especificada"
         }</div>
       </div>
       <div class="field-group">
@@ -784,7 +914,9 @@ const imprimirDetalles = () => {
         </div>
         <div class="field">
           <div class="field-label">Hora de Entrega</div>
-          <div class="field-value">${embarqueDetalle.hora_entrega || "No especificada"}</div>
+          <div class="field-value">${
+            embarqueDetalle.hora_entrega || "No especificada"
+          }</div>
         </div>
       </div>
     </div>
@@ -802,23 +934,33 @@ const imprimirDetalles = () => {
         </div>
         <div class="field">
           <div class="field-label">Teléfono Operador</div>
-          <div class="field-value">${embarqueDetalle.operador?.telefono || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.operador?.telefono || "No especificado"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Tractocamión</div>
-          <div class="field-value">${embarqueDetalle.camion?.numero_economico || "Sin asignar"}</div>
+          <div class="field-value">${
+            embarqueDetalle.camion?.numero_economico || "Sin asignar"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Marca Tractocamión</div>
-          <div class="field-value">${embarqueDetalle.camion?.marca || "No especificada"}</div>
+          <div class="field-value">${
+            embarqueDetalle.camion?.marca || "No especificada"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Remolque</div>
-          <div class="field-value">${embarqueDetalle.remolque?.numero_economico || "Sin asignar"}</div>
+          <div class="field-value">${
+            embarqueDetalle.remolque?.numero_economico || "Sin asignar"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Tipo Remolque</div>
-          <div class="field-value">${embarqueDetalle.remolque?.tipo || "No especificado"}</div>
+          <div class="field-value">${
+            embarqueDetalle.remolque?.tipo || "No especificado"
+          }</div>
         </div>
       </div>
     </div>
@@ -829,16 +971,22 @@ const imprimirDetalles = () => {
         <div class="field">
           <div class="field-label">Precio Flete</div>
           <div class="field-value">${
-            embarqueDetalle.precio_flete ? `$${embarqueDetalle.precio_flete}` : "Sin definir"
+            embarqueDetalle.precio_flete
+              ? `$${embarqueDetalle.precio_flete}`
+              : "Sin definir"
           }</div>
         </div>
         <div class="field">
           <div class="field-label">Moneda</div>
-          <div class="field-value">${embarqueDetalle.moneda_flete || "MXN"}</div>
+          <div class="field-value">${
+            embarqueDetalle.moneda_flete || "MXN"
+          }</div>
         </div>
         <div class="field">
           <div class="field-label">Flete en Falso</div>
-          <div class="field-value">${embarqueDetalle.flete_falso ? "Sí" : "No"}</div>
+          <div class="field-value">${
+            embarqueDetalle.flete_falso ? "Sí" : "No"
+          }</div>
         </div>
       </div>
     </div>
@@ -853,314 +1001,357 @@ const imprimirDetalles = () => {
     </div>
   </body>
 </html>
-`
+`;
 
-  const printWindow = window.open("", "_blank")
-  if (printWindow) {
-    printWindow.document.write(printContent)
-    printWindow.document.close()
-    printWindow.print()
-  }
-}
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      printWindow.print();
+    }
+  };
 
-const descargarExcel = () => {
-  if (!embarqueDetalle) return
+  const descargarExcel = () => {
+    if (!embarqueDetalle) return;
 
-  const headers = [
-    "Folio",
-    "Estado",
-    "Cliente",
-    "Representante",
-    "Teléfono Cliente",
-    "Email Cliente",
-    "Fecha Creación",
-    "Carta Porte",
-    "Contenido",
-    "Peso",
-    "Dirección Recolecta",
-    "Fecha Recolecta",
-    "Hora Recolecta",
-    "Dirección Entrega",
-    "Fecha Entrega",
-    "Hora Entrega",
-    "Operador",
-    "Teléfono Operador",
-    "Tractocamión",
-    "Marca Tractocamión",
-    "Remolque",
-    "Tipo Remolque",
-    "Precio Flete",
-    "Moneda",
-    "Flete en Falso",
-    "Observaciones",
-  ]
+    const headers = [
+      "Folio",
+      "Estado",
+      "Cliente",
+      "Representante",
+      "Teléfono Cliente",
+      "Email Cliente",
+      "Fecha Creación",
+      "Carta Porte",
+      "Contenido",
+      "Peso",
+      "Dirección Recolecta",
+      "Fecha Recolecta",
+      "Hora Recolecta",
+      "Dirección Entrega",
+      "Fecha Entrega",
+      "Hora Entrega",
+      "Operador",
+      "Teléfono Operador",
+      "Tractocamión",
+      "Marca Tractocamión",
+      "Remolque",
+      "Tipo Remolque",
+      "Precio Flete",
+      "Moneda",
+      "Flete en Falso",
+      "Observaciones",
+    ];
 
-  const data = [
-    embarqueDetalle.folio,
-    embarqueDetalle.estado,
-    embarqueDetalle.cliente?.nombre || "",
-    embarqueDetalle.cliente?.contacto_principal || "",
-    embarqueDetalle.cliente?.telefono || "",
-    embarqueDetalle.cliente?.email || "",
-    new Date(embarqueDetalle.fecha_creacion).toLocaleDateString(),
-    embarqueDetalle.carta_porte || "",
-    embarqueDetalle.contenido || "",
-    embarqueDetalle.peso || "",
-    embarqueDetalle.direccion_recolecta || embarqueDetalle.origen || "",
-    embarqueDetalle.fecha_recolecta ? new Date(embarqueDetalle.fecha_recolecta).toLocaleDateString() : "",
-    embarqueDetalle.hora_recolecta || "",
-    embarqueDetalle.direccion_entrega || embarqueDetalle.destino || "",
-    embarqueDetalle.fecha_entrega ? new Date(embarqueDetalle.fecha_entrega).toLocaleDateString() : "",
-    embarqueDetalle.hora_entrega || "",
-    embarqueDetalle.operador ? `${embarqueDetalle.operador.nombre} ${embarqueDetalle.operador.apellidos}` : "",
-    embarqueDetalle.operador?.telefono || "",
-    embarqueDetalle.camion?.numero_economico || "",
-    embarqueDetalle.camion?.marca || "",
-    embarqueDetalle.remolque?.numero_economico || "",
-    embarqueDetalle.remolque?.tipo || "",
-    embarqueDetalle.precio_flete || "",
-    embarqueDetalle.moneda_flete || "",
-    embarqueDetalle.flete_falso ? "Sí" : "No",
-    embarqueDetalle.observaciones || "",
-  ]
+    const data = [
+      embarqueDetalle.folio,
+      embarqueDetalle.estado,
+      embarqueDetalle.cliente?.nombre || "",
+      embarqueDetalle.cliente?.contacto_principal || "",
+      embarqueDetalle.cliente?.telefono || "",
+      embarqueDetalle.cliente?.email || "",
+      new Date(embarqueDetalle.fecha_creacion).toLocaleDateString(),
+      embarqueDetalle.carta_porte || "",
+      embarqueDetalle.contenido || "",
+      embarqueDetalle.peso || "",
+      embarqueDetalle.direccion_recolecta || embarqueDetalle.origen || "",
+      embarqueDetalle.fecha_recolecta
+        ? new Date(embarqueDetalle.fecha_recolecta).toLocaleDateString()
+        : "",
+      embarqueDetalle.hora_recolecta || "",
+      embarqueDetalle.direccion_entrega || embarqueDetalle.destino || "",
+      embarqueDetalle.fecha_entrega
+        ? new Date(embarqueDetalle.fecha_entrega).toLocaleDateString()
+        : "",
+      embarqueDetalle.hora_entrega || "",
+      embarqueDetalle.operador
+        ? `${embarqueDetalle.operador.nombre} ${embarqueDetalle.operador.apellidos}`
+        : "",
+      embarqueDetalle.operador?.telefono || "",
+      embarqueDetalle.camion?.numero_economico || "",
+      embarqueDetalle.camion?.marca || "",
+      embarqueDetalle.remolque?.numero_economico || "",
+      embarqueDetalle.remolque?.tipo || "",
+      embarqueDetalle.precio_flete || "",
+      embarqueDetalle.moneda_flete || "",
+      embarqueDetalle.flete_falso ? "Sí" : "No",
+      embarqueDetalle.observaciones || "",
+    ];
 
-  const csvContent = [headers.join(","), data.map((field) => `"${field}"`).join(",")].join("\n")
+    const csvContent = [
+      headers.join(","),
+      data.map((field) => `"${field}"`).join(","),
+    ].join("\n");
 
-  const blob = new Blob(["\ufeff" + csvContent], {
-    type: "text/csv;charset=utf-8;",
-  })
-  const link = document.createElement("a")
-  const url = URL.createObjectURL(blob)
-  link.setAttribute("href", url)
-  link.setAttribute(
-    "download",
-    `embarque_completo_${embarqueDetalle.folio}_${new Date().toISOString().split("T")[0]}.csv`,
-  )
-  link.style.visibility = "hidden"
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `embarque_completo_${embarqueDetalle.folio}_${
+        new Date().toISOString().split("T")[0]
+      }.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-const descargarRegistrosCompletos = () => {
-  const headers = [
-    "Folio",
-    "Cliente",
-    "Operador",
-    "Tractocamión",
-    "Remolque",
-    "Origen",
-    "Destino",
-    "Fecha Creación",
-    "Fecha Finalización",
-    "Precio Flete",
-    "Moneda",
-    "Estado",
-    "Observaciones",
-  ]
+  const descargarRegistrosCompletos = () => {
+    const headers = [
+      "Folio",
+      "Cliente",
+      "Operador",
+      "Tractocamión",
+      "Remolque",
+      "Origen",
+      "Destino",
+      "Fecha Creación",
+      "Fecha Finalización",
+      "Precio Flete",
+      "Moneda",
+      "Estado",
+      "Observaciones",
+    ];
 
-  const data = embarquesFinalizados.map((embarque) => [
-    embarque.folio,
-    embarque.cliente?.nombre || "",
-    embarque.operador ? `${embarque.operador.nombre} ${embarque.operador.apellidos}` : "",
-    embarque.camion?.numero_economico || "",
-    embarque.remolque?.numero_economico || "",
-    embarque.direccion_recolecta || embarque.origen || "",
-    embarque.direccion_entrega || embarque.destino || "",
-    new Date(embarque.fecha_creacion).toLocaleDateString(),
-    embarque.fecha_finalizacion ? new Date(embarque.fecha_finalizacion).toLocaleDateString() : "",
-    embarque.precio_flete || "",
-    embarque.moneda_flete || "",
-    embarque.estado,
-    embarque.observaciones || "",
-  ])
+    const data = embarquesFinalizados.map((embarque) => [
+      embarque.folio,
+      embarque.cliente?.nombre || "",
+      embarque.operador
+        ? `${embarque.operador.nombre} ${embarque.operador.apellidos}`
+        : "",
+      embarque.camion?.numero_economico || "",
+      embarque.remolque?.numero_economico || "",
+      embarque.direccion_recolecta || embarque.origen || "",
+      embarque.direccion_entrega || embarque.destino || "",
+      new Date(embarque.fecha_creacion).toLocaleDateString(),
+      embarque.fecha_finalizacion
+        ? new Date(embarque.fecha_finalizacion).toLocaleDateString()
+        : "",
+      embarque.precio_flete || "",
+      embarque.moneda_flete || "",
+      embarque.estado,
+      embarque.observaciones || "",
+    ]);
 
-  const csvContent = [headers.join(","), ...data.map((row) => row.map((field) => `"${field}"`).join(","))].join("\n")
+    const csvContent = [
+      headers.join(","),
+      ...data.map((row) => row.map((field) => `"${field}"`).join(",")),
+    ].join("\n");
 
-  const blob = new Blob(["\ufeff" + csvContent], {
-    type: "text/csv;charset=utf-8;",
-  })
-  const link = document.createElement("a")
-  const url = URL.createObjectURL(blob)
-  link.setAttribute("href", url)
-  link.setAttribute("download", `registros_completados_${new Date().toISOString().split("T")[0]}.csv`)
-  link.style.visibility = "hidden"
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
-}
+    const blob = new Blob(["\ufeff" + csvContent], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `registros_completados_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
-  const [modificaciones, setModificaciones<any[]
-  >] = useState([])
-  const [loadingMods, setLoadingMods(true
-  )
+  const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
+    const [modificaciones, setModificaciones] = useState<any[]>([]);
+    const [loadingMods, setLoadingMods] = useState(true);
 
-    useEffect(() =>
-  {
-    const cargarModificaciones = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("embarque_modificaciones")
-          .select("*")
-          .eq("embarque_id", embarqueId)
-          .order("fecha_modificacion", { ascending: false })
+    useEffect(() => {
+      const cargarModificaciones = async () => {
+        try {
+          const { data, error } = await supabase
+            .from("embarque_modificaciones")
+            .select("*")
+            .eq("embarque_id", embarqueId)
+            .order("fecha_modificacion", { ascending: false });
 
-        if (error) {
-          console.error("Error cargando modificaciones:", error)
-          setModificaciones([])
-        } else {
-          setModificaciones(data || [])
+          if (error) {
+            console.error("Error cargando modificaciones:", error);
+            setModificaciones([]);
+          } else {
+            setModificaciones(data || []);
+          }
+        } catch (error) {
+          console.error("Error:", error);
+          setModificaciones([]);
+        } finally {
+          setLoadingMods(false);
         }
-      } catch (error) {
-        console.error("Error:", error)
-        setModificaciones([])
-      } finally {
-        setLoadingMods(false)
-      }
+      };
+
+      cargarModificaciones();
+    }, [embarqueId]);
+
+    if (loadingMods) {
+      return (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
+          <span className="ml-2 text-sm text-gray-600">
+            Cargando modificaciones...
+          </span>
+        </div>
+      );
     }
 
-    cargarModificaciones()
-  }
-  , [embarqueId])
-
-  if (loadingMods) {
-    return (
-      <div className="flex items-center justify-center py-8">
-        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-red-600"></div>
-        <span className="ml-2 text-sm text-gray-600">Cargando modificaciones...</span>
-      </div>
-    )
-  }
-
-  if (modificaciones.length === 0) {
-    return (
-      <div className="bg-white border rounded-lg p-4">
-        <p className="text-sm text-gray-600">No se encontraron registros de modificaciones en la base de datos.</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="space-y-4">
-      {modificaciones.map((mod, index) => (
-        <div key={mod.id || index} className="bg-white border border-red-200 rounded-lg p-4">
-          <div className="flex justify-between items-start mb-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <span className="text-sm font-medium text-red-800">Modificación #{modificaciones.length - index}</span>
-            </div>
-            <span className="text-xs text-gray-500">{new Date(mod.fecha_modificacion).toLocaleString()}</span>
-          </div>
-
-          <div className="space-y-3">
-            <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Justificación</label>
-              <p className="text-sm text-gray-900 mt-1">{mod.razon || "Sin justificación registrada"}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {(mod.operador_original_nombre || mod.operador_nuevo_nombre) && (
-                <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                  <label className="text-xs font-medium text-blue-700 uppercase tracking-wide">
-                    Cambio de Operador
-                  </label>
-                  <div className="mt-2 space-y-1">
-                    {mod.operador_original_nombre && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Anterior:</span> {mod.operador_original_nombre}
-                      </p>
-                    )}
-                    {mod.operador_nuevo_nombre && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Nuevo:</span> {mod.operador_nuevo_nombre}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {(mod.camion_original_numero || mod.camion_nuevo_numero) && (
-                <div className="bg-green-50 border border-green-200 rounded p-3">
-                  <label className="text-xs font-medium text-green-700 uppercase tracking-wide">
-                    Cambio de Tractocamión
-                  </label>
-                  <div className="mt-2 space-y-1">
-                    {mod.camion_original_numero && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Anterior:</span> {mod.camion_original_numero}
-                      </p>
-                    )}
-                    {mod.camion_nuevo_numero && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Nuevo:</span> {mod.camion_nuevo_numero}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {(mod.remolque_original_numero || mod.remolque_nuevo_numero) && (
-                <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                  <label className="text-xs font-medium text-orange-700 uppercase tracking-wide">
-                    Cambio de Remolque
-                  </label>
-                  <div className="mt-2 space-y-1">
-                    {mod.remolque_original_numero && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Anterior:</span> {mod.remolque_original_numero}
-                      </p>
-                    )}
-                    {mod.remolque_nuevo_numero && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Nuevo:</span> {mod.remolque_nuevo_numero}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {(mod.precio_flete_original || mod.precio_flete_nuevo) && (
-                <div className="bg-purple-50 border border-purple-200 rounded p-3">
-                  <label className="text-xs font-medium text-purple-700 uppercase tracking-wide">Cambio de Flete</label>
-                  <div className="mt-2 space-y-1">
-                    {mod.precio_flete_original && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Anterior:</span> ${mod.precio_flete_original}{" "}
-                        {mod.moneda_flete_original || "MXN"}
-                      </p>
-                    )}
-                    {mod.precio_flete_nuevo && (
-                      <p className="text-sm text-gray-700">
-                        <span className="font-medium">Nuevo:</span> ${mod.precio_flete_nuevo}{" "}
-                        {mod.moneda_flete_nueva || "MXN"}
-                      </p>
-                    )}
-                    {mod.flete_en_falso && (
-                      <p className="text-sm text-red-600">
-                        <span className="font-medium">⚠️ Marcado como flete en falso</span>
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className="text-xs text-gray-500 pt-2 border-t">Usuario: {mod.usuario_modificacion || "Sistema"}</div>
-          </div>
+    if (modificaciones.length === 0) {
+      return (
+        <div className="bg-white border rounded-lg p-4">
+          <p className="text-sm text-gray-600">
+            No se encontraron registros de modificaciones en la base de datos.
+          </p>
         </div>
-      ))}
-    </div>
-  )
-}
+      );
+    }
 
-const handleViewDetails = (embarque: Embarque) => {
-  setEmbarqueDetalle(embarque)
-  setShowDetailsModal(true)
-}
+    return (
+      <div className="space-y-4">
+        {modificaciones.map((mod, index) => (
+          <div
+            key={mod.id || index}
+            className="bg-white border border-red-200 rounded-lg p-4"
+          >
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                <span className="text-sm font-medium text-red-800">
+                  Modificación #{modificaciones.length - index}
+                </span>
+              </div>
+              <span className="text-xs text-gray-500">
+                {new Date(mod.fecha_modificacion).toLocaleString()}
+              </span>
+            </div>
 
-if (loading) {
-  return (
+            <div className="space-y-3">
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
+                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                  Justificación
+                </label>
+                <p className="text-sm text-gray-900 mt-1">
+                  {mod.razon || "Sin justificación registrada"}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {(mod.operador_original_nombre ||
+                  mod.operador_nuevo_nombre) && (
+                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                    <label className="text-xs font-medium text-blue-700 uppercase tracking-wide">
+                      Cambio de Operador
+                    </label>
+                    <div className="mt-2 space-y-1">
+                      {mod.operador_original_nombre && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Anterior:</span>{" "}
+                          {mod.operador_original_nombre}
+                        </p>
+                      )}
+                      {mod.operador_nuevo_nombre && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Nuevo:</span>{" "}
+                          {mod.operador_nuevo_nombre}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {(mod.camion_original_numero || mod.camion_nuevo_numero) && (
+                  <div className="bg-green-50 border border-green-200 rounded p-3">
+                    <label className="text-xs font-medium text-green-700 uppercase tracking-wide">
+                      Cambio de Tractocamión
+                    </label>
+                    <div className="mt-2 space-y-1">
+                      {mod.camion_original_numero && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Anterior:</span>{" "}
+                          {mod.camion_original_numero}
+                        </p>
+                      )}
+                      {mod.camion_nuevo_numero && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Nuevo:</span>{" "}
+                          {mod.camion_nuevo_numero}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {(mod.remolque_original_numero ||
+                  mod.remolque_nuevo_numero) && (
+                  <div className="bg-orange-50 border border-orange-200 rounded p-3">
+                    <label className="text-xs font-medium text-orange-700 uppercase tracking-wide">
+                      Cambio de Remolque
+                    </label>
+                    <div className="mt-2 space-y-1">
+                      {mod.remolque_original_numero && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Anterior:</span>{" "}
+                          {mod.remolque_original_numero}
+                        </p>
+                      )}
+                      {mod.remolque_nuevo_numero && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Nuevo:</span>{" "}
+                          {mod.remolque_nuevo_numero}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {(mod.precio_flete_original || mod.precio_flete_nuevo) && (
+                  <div className="bg-purple-50 border border-purple-200 rounded p-3">
+                    <label className="text-xs font-medium text-purple-700 uppercase tracking-wide">
+                      Cambio de Flete
+                    </label>
+                    <div className="mt-2 space-y-1">
+                      {mod.precio_flete_original && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Anterior:</span> $
+                          {mod.precio_flete_original}{" "}
+                          {mod.moneda_flete_original || "MXN"}
+                        </p>
+                      )}
+                      {mod.precio_flete_nuevo && (
+                        <p className="text-sm text-gray-700">
+                          <span className="font-medium">Nuevo:</span> $
+                          {mod.precio_flete_nuevo}{" "}
+                          {mod.moneda_flete_nueva || "MXN"}
+                        </p>
+                      )}
+                      {mod.flete_en_falso && (
+                        <p className="text-sm text-red-600">
+                          <span className="font-medium">
+                            ⚠️ Marcado como flete en falso
+                          </span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="text-xs text-gray-500 pt-2 border-t">
+                Usuario: {mod.usuario_modificacion || "Sistema"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
       <MainLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
@@ -1169,10 +1360,10 @@ if (loading) {
           </div>
         </div>
       </MainLayout>
-    )
-}
+    );
+  }
 
-return (
+  return (
     <MainLayout>
       <div className="space-y-4">
         <div className="flex justify-between items-center">
@@ -3119,109 +3310,9 @@ return (
                 )}
               </div>
             </div>
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-100">
-                  <th className="px-3 py-2 text-left">Folio</th>
-                  <th className="px-3 py-2 text-left">Cliente</th>
-                  <th className="px-3 py-2 text-left">Operador</th>
-                  <th className="px-3 py-2 text-left">Tractocamión</th>
-                  <th className="px-3 py-2 text-left">Fecha Finalización</th>
-                  <th className="px-3 py-2 text-left">Precio Flete</th>
-                  <th className="px-3 py-2 text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {embarquesFinalizados.map((embarque) => (
-                  <tr key={embarque.id} className="hover:bg-gray-50">
-                    <td className="px-3 py-2">{embarque.folio}</td>
-                    <td className="px-3 py-2">{embarque.cliente?.nombre || "Sin cliente"}</td>
-                    <td className="px-3 py-2">
-                      {embarque.operador
-                        ? `${embarque.operador.nombre} ${embarque.operador.apellidos}`
-                        : "Sin operador"}
-                    </td>
-                    <td className="px-3 py-2">{embarque.camion?.numero_economico || "Sin camión"}</td>
-                    <td className="px-3 py-2">
-                      {embarque.fecha_finalizacion
-                        ? new Date(embarque.fecha_finalizacion).toLocaleDateString()
-                        : new Date(embarque.updated_at).toLocaleDateString()}
-                    </td>
-                    <td className="px-3 py-2">
-                      {embarque.precio_flete
-                        ? `$${embarque.precio_flete.toLocaleString()} ${embarque.moneda_flete || "MXN"}`
-                        : "Sin definir"}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <Button variant="outline" size="sm" onClick={() => handleViewDetails(embarque)}>
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver Detalles
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="ml-2 bg-transparent"
-                        onClick={() => handleGenerateLink(embarque.id)}
-                      >
-                        <Link className="h-4 w-4 mr-1" />
-                        Generar Link Fotos
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
-
-        {/* Modal para mostrar el enlace generado */}
-        {showLinkModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div className="flex justify-between items-center p-6 border-b">
-                <div>
-                  <h2 className="text-xl font-bold text-gray-900">Enlace para Subir Fotos</h2>
-                  <p className="text-sm text-gray-600">
-                    Copia este enlace y envíaselo al operador para que suba las fotos del embarque.
-                  </p>
-                </div>
-                <Button
-                  onClick={() => setShowLinkModal(false)}
-                  variant="outline"
-                  size="sm"
-                >
-                  ✕
-                </Button>
-              </div>
-
-              <div className="p-6 space-y-4">
-                <Label htmlFor="generated-link">Enlace</Label>
-                <div className="flex space-x-2">
-                  <Input id="generated-link" value={generatedLink} readOnly />
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedLink);
-                      toast({
-                        title: "Enlace copiado",
-                        description: "El enlace ha sido copiado al portapapeles.",
-                      });
-                    }}
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Asegúrate de que este enlace sea accesible desde el dispositivo del operador.
-                </p>
-              </div>
-
-              <div className="border-t p-6 flex justify-end">
-                <Button onClick={() => setShowLinkModal(false)}>Cerrar</Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </MainLayout>
+      )}
+    </MainLayout>
   );
 }
