@@ -1,22 +1,19 @@
+-- Crear tabla para confirmaciones de operadores en embarques
 CREATE TABLE IF NOT EXISTS operador_confirmaciones_embarque (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    embarque_id UUID REFERENCES embarques(id) ON DELETE CASCADE,
-    operador_nombre TEXT NOT NULL,
-    fecha_confirmacion TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    embarque_id UUID NOT NULL REFERENCES embarques(id) ON DELETE CASCADE,
+    operador_nombre VARCHAR(255) NOT NULL,
+    fecha_confirmacion TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Trigger para actualizar 'updated_at'
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
+-- Crear índices para mejorar el rendimiento
+CREATE INDEX IF NOT EXISTS idx_operador_confirmaciones_embarque_id ON operador_confirmaciones_embarque(embarque_id);
+CREATE INDEX IF NOT EXISTS idx_operador_confirmaciones_fecha ON operador_confirmaciones_embarque(fecha_confirmacion);
 
-CREATE TRIGGER update_operador_confirmaciones_embarque_updated_at
-BEFORE UPDATE ON operador_confirmaciones_embarque
-FOR EACH ROW
-EXECUTE FUNCTION update_updated_at_column();
+-- Comentarios para documentar la tabla
+COMMENT ON TABLE operador_confirmaciones_embarque IS 'Tabla para registrar las confirmaciones de operadores cuando acceden al formulario de fotos de embarque';
+COMMENT ON COLUMN operador_confirmaciones_embarque.embarque_id IS 'ID del embarque al que pertenece la confirmación';
+COMMENT ON COLUMN operador_confirmaciones_embarque.operador_nombre IS 'Nombre del operador que confirmó los datos';
+COMMENT ON COLUMN operador_confirmaciones_embarque.fecha_confirmacion IS 'Fecha y hora cuando se realizó la confirmación';

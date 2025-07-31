@@ -39,33 +39,52 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
 
   useEffect(() => {
     async function loadData() {
-      if (!embarqueId) return
-
-      const { data, error } = await supabase
-        .from("embarques")
-        .select(
-          `
-          *,
-          cliente:clientes(nombre),
-          operador:operadores(nombre, apellidos),
-          remolque:remolques(numero_economico, placas)
-        `,
-        )
-        .eq("id", embarqueId)
-        .single()
-
-      if (error) {
-        console.error("Error cargando embarque:", error)
-        setGlobalError("No se pudo cargar la información del embarque. Asegúrate de que la URL sea correcta.")
+      if (!embarqueId) {
+        setGlobalError("ID de embarque no válido en la URL.")
         return
       }
-      setEmbarque(data)
 
-      const existingConfirmation = await obtenerConfirmacionOperador(embarqueId)
-      if (existingConfirmation) {
-        setConfirmacion(existingConfirmation)
-        setIsConfirmed(true)
-        setOperatorName(existingConfirmation.operador_nombre)
+      console.log("Cargando embarque con ID:", embarqueId)
+
+      try {
+        const { data, error } = await supabase
+          .from("embarques")
+          .select(
+            `
+            *,
+            cliente:clientes(nombre),
+            operador:operadores(nombre, apellidos),
+            remolque:remolques(numero_economico, placas)
+          `,
+          )
+          .eq("id", embarqueId)
+          .single()
+
+        if (error) {
+          console.error("Error cargando embarque:", error)
+          setGlobalError(`No se pudo cargar la información del embarque. Error: ${error.message}`)
+          return
+        }
+
+        if (!data) {
+          setGlobalError("No se encontró el embarque especificado.")
+          return
+        }
+
+        console.log("Embarque cargado:", data)
+        setEmbarque(data)
+
+        // Verificar si ya existe una confirmación
+        const existingConfirmation = await obtenerConfirmacionOperador(embarqueId)
+        if (existingConfirmation) {
+          console.log("Confirmación existente encontrada:", existingConfirmation)
+          setConfirmacion(existingConfirmation)
+          setIsConfirmed(true)
+          setOperatorName(existingConfirmation.operador_nombre)
+        }
+      } catch (error) {
+        console.error("Error general:", error)
+        setGlobalError("Error inesperado al cargar los datos.")
       }
     }
     loadData()
@@ -76,8 +95,16 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
       setGlobalError("Por favor, ingresa tu nombre para confirmar.")
       return
     }
+
+    if (!embarqueId) {
+      setGlobalError("ID de embarque no válido.")
+      return
+    }
+
     setIsConfirming(true)
     setGlobalError(null)
+
+    console.log("Guardando confirmación para embarque:", embarqueId, "operador:", operatorName.trim())
 
     const success = await guardarConfirmacionOperador(embarqueId, operatorName.trim())
 
@@ -133,14 +160,25 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
       return
     }
 
-    if (files.filter((f) => f.status === "pending").length === 0) {
+    if (!embarqueId) {
+      setGlobalError("ID de embarque no válido.")
+      return
+    }
+
+    if (!embarque) {
+      setGlobalError("Información del embarque no disponible.")
+      return
+    }
+
+    const filesToUpload = files.filter((f) => f.status === "pending")
+    if (filesToUpload.length === 0) {
       setGlobalError("No hay nuevas imágenes para subir.")
       return
     }
 
     setIsSubmitting(true)
 
-    const filesToUpload = files.filter((f) => f.status === "pending")
+    console.log("Iniciando subida de", filesToUpload.length, "archivos para embarque:", embarqueId)
 
     for (let i = 0; i < filesToUpload.length; i++) {
       const file = filesToUpload[i]
@@ -149,9 +187,16 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
       setFiles((prev) => prev.map((f, idx) => (idx === originalIndex ? { ...f, status: "uploading" } : f)))
 
       try {
+        // Crear nombre de archivo único con folio del embarque
+        const timestamp = Date.now()
+        const fileExtension = file.name.split(".").pop() || "jpg"
+        const customFileName = `${embarque.folio}-${timestamp}-${file.name}`
+
+        console.log("Subiendo archivo:", customFileName)
+
         const formData = new FormData()
         formData.append("file", file)
-        formData.append("fileName", `${embarque!.folio}-${Date.now()}-${file.name}`)
+        formData.append("fileName", customFileName)
 
         const response = await fetch("/api/upload", {
           method: "POST",
@@ -164,19 +209,27 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
         }
 
         const { url } = await response.json()
+        console.log("Archivo subido exitosamente:", url)
 
-        const saved = await guardarFotoEmbarque({
-          embarque_id: embarqueId,
+        // Guardar en la base de datos con el ID correcto del embarque
+        const fotoData = {
+          embarque_id: embarqueId, // Asegurar que se use el ID correcto
           nombre_archivo: file.name,
           url_blob: url,
           tamano_bytes: file.size,
           tipo_mime: file.type,
           subido_por: operatorName.trim(),
-        })
+        }
+
+        console.log("Guardando foto en BD:", fotoData)
+
+        const saved = await guardarFotoEmbarque(fotoData)
 
         if (!saved) {
           throw new Error("Error al guardar en la base de datos.")
         }
+
+        console.log("Foto guardada exitosamente en BD")
 
         setFiles((prev) =>
           prev.map((f, idx) => (idx === originalIndex ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
@@ -205,18 +258,30 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
     }
   }
 
-  if (!embarque) {
+  if (!embarque && !globalError) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
         <Loader2 className="h-12 w-12 animate-spin text-blue-600 mb-4" />
         <h2 className="text-xl font-semibold text-gray-700">Cargando embarque...</h2>
-        {globalError && (
-          <Alert variant="destructive" className="mt-4 max-w-lg">
-            <XCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
-            <AlertDescription>{globalError}</AlertDescription>
-          </Alert>
-        )}
+        <p className="text-sm text-gray-500 mt-2">ID: {embarqueId}</p>
+      </div>
+    )
+  }
+
+  if (globalError && !embarque) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4">
+        <Alert variant="destructive" className="max-w-lg">
+          <XCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{globalError}</AlertDescription>
+        </Alert>
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-600">ID del embarque: {embarqueId}</p>
+          <Button onClick={() => window.location.reload()} variant="outline" className="mt-2">
+            Reintentar
+          </Button>
+        </div>
       </div>
     )
   }
@@ -254,27 +319,27 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
               <div>
                 <Label>Folio</Label>
-                <p className="font-mono font-medium">{embarque.folio}</p>
+                <p className="font-mono font-medium">{embarque?.folio}</p>
               </div>
               <div>
                 <Label>Cliente</Label>
-                <p>{embarque.cliente?.nombre || "N/A"}</p>
+                <p>{embarque?.cliente?.nombre || "N/A"}</p>
               </div>
               <div>
                 <Label>Operador Asignado</Label>
-                <p>{embarque.operador ? `${embarque.operador.nombre} ${embarque.operador.apellidos}` : "N/A"}</p>
+                <p>{embarque?.operador ? `${embarque.operador.nombre} ${embarque.operador.apellidos}` : "N/A"}</p>
               </div>
               <div>
                 <Label>Remolque</Label>
-                <p>{embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}</p>
+                <p>{embarque?.remolque?.numero_economico || embarque?.remolque_numero_economico || "N/A"}</p>
               </div>
               <div className="md:col-span-2">
                 <Label>Lugar de Recolecta</Label>
-                <p>{embarque.direccion_recolecta || "N/A"}</p>
+                <p>{embarque?.direccion_recolecta || "N/A"}</p>
               </div>
               <div className="md:col-span-2">
                 <Label>Lugar de Entrega</Label>
-                <p>{embarque.direccion_entrega || "N/A"}</p>
+                <p>{embarque?.direccion_entrega || "N/A"}</p>
               </div>
             </div>
           </div>

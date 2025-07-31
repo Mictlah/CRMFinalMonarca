@@ -631,6 +631,8 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
 // Nuevas funciones para fotos de embarques
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
+    console.log("Obteniendo fotos para embarque:", embarqueId)
+
     const { data, error } = await supabase
       .from("fotos_embarques")
       .select("*")
@@ -641,6 +643,8 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
       console.error("Error obteniendo fotos del embarque:", error)
       return []
     }
+
+    console.log("Fotos encontradas:", data?.length || 0)
     return data || []
   } catch (error) {
     console.error("Excepción al obtener fotos del embarque:", error)
@@ -650,16 +654,21 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
 
 export const guardarFotoEmbarque = async (
   foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
-) => {
+): Promise<boolean> => {
   try {
+    console.log("Guardando foto en BD:", foto)
+
     const { error } = await supabase.from("fotos_embarques").insert({
       ...foto,
       fecha_subida: new Date().toISOString(), // Asegurar que la fecha_subida se establezca aquí
     })
+
     if (error) {
       console.error("Error guardando foto del embarque en DB:", error)
       return false
     }
+
+    console.log("Foto guardada exitosamente en BD")
     return true
   } catch (error) {
     console.error("Excepción al guardar foto del embarque:", error)
@@ -668,34 +677,130 @@ export const guardarFotoEmbarque = async (
 }
 
 export const guardarConfirmacionOperador = async (embarqueId: string, operadorNombre: string): Promise<boolean> => {
-  const { error } = await supabase.from("operador_confirmaciones_embarque").insert({
-    embarque_id: embarqueId,
-    operador_nombre: operadorNombre,
-    fecha_confirmacion: new Date().toISOString(),
-  })
+  try {
+    console.log("Guardando confirmación operador:", { embarqueId, operadorNombre })
 
-  if (error) {
-    console.error("Error guardando confirmación:", error)
+    const { error } = await supabase.from("operador_confirmaciones_embarque").insert({
+      embarque_id: embarqueId,
+      operador_nombre: operadorNombre,
+      fecha_confirmacion: new Date().toISOString(),
+    })
+
+    if (error) {
+      console.error("Error guardando confirmación:", error)
+      return false
+    }
+
+    console.log("Confirmación guardada exitosamente")
+    return true
+  } catch (error) {
+    console.error("Excepción al guardar confirmación:", error)
     return false
   }
-  return true
 }
 
 export const obtenerConfirmacionOperador = async (embarqueId: string): Promise<OperadorConfirmacionEmbarque | null> => {
-  const { data, error } = await supabase
-    .from("operador_confirmaciones_embarque")
-    .select("*")
-    .eq("embarque_id", embarqueId)
-    .order("fecha_confirmacion", { ascending: false })
-    .limit(1)
-    .single()
+  try {
+    console.log("Obteniendo confirmación para embarque:", embarqueId)
 
-  if (error) {
-    if (error.code !== "PGRST116") {
-      // Ignorar el error "No rows found" que es esperado si no hay confirmación
-      console.error("Error obteniendo confirmación:", error)
+    const { data, error } = await supabase
+      .from("operador_confirmaciones_embarque")
+      .select("*")
+      .eq("embarque_id", embarqueId)
+      .order("fecha_confirmacion", { ascending: false })
+      .limit(1)
+      .single()
+
+    if (error) {
+      if (error.code !== "PGRST116") {
+        // Ignorar el error "No rows found" que es esperado si no hay confirmación
+        console.error("Error obteniendo confirmación:", error)
+      }
+      return null
     }
+
+    console.log("Confirmación encontrada:", data)
+    return data
+  } catch (error) {
+    console.error("Excepción al obtener confirmación:", error)
     return null
   }
-  return data
+}
+
+// Función para buscar embarque por folio
+export const buscarEmbarquePorFolio = async (folio: string): Promise<Embarque | null> => {
+  try {
+    console.log("Buscando embarque por folio:", folio)
+
+    const { data, error } = await supabase
+      .from("embarques")
+      .select(`
+        *,
+        cliente:clientes(nombre),
+        operador:operadores(nombre, apellidos),
+        remolque:remolques(numero_economico, placas)
+      `)
+      .eq("folio", folio)
+      .single()
+
+    if (error) {
+      console.error("Error buscando embarque por folio:", error)
+      return null
+    }
+
+    console.log("Embarque encontrado:", data)
+    return data
+  } catch (error) {
+    console.error("Excepción al buscar embarque por folio:", error)
+    return null
+  }
+}
+
+// Función para corregir fotos huérfanas
+export const corregirFotosHuerfanas = async (folio: string): Promise<boolean> => {
+  try {
+    console.log("Corrigiendo fotos huérfanas para folio:", folio)
+
+    // Primero buscar el embarque
+    const embarque = await buscarEmbarquePorFolio(folio)
+    if (!embarque) {
+      console.error("No se encontró embarque con folio:", folio)
+      return false
+    }
+
+    // Buscar fotos que contengan el folio en el nombre o URL
+    const { data: fotosHuerfanas, error: errorFotos } = await supabase
+      .from("fotos_embarques")
+      .select("*")
+      .or(`nombre_archivo.ilike.%${folio}%,url_blob.ilike.%${folio}%`)
+
+    if (errorFotos) {
+      console.error("Error buscando fotos huérfanas:", errorFotos)
+      return false
+    }
+
+    if (!fotosHuerfanas || fotosHuerfanas.length === 0) {
+      console.log("No se encontraron fotos huérfanas para el folio:", folio)
+      return true
+    }
+
+    console.log("Fotos huérfanas encontradas:", fotosHuerfanas.length)
+
+    // Actualizar las fotos huérfanas con el ID correcto del embarque
+    const { error: errorUpdate } = await supabase
+      .from("fotos_embarques")
+      .update({ embarque_id: embarque.id })
+      .or(`nombre_archivo.ilike.%${folio}%,url_blob.ilike.%${folio}%`)
+
+    if (errorUpdate) {
+      console.error("Error actualizando fotos huérfanas:", errorUpdate)
+      return false
+    }
+
+    console.log("Fotos huérfanas corregidas exitosamente")
+    return true
+  } catch (error) {
+    console.error("Excepción al corregir fotos huérfanas:", error)
+    return false
+  }
 }
