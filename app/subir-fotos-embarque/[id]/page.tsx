@@ -133,22 +133,25 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
       return
     }
 
-    if (files.length === 0) {
-      setGlobalError("Por favor, selecciona al menos una imagen para subir.")
+    if (files.filter((f) => f.status === "pending").length === 0) {
+      setGlobalError("No hay nuevas imágenes para subir.")
       return
     }
 
     setIsSubmitting(true)
 
-    const uploadPromises = files.map(async (file, index) => {
-      if (file.status === "uploaded") return
+    const filesToUpload = files.filter((f) => f.status === "pending")
 
-      const formData = new FormData()
-      formData.append("file", file)
-      formData.append("fileName", `${embarque?.folio}-${Date.now()}-${file.name}`)
+    for (let i = 0; i < filesToUpload.length; i++) {
+      const file = filesToUpload[i]
+      const originalIndex = files.findIndex((f) => f === file)
+
+      setFiles((prev) => prev.map((f, idx) => (idx === originalIndex ? { ...f, status: "uploading" } : f)))
 
       try {
-        setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
+        const formData = new FormData()
+        formData.append("file", file)
+        formData.append("fileName", `${embarque!.folio}-${Date.now()}-${file.name}`)
 
         const response = await fetch("/api/upload", {
           method: "POST",
@@ -157,7 +160,7 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
 
         if (!response.ok) {
           const errorData = await response.json()
-          throw new Error(errorData.error || "Error al subir la imagen.")
+          throw new Error(errorData.error || "Error desconocido del servidor.")
         }
 
         const { url } = await response.json()
@@ -172,32 +175,34 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
         })
 
         if (!saved) {
-          throw new Error("Error al guardar el registro de la imagen en la base de datos.")
+          throw new Error("Error al guardar en la base de datos.")
         }
 
         setFiles((prev) =>
-          prev.map((f, i) => (i === index ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
+          prev.map((f, idx) => (idx === originalIndex ? { ...f, status: "uploaded", message: "Subida exitosa" } : f)),
         )
       } catch (error: any) {
         console.error("Error en la subida/guardado:", error)
         setFiles((prev) =>
-          prev.map((f, i) =>
-            i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
+          prev.map((f, idx) =>
+            idx === originalIndex ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
           ),
         )
       }
-    })
-
-    await Promise.all(uploadPromises)
-
-    const allUploaded = files.every((f) => f.status === "uploaded")
-    if (allUploaded) {
-      setGlobalSuccess("¡Todas las imágenes se subieron y registraron exitosamente!")
-      setFiles([])
-    } else {
-      setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }
+
     setIsSubmitting(false)
+
+    const finalFiles = [...files]
+    const failedCount = finalFiles.filter((f) => f.status === "failed").length
+    const successCount = finalFiles.filter((f) => f.status === "uploaded").length
+
+    if (failedCount > 0) {
+      setGlobalError(`No se pudieron subir ${failedCount} imágenes. Por favor, intenta subirlas de nuevo.`)
+    }
+    if (successCount > 0 && failedCount === 0) {
+      setGlobalSuccess("¡Todas las imágenes nuevas se subieron y registraron exitosamente!")
+    }
   }
 
   if (!embarque) {
@@ -336,6 +341,13 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
                           <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
                         </div>
                       )}
+                      {file.status === "failed" && (
+                        <div className="absolute inset-0 bg-red-100 border-2 border-red-300 flex flex-col items-center justify-center rounded-lg z-10 p-1 text-center">
+                          <XCircle className="h-5 w-5 text-red-500 mb-1" />
+                          <p className="text-xs text-red-700 font-semibold">Error</p>
+                          <p className="text-[10px] text-red-600 leading-tight">{file.message}</p>
+                        </div>
+                      )}
                       <img
                         src={file.preview || "/placeholder.svg"}
                         alt={`Preview ${file.name}`}
@@ -347,19 +359,14 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
                         {file.status === "uploaded" && (
                           <CheckCircle className="h-5 w-5 text-green-500 bg-white rounded-full p-0.5" />
                         )}
-                        {file.status === "failed" && (
-                          <XCircle className="h-5 w-5 text-red-500 bg-white rounded-full p-0.5" />
-                        )}
-                        {(file.status === "pending" || file.status === "uploading") && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveFile(index)}
-                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
-                            title="Eliminar imagen"
-                          >
-                            <XCircle className="h-4 w-4" />
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveFile(index)}
+                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
+                          title="Eliminar imagen"
+                        >
+                          <XCircle className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -369,7 +376,7 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700"
-                disabled={isSubmitting || files.length === 0 || files.some((f) => f.status === "uploading")}
+                disabled={isSubmitting || files.filter((f) => f.status === "pending").length === 0}
               >
                 {isSubmitting ? (
                   <>
@@ -379,7 +386,7 @@ export default function SubirFotosEmbarquePage({ params }: { params: { id: strin
                 ) : (
                   <>
                     <UploadCloud className="h-4 w-4 mr-2" />
-                    Confirmar y Subir Fotos
+                    Subir Fotos Pendientes
                   </>
                 )}
               </Button>

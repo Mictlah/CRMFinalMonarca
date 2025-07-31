@@ -1,40 +1,27 @@
-import { type NextRequest, NextResponse } from "next/server"
 import { put } from "@vercel/blob"
+import { NextResponse } from "next/server"
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request): Promise<NextResponse> {
+  const formData = await request.formData()
+  const file = formData.get("file") as File | null
+  const customFilename = formData.get("fileName") as string | null
+
+  if (!file) {
+    return NextResponse.json({ error: "No se proporcionó ningún archivo." }, { status: 400 })
+  }
+
+  // Usar el nombre de archivo personalizado si se proporciona, de lo contrario, el nombre original
+  const filenameToUse = customFilename || file.name
+
   try {
-    // Verificar que el token esté disponible
-    if (!process.env.BLOB_READ_WRITE_TOKEN) {
-      return NextResponse.json({ error: "Token de Vercel Blob no configurado" }, { status: 500 })
-    }
-
-    const formData = await request.formData()
-    const file = formData.get("file") as File
-    const fileName = formData.get("fileName") as string
-
-    if (!file || !fileName) {
-      return NextResponse.json({ error: "Archivo o nombre de archivo faltante" }, { status: 400 })
-    }
-
-    console.log("Subiendo archivo:", fileName)
-
-    // Subir archivo a Vercel Blob
-    const blob = await put(fileName, file, {
+    const blob = await put(filenameToUse, file, {
       access: "public",
-      token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
-    console.log("Archivo subido exitosamente:", blob.url)
-
-    return NextResponse.json({
-      url: blob.url,
-      pathname: blob.pathname,
-    })
-  } catch (error) {
-    console.error("Error al subir archivo:", error)
-    return NextResponse.json(
-      { error: `Error al subir archivo: ${error instanceof Error ? error.message : "Error desconocido"}` },
-      { status: 500 },
-    )
+    // Devolver la respuesta completa del blob, que incluye la URL
+    return NextResponse.json(blob)
+  } catch (error: any) {
+    console.error("Error al subir al blob:", error)
+    return NextResponse.json({ error: `Error del servidor: ${error.message}` }, { status: 500 })
   }
 }

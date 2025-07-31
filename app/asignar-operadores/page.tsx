@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { Truck, Users, Search, Eye, UserCheck, AlertTriangle, Settings, Link, Check } from "lucide-react"
 import { useState, useEffect } from "react"
-import { supabase, type Embarque, type Operador, type Camion, type Remolque } from "@/lib/supabase"
+import { supabase, type Embarque, type Operador, type Camion, type Remolque, type FotoEmbarque } from "@/lib/supabase"
 
 export default function AsignarOperadoresPage() {
   const [loading, setLoading] = useState(true)
@@ -64,8 +64,9 @@ export default function AsignarOperadoresPage() {
 
   const [activeModifyTab, setActiveModifyTab] = useState("justificacion")
   const [copiedLink, setCopiedLink] = useState<string | null>(null)
-  const [fotosEmbarque, setFotosEmbarque] = useState<any[]>([])
+  const [fotosEmbarque, setFotosEmbarque] = useState<FotoEmbarque[]>([])
   const [loadingFotos, setLoadingFotos] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   // Cargar datos desde Supabase
   const cargarDatos = async () => {
@@ -2168,26 +2169,23 @@ export default function AsignarOperadoresPage() {
                         ) : fotosEmbarque.length > 0 ? (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                             {fotosEmbarque.map((foto) => (
-                              <a
+                              <div
                                 key={foto.id}
-                                href={foto.url_blob}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="group relative block"
+                                className="group relative block cursor-pointer"
+                                onClick={() => setSelectedImage(foto.url_blob)}
                               >
                                 <img
                                   src={foto.url_blob || "/placeholder.svg"}
                                   alt={foto.nombre_archivo}
                                   className="w-full h-40 object-cover rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
                                 />
-                                <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-50 text-white p-2 rounded-b-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                  <p className="text-xs font-semibold truncate">{foto.nombre_archivo}</p>
-                                  <p className="text-xs text-gray-300">Subido por: {foto.subido_por || "N/A"}</p>
-                                  <p className="text-xs text-gray-300">
-                                    {new Date(foto.fecha_subida).toLocaleString()}
-                                  </p>
+                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 rounded-lg flex items-center justify-center">
+                                  <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
                                 </div>
-                              </a>
+                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 rounded-b-lg">
+                                  <p className="text-xs text-white font-semibold truncate">{foto.nombre_archivo}</p>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         ) : (
@@ -2849,6 +2847,30 @@ export default function AsignarOperadoresPage() {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Visor de Imagen a pantalla completa */}
+      {selectedImage && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-[60] p-4"
+          onClick={() => setSelectedImage(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh]" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={selectedImage || "/placeholder.svg"}
+              alt="Vista ampliada"
+              className="max-w-full max-h-[90vh] rounded-lg"
+            />
+            <Button
+              onClick={() => setSelectedImage(null)}
+              variant="secondary"
+              size="icon"
+              className="absolute -top-5 -right-5 rounded-full h-10 w-10 z-10 shadow-lg"
+            >
+              ✕
+            </Button>
           </div>
         </div>
       )}
