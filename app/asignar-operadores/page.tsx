@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Truck, Users, Search, Eye, UserCheck, AlertTriangle, Settings, Link, Check } from "lucide-react"
+import { Truck, Users, Search, Eye, UserCheck, AlertTriangle, Settings, Link, Check, Camera } from "lucide-react"
 import { useState, useEffect } from "react"
 import { supabase, type Embarque, type Operador, type Camion, type Remolque, type FotoEmbarque } from "@/lib/supabase"
 
@@ -1350,14 +1350,10 @@ export default function AsignarOperadoresPage() {
                           variant="outline"
                           size="sm"
                           className="border-blue-300 text-blue-600 hover:bg-blue-50 hover:text-blue-700 bg-transparent"
-                          onClick={() => handleCopyLink(embarque.id)}
+                          onClick={() => window.open(`/subir-fotos-embarque/${embarque.id}`, "_blank")}
                         >
-                          {copiedLink === embarque.id ? (
-                            <Check className="h-4 w-4 mr-1 text-green-500" />
-                          ) : (
-                            <Link className="h-4 w-4 mr-1" />
-                          )}
-                          {copiedLink === embarque.id ? "Copiado!" : "Link para Fotos"}
+                          <Camera className="h-4 w-4 mr-1" />
+                          Fotos
                         </Button>
                       )}
                       {embarque.estado === "asignado" && (
