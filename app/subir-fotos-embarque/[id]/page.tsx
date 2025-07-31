@@ -1,16 +1,21 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { UploadCloud, CheckCircle, XCircle, Loader2 } from "lucide-react"
-import { supabase, type Embarque, guardarFotoEmbarque } from "@/lib/supabase"
+import { UploadCloud, CheckCircle, XCircle, Loader2, ShieldCheck } from "lucide-react"
+import {
+  supabase,
+  type Embarque,
+  guardarFotoEmbarque,
+  guardarConfirmacionOperador,
+  obtenerConfirmacionOperador,
+  type OperadorConfirmacionEmbarque,
+} from "@/lib/supabase"
 
 interface FilePreview extends File {
   preview: string
@@ -18,12 +23,7 @@ interface FilePreview extends File {
   message?: string
 }
 
-export default function SubirFotosEmbarquePage({
-  params,
-}: {
-  params: { id: string }
-}) {
-  const router = useRouter()
+export default function SubirFotosEmbarquePage({ params }: { params: { id: string } }) {
   const { id: embarqueId } = params
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
@@ -33,17 +33,24 @@ export default function SubirFotosEmbarquePage({
   const [globalError, setGlobalError] = useState<string | null>(null)
   const [globalSuccess, setGlobalSuccess] = useState<string | null>(null)
   const [maxFilesReached, setMaxFilesReached] = useState(false)
+  const [isConfirmed, setIsConfirmed] = useState(false)
+  const [confirmacion, setConfirmacion] = useState<OperadorConfirmacionEmbarque | null>(null)
+  const [isConfirming, setIsConfirming] = useState(false)
 
   useEffect(() => {
-    async function loadEmbarque() {
+    async function loadData() {
       if (!embarqueId) return
 
       const { data, error } = await supabase
         .from("embarques")
-        .select(`
+        .select(
+          `
           *,
+          cliente:clientes(nombre),
+          operador:operadores(nombre, apellidos),
           remolque:remolques(numero_economico, placas)
-        `)
+        `,
+        )
         .eq("id", embarqueId)
         .single()
 
@@ -53,9 +60,36 @@ export default function SubirFotosEmbarquePage({
         return
       }
       setEmbarque(data)
+
+      const existingConfirmation = await obtenerConfirmacionOperador(embarqueId)
+      if (existingConfirmation) {
+        setConfirmacion(existingConfirmation)
+        setIsConfirmed(true)
+        setOperatorName(existingConfirmation.operador_nombre)
+      }
     }
-    loadEmbarque()
+    loadData()
   }, [embarqueId])
+
+  const handleConfirmation = async () => {
+    if (!operatorName.trim()) {
+      setGlobalError("Por favor, ingresa tu nombre para confirmar.")
+      return
+    }
+    setIsConfirming(true)
+    setGlobalError(null)
+
+    const success = await guardarConfirmacionOperador(embarqueId, operatorName.trim())
+
+    if (success) {
+      setIsConfirmed(true)
+      setGlobalSuccess("¡Datos confirmados exitosamente! Ahora puedes subir las fotos.")
+      setTimeout(() => setGlobalSuccess(null), 5000)
+    } else {
+      setGlobalError("Hubo un error al guardar la confirmación. Por favor, intenta de nuevo.")
+    }
+    setIsConfirming(false)
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []) as FilePreview[]
@@ -94,13 +128,8 @@ export default function SubirFotosEmbarquePage({
     setGlobalError(null)
     setGlobalSuccess(null)
 
-    if (!embarque) {
-      setGlobalError("No se ha cargado la información del embarque.")
-      return
-    }
-
-    if (!operatorName.trim()) {
-      setGlobalError("Por favor, ingresa tu nombre para confirmar.")
+    if (!isConfirmed) {
+      setGlobalError("Debes confirmar los datos del embarque antes de subir fotos.")
       return
     }
 
@@ -112,12 +141,11 @@ export default function SubirFotosEmbarquePage({
     setIsSubmitting(true)
 
     const uploadPromises = files.map(async (file, index) => {
-      // Skip already uploaded files
       if (file.status === "uploaded") return
 
       const formData = new FormData()
       formData.append("file", file)
-      formData.append("fileName", `${embarque.folio}-${Date.now()}-${file.name}`)
+      formData.append("fileName", `${embarque?.folio}-${Date.now()}-${file.name}`)
 
       try {
         setFiles((prev) => prev.map((f, i) => (i === index ? { ...f, status: "uploading" } : f)))
@@ -134,7 +162,6 @@ export default function SubirFotosEmbarquePage({
 
         const { url } = await response.json()
 
-        // Guardar la URL en Supabase
         const saved = await guardarFotoEmbarque({
           embarque_id: embarqueId,
           nombre_archivo: file.name,
@@ -158,7 +185,6 @@ export default function SubirFotosEmbarquePage({
             i === index ? { ...f, status: "failed", message: error.message || "Fallo la subida" } : f,
           ),
         )
-        setGlobalError(`Algunas imágenes no se pudieron subir: ${error.message}`)
       }
     })
 
@@ -166,10 +192,8 @@ export default function SubirFotosEmbarquePage({
 
     const allUploaded = files.every((f) => f.status === "uploaded")
     if (allUploaded) {
-      setGlobalSuccess("Todas las imágenes se subieron y registraron exitosamente.")
-      setFiles([]) // Clear files after successful upload
-      setOperatorName("")
-      // Optionally redirect or show a success message that can be dismissed
+      setGlobalSuccess("¡Todas las imágenes se subieron y registraron exitosamente!")
+      setFiles([])
     } else {
       setGlobalError("Algunas imágenes no se pudieron subir. Revisa los detalles de cada archivo.")
     }
@@ -194,15 +218,15 @@ export default function SubirFotosEmbarquePage({
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
-      <Card className="w-full max-w-2xl shadow-lg">
+      <Card className="w-full max-w-3xl shadow-lg">
         <CardHeader className="text-center">
           <img
-            src="/public/images/logo-monarca-transparent.png"
+            src="/images/logo-monarca-transparent.png"
             alt="Logo Transportes Monarca"
             className="h-20 mx-auto mb-4"
           />
-          <CardTitle className="text-2xl font-bold">Subir Fotos de Embarque</CardTitle>
-          <CardDescription>Confirma los detalles del embarque y sube las fotos.</CardDescription>
+          <CardTitle className="text-2xl font-bold">Evidencia de Embarque</CardTitle>
+          <CardDescription>Confirma los detalles y sube las fotos del embarque.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {globalError && (
@@ -213,131 +237,154 @@ export default function SubirFotosEmbarquePage({
             </Alert>
           )}
           {globalSuccess && (
-            <Alert>
-              <CheckCircle className="h-4 w-4" />
-              <AlertTitle>Éxito</AlertTitle>
-              <AlertDescription>{globalSuccess}</AlertDescription>
+            <Alert variant="default" className="bg-green-50 border-green-200">
+              <CheckCircle className="h-4 w-4 text-green-600" />
+              <AlertTitle className="text-green-800">Éxito</AlertTitle>
+              <AlertDescription className="text-green-700">{globalSuccess}</AlertDescription>
             </Alert>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="folio">Número de Embarque</Label>
-                <Input id="folio" value={embarque.folio} readOnly disabled className="bg-gray-50 font-mono" />
+          <div className="border rounded-lg p-4 space-y-4 bg-gray-50">
+            <h3 className="font-semibold text-lg">Detalles del Viaje</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+              <div>
+                <Label>Folio</Label>
+                <p className="font-mono font-medium">{embarque.folio}</p>
               </div>
+              <div>
+                <Label>Cliente</Label>
+                <p>{embarque.cliente?.nombre || "N/A"}</p>
+              </div>
+              <div>
+                <Label>Operador Asignado</Label>
+                <p>{embarque.operador ? `${embarque.operador.nombre} ${embarque.operador.apellidos}` : "N/A"}</p>
+              </div>
+              <div>
+                <Label>Remolque</Label>
+                <p>{embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}</p>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Lugar de Recolecta</Label>
+                <p>{embarque.direccion_recolecta || "N/A"}</p>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Lugar de Entrega</Label>
+                <p>{embarque.direccion_entrega || "N/A"}</p>
+              </div>
+            </div>
+          </div>
+
+          {!isConfirmed ? (
+            <div className="space-y-4 p-4 border-2 border-blue-300 rounded-lg bg-blue-50">
+              <h3 className="font-semibold text-lg text-blue-800">Paso 1: Confirmación de Datos</h3>
               <div className="space-y-2">
-                <Label htmlFor="remolque">Remolque Asignado</Label>
+                <Label htmlFor="operator-name">Ingresa tu nombre para confirmar *</Label>
                 <Input
-                  id="remolque"
-                  value={embarque.remolque?.numero_economico || embarque.remolque_numero_economico || "N/A"}
-                  readOnly
-                  disabled
-                  className="bg-gray-50"
+                  id="operator-name"
+                  value={operatorName}
+                  onChange={(e) => setOperatorName(e.target.value)}
+                  placeholder="Ingresa tu nombre completo"
+                  required
                 />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="operator-name">Tu Nombre *</Label>
-              <Input
-                id="operator-name"
-                value={operatorName}
-                onChange={(e) => setOperatorName(e.target.value)}
-                placeholder="Ingresa tu nombre completo"
-                required
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="images">Subir Imágenes (Máx. 10)</Label>
-              <Input
-                id="images"
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileChange}
-                disabled={isSubmitting || maxFilesReached}
-                className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
-              />
-              {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
-            </div>
-
-            {files.length > 0 && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {files.map((file, index) => (
-                  <div
-                    key={index}
-                    className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
-                  >
-                    {file.status === "uploading" && (
-                      <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                        <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
-                      </div>
-                    )}
-                    {file.status === "failed" && (
-                      <div className="absolute inset-0 bg-red-500 bg-opacity-75 flex items-center justify-center rounded-lg z-10">
-                        <XCircle className="h-6 w-6 text-white" />
-                      </div>
-                    )}
-                    <img
-                      src={file.preview || "/placeholder.svg"}
-                      alt={`Preview ${file.name}`}
-                      className="w-24 h-24 object-cover rounded-md mb-2"
-                      onLoad={() => URL.revokeObjectURL(file.preview)}
-                    />
-                    <p className="text-xs truncate w-full px-1">{file.name}</p>
-                    <div className="absolute top-1 right-1">
-                      {file.status === "uploaded" && <CheckCircle className="h-4 w-4 text-green-500" />}
-                      {file.status === "failed" && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(index)}
-                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80"
-                          title="Eliminar imagen fallida"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                      {(file.status === "pending" || file.status === "uploading") && (
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveFile(index)}
-                          className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
-                          title="Eliminar imagen"
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full bg-blue-600 hover:bg-blue-700"
-              disabled={
-                isSubmitting ||
-                !operatorName.trim() ||
-                files.length === 0 ||
-                files.some((f) => f.status === "uploading")
-              }
-            >
-              {isSubmitting ? (
-                <>
+              <Button onClick={handleConfirmation} disabled={isConfirming || !operatorName.trim()} className="w-full">
+                {isConfirming ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                  Subiendo fotos...
-                </>
-              ) : (
-                <>
-                  <UploadCloud className="h-4 w-4 mr-2" />
-                  Confirmar y Subir Fotos
-                </>
+                ) : (
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                )}
+                Confirmar Datos del Viaje
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4 p-4 border-2 border-green-300 rounded-lg bg-green-50">
+              <div className="flex items-center space-x-2 text-green-800">
+                <CheckCircle className="h-6 w-6" />
+                <h3 className="font-semibold text-lg">Datos Confirmados por: {confirmacion?.operador_nombre}</h3>
+              </div>
+              <p className="text-sm text-green-700">
+                Fecha de confirmación: {new Date(confirmacion!.fecha_confirmacion).toLocaleString()}
+              </p>
+            </div>
+          )}
+
+          {isConfirmed && (
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="images">Paso 2: Subir Fotos (Máx. 10)</Label>
+                <Input
+                  id="images"
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  disabled={isSubmitting || maxFilesReached}
+                  className="file:text-blue-600 file:border-blue-600 file:hover:bg-blue-50 cursor-pointer"
+                />
+                {maxFilesReached && <p className="text-sm text-red-600">Has alcanzado el límite de 10 imágenes.</p>}
+              </div>
+
+              {files.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+                  {files.map((file, index) => (
+                    <div
+                      key={index}
+                      className="relative border rounded-lg p-2 flex flex-col items-center justify-center text-center group"
+                    >
+                      {file.status === "uploading" && (
+                        <div className="absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center rounded-lg z-10">
+                          <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                        </div>
+                      )}
+                      <img
+                        src={file.preview || "/placeholder.svg"}
+                        alt={`Preview ${file.name}`}
+                        className="w-24 h-24 object-cover rounded-md mb-2"
+                        onLoad={() => URL.revokeObjectURL(file.preview)}
+                      />
+                      <p className="text-xs truncate w-full px-1">{file.name}</p>
+                      <div className="absolute top-1 right-1 flex flex-col space-y-1">
+                        {file.status === "uploaded" && (
+                          <CheckCircle className="h-5 w-5 text-green-500 bg-white rounded-full p-0.5" />
+                        )}
+                        {file.status === "failed" && (
+                          <XCircle className="h-5 w-5 text-red-500 bg-white rounded-full p-0.5" />
+                        )}
+                        {(file.status === "pending" || file.status === "uploading") && (
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveFile(index)}
+                            className="text-gray-500 hover:text-red-500 transition-colors p-1 rounded-full bg-white bg-opacity-80 opacity-0 group-hover:opacity-100"
+                            title="Eliminar imagen"
+                          >
+                            <XCircle className="h-4 w-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
-            </Button>
-          </form>
+
+              <Button
+                type="submit"
+                className="w-full bg-blue-600 hover:bg-blue-700"
+                disabled={isSubmitting || files.length === 0 || files.some((f) => f.status === "uploading")}
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Subiendo fotos...
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="h-4 w-4 mr-2" />
+                    Confirmar y Subir Fotos
+                  </>
+                )}
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

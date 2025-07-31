@@ -238,6 +238,13 @@ export interface OperadorPagoContingencia {
   updated_at: string
 }
 
+export interface OperadorConfirmacionEmbarque {
+  id: string
+  embarque_id: string
+  operador_nombre: string
+  fecha_confirmacion: string
+}
+
 // Función para generar folio automático
 export const generarFolioAutomatico = async (): Promise<string> => {
   try {
@@ -658,4 +665,37 @@ export const guardarFotoEmbarque = async (
     console.error("Excepción al guardar foto del embarque:", error)
     return false
   }
+}
+
+export const guardarConfirmacionOperador = async (embarqueId: string, operadorNombre: string): Promise<boolean> => {
+  const { error } = await supabase.from("operador_confirmaciones_embarque").insert({
+    embarque_id: embarqueId,
+    operador_nombre: operadorNombre,
+    fecha_confirmacion: new Date().toISOString(),
+  })
+
+  if (error) {
+    console.error("Error guardando confirmación:", error)
+    return false
+  }
+  return true
+}
+
+export const obtenerConfirmacionOperador = async (embarqueId: string): Promise<OperadorConfirmacionEmbarque | null> => {
+  const { data, error } = await supabase
+    .from("operador_confirmaciones_embarque")
+    .select("*")
+    .eq("embarque_id", embarqueId)
+    .order("fecha_confirmacion", { ascending: false })
+    .limit(1)
+    .single()
+
+  if (error) {
+    if (error.code !== "PGRST116") {
+      // Ignorar el error "No rows found" que es esperado si no hay confirmación
+      console.error("Error obteniendo confirmación:", error)
+    }
+    return null
+  }
+  return data
 }
