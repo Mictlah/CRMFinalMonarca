@@ -63,6 +63,10 @@ export default function SubirFotosEmbarquePage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
+  const [openSuccessDialog, setOpenSuccessDialog] = useState(false)
+  const [successMessage, setSuccessMessage] = useState("")
+  const [successType, setSuccessType] = useState<"upload" | "delete">("upload")
+
   useEffect(() => {
     const cargarFotos = async () => {
       if (!embarque?.id) return
@@ -172,7 +176,14 @@ export default function SubirFotosEmbarquePage() {
     try {
       setUploading(true)
       setError("")
-      setSuccess("")
+      {
+        success && (
+          <Alert>
+            <CheckCircle className="h-4 w-4" />
+            <AlertDescription>{success}</AlertDescription>
+          </Alert>
+        )
+      }
 
       let archivosSubidos = 0
 
@@ -233,7 +244,9 @@ export default function SubirFotosEmbarquePage() {
           }
         }
 
-        setSuccess(`${archivosSubidos} archivo(s) subido(s) exitosamente`)
+        setSuccessType("upload")
+        setSuccessMessage(`${archivosSubidos} archivo(s) subido(s) exitosamente.`)
+        setOpenSuccessDialog(true)
         setSelectedFiles([])
       }
     } catch (error) {
@@ -246,24 +259,40 @@ export default function SubirFotosEmbarquePage() {
 
   const eliminarFoto = async (foto: FotoEmbarque) => {
     try {
-      // Eliminar de blob storage
-      const pathname = foto.url_blob.split("/").pop() || ""
-      await eliminarFotoEmbarque(`embarques/${embarque?.folio}/${pathname}`)
+      // 🧠 1. Obtener pathname real desde la URL del blob
+      const pathname = new URL(foto.url_blob).pathname.replace(/^\/+/, "") // ejemplo: "embarques/TIM-2507-077/1753...Carlos.png"
 
-      // Eliminar de base de datos
-      const { error } = await supabase.from("fotos_embarques").delete().eq("id", foto.id)
+      console.log("✅ Eliminando de Blob:", pathname)
+
+      await fetch("/api/blob/eliminar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pathname }),
+      })
+
+      // 🧠 2. Eliminar de la base de datos Supabase
+      console.log("🗑️ Eliminando foto:", foto)
+
+      const { data, error } = await supabase
+        .from("fotos_embarques")
+        .delete()
+        .eq("id", foto.id)
+
+      console.log("✅ Supabase delete response:", { data, error })
 
       if (error) {
-        console.error("Error eliminando foto de BD:", error)
-        setError("Error al eliminar la foto")
+        console.error("❌ Error eliminando foto de BD:", error)
+        setError("Error al eliminar la foto de la base de datos")
         return
       }
 
-      // Actualizar lista local
+      // ✅ 3. Eliminar del estado local
       setFotos((prev) => prev.filter((f) => f.id !== foto.id))
-      setSuccess("Foto eliminada exitosamente")
+      setSuccessType("delete")
+      setSuccessMessage("Foto eliminada exitosamente.")
+      setOpenSuccessDialog(true)
     } catch (error) {
-      console.error("Error eliminando foto:", error)
+      console.error("❌ Error eliminando foto:", error)
       setError("Error al eliminar la foto")
     }
   }
@@ -472,37 +501,36 @@ export default function SubirFotosEmbarquePage() {
                     key={foto.id}
                     className="border rounded-lg p-3 space-y-3 bg-white hover:shadow-md transition-shadow"
                   >
-                    {/* Vista previa */}
-                    <div className="aspect-video bg-gray-100 rounded-lg overflow-hidden relative group">
-                      {foto.tipo_mime?.startsWith("image/") ? (
+                    {foto.tipo_mime?.startsWith("image/") ? (
+                      <div
+                        className="relative group aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                        onClick={() => window.open(foto.url_blob, "_blank")}
+                      >
                         <img
                           src={foto.url_blob || "/placeholder.svg"}
                           alt={foto.nombre_archivo}
-                          className="w-full h-full object-cover cursor-pointer hover:opacity-80 transition-opacity"
-                          onClick={() => window.open(foto.url_blob, "_blank")}
+                          className="w-full h-full object-cover transition-opacity duration-300"
                           onError={(e) => {
                             e.currentTarget.src = "/placeholder.svg?height=200&width=300&text=Error+cargando+imagen"
                           }}
                         />
-                      ) : (
-                        <div className="flex items-center justify-center h-full bg-gray-50">
-                          <div className="text-center">
-                            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
-                            <span className="text-sm text-gray-500">
-                              {foto.tipo_mime?.includes("pdf") ? "PDF" : "Archivo"}
-                            </span>
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition duration-300">
+                          <div className="text-white text-center">
+                            <Eye className="h-6 w-6 mx-auto mb-1" />
+                            <span className="text-xs font-medium">Click para ver</span>
                           </div>
                         </div>
-                      )}
-
-                      {/* Overlay con información */}
-                      <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
-                        <div className="text-white text-center">
-                          <Eye className="h-6 w-6 mx-auto mb-1" />
-                          <span className="text-xs">Click para ver</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full bg-gray-50 aspect-video rounded-lg">
+                        <div className="text-center">
+                          <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                          <span className="text-sm text-gray-500">
+                            {foto.tipo_mime?.includes("pdf") ? "PDF" : "Archivo"}
+                          </span>
                         </div>
                       </div>
-                    </div>
+                    )}
 
                     {/* Información del archivo */}
                     <div className="space-y-2">
@@ -535,14 +563,24 @@ export default function SubirFotosEmbarquePage() {
                           variant="outline"
                           size="sm"
                           className="flex-1 bg-transparent"
-                          onClick={() => {
-                            const link = document.createElement("a")
-                            link.href = foto.url_blob
-                            link.download = foto.nombre_archivo
-                            link.target = "_blank"
-                            document.body.appendChild(link)
-                            link.click()
-                            document.body.removeChild(link)
+                          onClick={async () => {
+                            try {
+                              const response = await fetch(foto.url_blob)
+                              const blob = await response.blob()
+                              const blobUrl = URL.createObjectURL(blob)
+
+                              const link = document.createElement("a")
+                              link.href = blobUrl
+                              link.download = foto.nombre_archivo
+                              document.body.appendChild(link)
+                              link.click()
+                              document.body.removeChild(link)
+
+                              // Liberar memoria
+                              URL.revokeObjectURL(blobUrl)
+                            } catch (error) {
+                              console.error("Error descargando el archivo:", error)
+                            }
                           }}
                         >
                           <Download className="h-3 w-3 mr-1" />
@@ -611,6 +649,36 @@ export default function SubirFotosEmbarquePage() {
           </Card>
         )}
       </div>
+      <AlertDialog open={openSuccessDialog} onOpenChange={setOpenSuccessDialog}>
+        <AlertDialogContent className="bg-white text-gray-900 rounded-2xl shadow-xl max-w-md">
+          <AlertDialogHeader className="space-y-4">
+            <div className="flex items-center space-x-3">
+              {successType === "upload" ? (
+                <CheckCircle className="h-8 w-8 text-green-500" />
+              ) : (
+                <Trash2 className="h-8 w-8 text-red-500" />
+              )}
+              <AlertDialogTitle className="text-xl font-semibold">
+                {successType === "upload" ? "¡Carga exitosa!" : "¡Eliminación exitosa!"}
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-gray-600">
+              {successMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="justify-end pt-4">
+            <AlertDialogAction
+              className={`${successType === "upload"
+                  ? "bg-green-500 hover:bg-green-600"
+                  : "bg-red-500 hover:bg-red-600"
+                } text-white px-4 py-2 rounded-md transition-all`}
+              onClick={() => setOpenSuccessDialog(false)}
+            >
+              Aceptar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   )
 }
