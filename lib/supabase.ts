@@ -632,7 +632,7 @@ export const obtenerEmbarquesModificadosIds = async (): Promise<string[]> => {
 export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmbarque[]> => {
   try {
     const { data, error } = await supabase
-      .from("fotos_embarque")
+      .from("fotos_embarques")
       .select("*")
       .eq("embarque_id", embarqueId)
       .order("fecha_subida", { ascending: false })
@@ -652,7 +652,7 @@ export const guardarFotoEmbarque = async (
   foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
 ) => {
   try {
-    const { error } = await supabase.from("fotos_embarque").insert({
+    const { error } = await supabase.from("fotos_embarques").insert({
       ...foto,
       fecha_subida: new Date().toISOString(), // Asegurar que la fecha_subida se establezca aquí
     })
