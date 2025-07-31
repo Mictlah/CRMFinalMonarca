@@ -653,26 +653,30 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
 }
 
 export const guardarFotoEmbarque = async (
-  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
-): Promise<boolean> => {
+  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">
+): Promise<FotoEmbarque | null> => {
   try {
-    console.log("Guardando foto en BD:", foto)
+    console.log("📦 Enviando metadata a Supabase:", foto)
 
-    const { error } = await supabase.from("fotos_embarques").insert({
-      ...foto,
-      fecha_subida: new Date().toISOString(), // Asegurar que la fecha_subida se establezca aquí
-    })
+    const { data, error } = await supabase
+      .from("fotos_embarques")
+      .insert({
+        ...foto,
+        fecha_subida: new Date().toISOString(),
+      })
+      .select()
+      .single()
 
     if (error) {
-      console.error("Error guardando foto del embarque en DB:", error)
-      return false
+      console.error("❌ Error al guardar metadata:", error)
+      return null
     }
 
-    console.log("Foto guardada exitosamente en BD")
-    return true
+    console.log("✅ Metadata guardada:", data)
+    return data
   } catch (error) {
-    console.error("Excepción al guardar foto del embarque:", error)
-    return false
+    console.error("❌ Excepción en guardarFotoEmbarque:", error)
+    return null
   }
 }
 

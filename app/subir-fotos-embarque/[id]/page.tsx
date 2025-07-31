@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { DropZone } from "@/components/ui/dropzone"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -61,6 +62,17 @@ export default function SubirFotosEmbarquePage() {
   const [confirmacionGuardada, setConfirmacionGuardada] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+
+  useEffect(() => {
+    const cargarFotos = async () => {
+      if (!embarque?.id) return
+
+      const fotosGuardadas = await obtenerFotosEmbarque(embarque.id)
+      setFotos(fotosGuardadas)
+    }
+
+    cargarFotos()
+  }, [embarque?.id])
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -173,21 +185,39 @@ export default function SubirFotosEmbarquePage() {
           const nombreArchivo = `${embarque.folio}-${timestamp}-${nombreOperador}.${extension}`
 
           // Subir archivo a blob storage
-          const { url, pathname } = await subirFotoEmbarque(file, embarque.folio, nombreOperador)
+          const { url } = await subirFotoEmbarque(file, embarque.folio, nombreOperador)
 
-          // Guardar información en la base de datos
           const fotoGuardada = await guardarFotoEmbarque({
             embarque_id: embarque.id,
             nombre_archivo: nombreArchivo,
             url_blob: url,
-            tamano_bytes: file.size,
             tipo_mime: file.type,
             subido_por: operadorNombre.trim(),
+            tamano_bytes: file.size,
           })
 
           if (fotoGuardada) {
+            setFotos((prev) => [...prev, fotoGuardada])
             archivosSubidos++
+          } else {
+            throw new Error(`No se pudo guardar la metadata de la foto`)
           }
+          // // ✅ Agregar manualmente al estado `fotos`
+          // setFotos((prev) => [
+          //   ...prev,
+          //   {
+          //     id: crypto.randomUUID(), // ID temporal
+          //     embarque_id: embarque.id,
+          //     nombre_archivo: nombreArchivo,
+          //     url_blob: url,
+          //     tipo_mime: file.type,
+          //     subido_por: operadorNombre.trim(),
+          //     fecha_subida: new Date().toISOString(),
+          //     tamano_bytes: file.size,
+          //   },
+          // ])
+
+          // archivosSubidos++
         } catch (error) {
           console.error(`Error subiendo ${file.name}:`, error)
           setError(`Error subiendo ${file.name}: ${error instanceof Error ? error.message : "Error desconocido"}`)
@@ -205,10 +235,6 @@ export default function SubirFotosEmbarquePage() {
 
         setSuccess(`${archivosSubidos} archivo(s) subido(s) exitosamente`)
         setSelectedFiles([])
-
-        // Recargar fotos
-        const fotosActualizadas = await obtenerFotosEmbarque(embarque.id)
-        setFotos(fotosActualizadas)
       }
     } catch (error) {
       console.error("Error en subida:", error)
@@ -367,20 +393,10 @@ export default function SubirFotosEmbarquePage() {
             </div>
 
             {/* Selector de archivos */}
-            <div className="space-y-2">
-              <Label htmlFor="files">Seleccionar Archivos</Label>
-              <Input
-                id="files"
-                type="file"
-                multiple
-                accept="image/*,.pdf"
-                onChange={handleFileSelect}
-                disabled={uploading}
-              />
-              <p className="text-xs text-gray-500">
-                Formatos permitidos: Imágenes (JPG, PNG, etc.) y PDF. Tamaño máximo: 10MB por archivo.
-              </p>
-            </div>
+            <DropZone
+              uploading={uploading}
+              onFilesSelected={(files) => handleFileSelect({ target: { files } } as any)}
+            />
 
             {/* Vista previa de archivos seleccionados */}
             {selectedFiles.length > 0 && (
