@@ -65,11 +65,18 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed top-20 left-0 z-40 h-[calc(100vh-5rem)] w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out shadow-lg",
+          "fixed top-16 left-0 z-40 h-[calc(100vh-4rem)] w-64 bg-white border-r border-gray-200 transition-transform duration-300 ease-in-out shadow-lg",
           isOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
         <div className="flex flex-col h-full">
+          {/* Botón cerrar en móvil */}
+          <div className="flex justify-end p-4 lg:hidden">
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+
           {/* Navegación */}
           <nav className="flex-1 px-4 pb-4 pt-4">
             <div className="space-y-2">

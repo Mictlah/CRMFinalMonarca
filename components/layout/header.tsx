@@ -14,8 +14,6 @@ import { Bell, Menu, User, LogOut, Settings } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
 import { obtenerNotificaciones } from "@/lib/supabase"
-import { logout } from "@/lib/auth"
-import { useRouter } from "next/navigation"
 
 interface HeaderProps {
   onMenuClick: () => void
@@ -23,13 +21,6 @@ interface HeaderProps {
 
 export function Header({ onMenuClick }: HeaderProps) {
   const [notificationCount, setNotificationCount] = useState(0)
-
-  const router = useRouter()
-
-  const handleLogout = () => {
-    logout()
-    router.push("/login")
-  }
 
   useEffect(() => {
     const cargarNotificaciones = async () => {
@@ -51,7 +42,7 @@ export function Header({ onMenuClick }: HeaderProps) {
   }, [])
 
   return (
-    <header className="fixed top-0 left-0 right-0 h-20 z-50 bg-white shadow-sm border-b border-gray-200">
+    <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="flex items-center justify-between px-4 py-3">
         {/* Left side - Menu button and Logo */}
         <div className="flex items-center space-x-4">
@@ -61,7 +52,6 @@ export function Header({ onMenuClick }: HeaderProps) {
 
           <div className="flex items-center space-x-3">
             <div className="relative w-10 h-10">
-              <Link href="/" passHref>
               <Image
                 src="/images/logo-monarca-transparent.png"
                 alt="Transportes Monarca"
@@ -69,7 +59,6 @@ export function Header({ onMenuClick }: HeaderProps) {
                 className="object-contain"
                 priority
               />
-              </Link>
             </div>
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold text-gray-900">Transportes Monarca</h1>
@@ -116,7 +105,7 @@ export function Header({ onMenuClick }: HeaderProps) {
                 <span>Configuración</span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-red-600" onClick={handleLogout}>
+              <DropdownMenuItem className="text-red-600">
                 <LogOut className="mr-2 h-4 w-4" />
                 <span>Cerrar Sesión</span>
               </DropdownMenuItem>
