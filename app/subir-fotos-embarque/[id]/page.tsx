@@ -48,6 +48,22 @@ import {
 } from "@/lib/supabase"
 import { subirFotoEmbarque, eliminarFotoEmbarque } from "@/lib/blob"
 
+export const obtenerUbicacionActual = (): Promise<{ lat: number; lng: number } | null> => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null)
+
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  })
+}
+
 export default function SubirFotosEmbarquePage() {
   const params = useParams()
   const router = useRouter()
@@ -187,6 +203,8 @@ export default function SubirFotosEmbarquePage() {
 
       let archivosSubidos = 0
 
+      const ubicacion = await obtenerUbicacionActual()
+
       for (const file of selectedFiles) {
         try {
           // Crear nombre único que incluya el folio del embarque
@@ -205,6 +223,8 @@ export default function SubirFotosEmbarquePage() {
             tipo_mime: file.type,
             subido_por: operadorNombre.trim(),
             tamano_bytes: file.size,
+            latitud: ubicacion?.lat ?? null,
+            longitud: ubicacion?.lng ?? null,
           })
 
           if (fotoGuardada) {
@@ -345,10 +365,6 @@ export default function SubirFotosEmbarquePage() {
               Folio: <span className="font-semibold">{embarque.folio}</span>
             </p>
           </div>
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Regresar
-          </Button>
         </div>
 
         {/* Información del embarque */}
@@ -458,7 +474,7 @@ export default function SubirFotosEmbarquePage() {
             <Button
               onClick={subirArchivos}
               disabled={uploading || selectedFiles.length === 0 || !operadorNombre.trim()}
-              className="w-full"
+              className="w-1/8 mx-auto bg-blue-600 hover:bg-blue-700 text-white"
             >
               {uploading ? (
                 <>
@@ -485,7 +501,7 @@ export default function SubirFotosEmbarquePage() {
                   formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
               </Badge>
             </CardTitle>
-            <CardDescription>Todas las fotos y documentos asociados a este embarque</CardDescription>
+            <CardDescription>Todas las fotos asociadas a este embarque</CardDescription>
           </CardHeader>
           <CardContent>
             {fotos.length === 0 ? (
@@ -549,6 +565,18 @@ export default function SubirFotosEmbarquePage() {
                         {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
                         {new Date(foto.fecha_subida).toLocaleTimeString()}
                       </p>
+
+                      {foto.latitud && foto.longitud && (
+                        <p className="text-xs text-blue-600 underline">
+                          <a
+                            href={`https://www.google.com/maps?q=${foto.latitud},${foto.longitud}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Ver ubicación en Google Maps
+                          </a>
+                        </p>
+                      )}
 
                       {/* Acciones */}
                       <div className="flex space-x-2 pt-2">

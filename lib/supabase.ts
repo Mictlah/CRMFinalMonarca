@@ -227,6 +227,8 @@ export interface FotoEmbarque {
   subido_por?: string
   created_at?: string
   updated_at?: string
+  latitud?: number | null
+  longitud?: number | null 
 }
 
 export interface OperadorPagoContingencia {
