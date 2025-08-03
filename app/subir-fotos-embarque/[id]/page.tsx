@@ -361,7 +361,7 @@ export default function SubirFotosEmbarquePage() {
     <MainLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-center text-center space-x-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Subir Fotos del Embarque</h1>
             <p className="text-gray-600 mt-1">
