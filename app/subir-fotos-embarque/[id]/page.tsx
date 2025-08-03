@@ -84,6 +84,52 @@ export default function SubirFotosEmbarquePage() {
   const [successType, setSuccessType] = useState<"upload" | "delete">("upload")
   const [comentarios, setComentarios] = useState<string[]>([])
 
+  const [seleccionadas, setSeleccionadas] = useState<Set<string>>(new Set());
+  const [errorMensaje, setErrorMensaje] = useState<string | null>(null);
+
+  const [alertOpen, setAlertOpen] = useState(false);
+  const [alertMessage, setAlertMessage] = useState("");
+
+  const toggleSeleccion = (id: string) => {
+    setSeleccionadas(prev => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(id)) {
+        nuevo.delete(id);
+      } else {
+        nuevo.add(id);
+      }
+      return nuevo;
+    });
+  };
+
+  const eliminarSeleccionadas = async () => {
+    const aEliminar = fotos.filter((f) => seleccionadas.has(f.id));
+    for (const foto of aEliminar) {
+      await eliminarFoto(foto); // usa tu función existente para eliminar
+    }
+    setSeleccionadas(new Set());
+  };
+
+  const validarLímitesArchivos = (nuevos: File[]) => {
+    const fotosActuales = fotos.filter(f => f.tipo_mime?.startsWith("image/")).length;
+    const documentosActuales = fotos.filter(f => f.tipo_mime === "application/pdf").length;
+
+    const nuevasFotos = nuevos.filter(f => f.type.startsWith("image/")).length;
+    const nuevosPDFs = nuevos.filter(f => f.type === "application/pdf").length;
+
+    if (fotosActuales + nuevasFotos > 10) {
+      alert("Máximo 10 fotos permitidas por embarque.");
+      return false;
+    }
+
+    if (documentosActuales + nuevosPDFs > 5) {
+      alert("Máximo 5 documentos PDF permitidos por embarque.");
+      return false;
+    }
+
+    return true;
+  };
+
   useEffect(() => {
     const cargarFotos = async () => {
       if (!embarque?.id) return
@@ -159,31 +205,46 @@ export default function SubirFotosEmbarquePage() {
     }
   }
 
-  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement> | { target: { files: File[] } }) => {
+    const nuevosArchivos = Array.from(e.target.files || []);
+    const archivosSeleccionados = [...selectedFiles, ...nuevosArchivos];
 
-    const formatosPermitidos = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "application/pdf"]
+    const totalFotos = [...fotos, ...archivosSeleccionados].filter(
+      (f) =>
+        ("tipo_mime" in f
+          ? f.tipo_mime?.startsWith("image/")
+          : "type" in f
+          ? f.type?.startsWith("image/")
+          : false)
+    ).length;
 
-    const archivosValidos = files.filter((file) => {
-      const esFormatoPermitido = formatosPermitidos.includes(file.type)
-      const tamañoValido = file.size <= 10 * 1024 * 1024 // 10MB máximo
+    const totalPDFs = [...fotos, ...archivosSeleccionados].filter(
+      (f) =>
+        ("tipo_mime" in f
+          ? f.tipo_mime === "application/pdf"
+          : "type" in f
+          ? f.type === "application/pdf"
+          : false)
+    ).length;
 
-      if (!esFormatoPermitido) {
-        setError(`${file.name}: Formato no permitido. Solo imágenes (JPG, PNG...) y PDF`)
-        return false
-      }
+    if (totalFotos > 10) {
+      setAlertMessage("Solo puedes subir hasta 10 fotos por embarque.");
+      setAlertOpen(true);
+      return;
+    }
 
-      if (!tamañoValido) {
-        setError(`${file.name}: El archivo es muy grande (máximo 10MB)`)
-        return false
-      }
+    if (totalPDFs > 5) {
+      setAlertMessage("Solo puedes subir hasta 5 documentos PDF por embarque.");
+      setAlertOpen(true);
+      return;
+    }
 
-      return true
-    })
+    setAlertMessage("");
+    setSelectedFiles((prev) => [...prev, ...nuevosArchivos]);
+    setComentarios((prev) => [...prev, ...Array(nuevosArchivos.length).fill("")]);
+  };
 
-    setSelectedFiles((prev) => [...prev, ...archivosValidos])
-    setError("")
-  }
+
 
   const removeSelectedFile = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
@@ -458,6 +519,10 @@ export default function SubirFotosEmbarquePage() {
               onFilesSelected={(files) => handleFileSelect({ target: { files } } as any)}
             />
 
+            {errorMensaje && (
+              <p className="text-sm text-red-500 mt-2">{errorMensaje}</p>
+            )}
+
             {selectedFiles.length > 0 && (
               <div className="space-y-2">
                 <Label>Archivos Seleccionados ({selectedFiles.length})</Label>
@@ -505,7 +570,18 @@ export default function SubirFotosEmbarquePage() {
             {/* Botón de subida */}
             <Button
               onClick={subirArchivos}
-              disabled={uploading || selectedFiles.length === 0 || !operadorNombre.trim()}
+              disabled={
+                uploading ||
+                selectedFiles.length === 0 ||
+                !operadorNombre.trim() ||
+                (
+                  // Validación de límites mezclados
+                  fotos.filter(f => f.tipo_mime?.startsWith("image/")).length +
+                  selectedFiles.filter(f => f.type.startsWith("image/")).length > 10 ||
+                  fotos.filter(f => f.tipo_mime === "application/pdf").length +
+                  selectedFiles.filter(f => f.type === "application/pdf").length > 5
+                )
+              }
               className="w-1/8 mx-auto bg-blue-600 hover:bg-blue-700 text-white"
             >
               {uploading ? (
@@ -527,7 +603,7 @@ export default function SubirFotosEmbarquePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Fotos del Embarque ({fotos.filter((f) => f.tipo_mime?.startsWith("image/")).length})</span>
+              <span>Fotos del Embarque ({fotos.filter((f) => f.tipo_mime?.startsWith("image/")).length} / 10)</span>
               <Badge variant="outline">
                 {fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0) > 0 &&
                   formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
@@ -546,14 +622,29 @@ export default function SubirFotosEmbarquePage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {fotos
                   .filter((foto) => foto.tipo_mime?.startsWith("image/"))
-                  .map((foto) => (
+                    .slice(0, 10)
+                    .map((foto) => (
                     <div
                       key={foto.id}
                       className="border rounded-lg p-3 space-y-3 bg-white hover:shadow-md transition-shadow"
                     >
                       {foto.tipo_mime?.startsWith("image/") ? (
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            className="absolute top-2 right-2 w-4 h-4 accent-blue-600 z-10"
+                            checked={seleccionadas.has(foto.id)}
+                            onChange={(e) => {
+                              e.stopPropagation();
+                              setSeleccionadas((prev) => {
+                                const nuevo = new Set(prev);
+                                nuevo.has(foto.id) ? nuevo.delete(foto.id) : nuevo.add(foto.id);
+                                return nuevo;
+                              });
+                            }}
+                          />
                         <div
-                          className="relative group aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+                          className="group aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
                           onClick={() => window.open(foto.url_blob, "_blank")}
                         >
                           <img
@@ -571,6 +662,7 @@ export default function SubirFotosEmbarquePage() {
                             </div>
                           </div>
                         </div>
+                      </div>
                       ) : (
                         <div className="flex items-center justify-center h-full bg-gray-50 aspect-video rounded-lg">
                           <div className="text-center">
@@ -685,10 +777,38 @@ export default function SubirFotosEmbarquePage() {
                   ))}
               </div>
             )}
+            {fotos.some(f => f.tipo_mime?.startsWith("image/") && seleccionadas.has(f.id)) &&
+              !fotos.some(f => f.tipo_mime?.includes("pdf") && seleccionadas.has(f.id)) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <div className="flex justify-end mt-4">
+                    <Button variant="destructive">
+                      Eliminar fotos seleccionadas ({[...seleccionadas].filter(id =>
+                        fotos.find(f => f.id === id)?.tipo_mime?.startsWith("image/")
+                      ).length})
+                    </Button>
+                  </div>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar fotos seleccionadas?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Las fotos se eliminarán permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={eliminarSeleccionadas}>
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </CardContent>
           <CardHeader className="mt-10">
             <CardTitle className="flex items-center justify-between">
-              <span>Documentos del Embarque ({fotos.filter((f) => f.tipo_mime?.includes("pdf")).length})</span>
+              <span>Documentos del Embarque ({fotos.filter((f) => f.tipo_mime?.includes("pdf")).length} / 5)</span>
             </CardTitle>
             <CardDescription>Archivos PDF relacionados con el embarque</CardDescription>
           </CardHeader>
@@ -709,6 +829,19 @@ export default function SubirFotosEmbarquePage() {
                       key={foto.id}
                       className="border rounded-lg p-3 space-y-3 bg-white hover:shadow-md transition-shadow"
                     >
+                      <div className="relative">
+                      <input
+                        type="checkbox"
+                        className="absolute top-2 right-2 w-4 h-4 accent-blue-600 z-10"
+                        checked={seleccionadas.has(foto.id)}
+                        onChange={() => {
+                          setSeleccionadas((prev) => {
+                            const nuevo = new Set(prev);
+                            nuevo.has(foto.id) ? nuevo.delete(foto.id) : nuevo.add(foto.id);
+                            return nuevo;
+                          });
+                        }}
+                      />
                       <div
                         className="p-6 flex flex-col items-center justify-center bg-gray-50 rounded-md cursor-pointer hover:shadow transition"
                         onClick={() => window.open(foto.url_blob, "_blank")}
@@ -716,7 +849,8 @@ export default function SubirFotosEmbarquePage() {
                         <FileText className="h-12 w-12 text-gray-400 mb-2" />
                         <span className="text-sm text-gray-500">PDF</span>
                       </div>
-
+                    </div>
+                      
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <p className="text-sm font-medium truncate">{foto.nombre_archivo}</p>
@@ -799,6 +933,33 @@ export default function SubirFotosEmbarquePage() {
                   ))}
               </div>
             )}
+            {fotos.filter(f => f.tipo_mime?.includes("pdf")).some(f => seleccionadas.has(f.id)) && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <div className="flex justify-end mt-4">
+                    <Button variant="destructive">
+                      Eliminar documentos seleccionados ({[...seleccionadas].filter(id =>
+                        fotos.find(f => f.id === id)?.tipo_mime?.includes("pdf")
+                      ).length})
+                    </Button>
+                  </div>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Eliminar documentos seleccionados?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Los documentos se eliminarán permanentemente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={eliminarSeleccionadas}>
+                      Eliminar
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </CardContent>
         </Card>
 
@@ -858,6 +1019,30 @@ export default function SubirFotosEmbarquePage() {
                 successType === "upload" ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
               } text-white px-4 py-2 rounded-md transition-all`}
               onClick={() => setOpenSuccessDialog(false)}
+            >
+              Aceptar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={alertOpen} onOpenChange={setAlertOpen}>
+        <AlertDialogContent className="bg-white text-gray-900 rounded-2xl shadow-xl max-w-md">
+          <AlertDialogHeader className="space-y-4">
+            <div className="flex items-center space-x-3">
+              <AlertTriangle className="h-8 w-8 text-yellow-500" />
+              <AlertDialogTitle className="text-xl font-semibold">
+                Atención
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-gray-600">
+              {alertMessage}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="justify-end pt-4">
+            <AlertDialogAction
+              onClick={() => setAlertOpen(false)}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-md transition-all"
             >
               Aceptar
             </AlertDialogAction>
