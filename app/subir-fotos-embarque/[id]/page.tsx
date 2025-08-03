@@ -34,8 +34,7 @@ import {
   AlertTriangle,
   Camera,
   X,
-  ArrowLeft,
-  MapPin
+  MapPin,
 } from "lucide-react"
 import {
   supabase,
@@ -47,7 +46,7 @@ import {
   guardarConfirmacionOperador,
   obtenerConfirmacionOperador,
 } from "@/lib/supabase"
-import { subirFotoEmbarque, eliminarFotoEmbarque } from "@/lib/blob"
+import { subirFotoEmbarque } from "@/lib/blob"
 
 export const obtenerUbicacionActual = (): Promise<{ lat: number; lng: number } | null> => {
   return new Promise((resolve) => {
@@ -60,7 +59,7 @@ export const obtenerUbicacionActual = (): Promise<{ lat: number; lng: number } |
           lng: position.coords.longitude,
         }),
       () => resolve(null),
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000 },
     )
   })
 }
@@ -106,33 +105,40 @@ export default function SubirFotosEmbarquePage() {
       setLoading(true)
       setError("")
 
-      // Buscar embarque por ID o folio
       let embarqueData: Embarque | null = null
 
-      // Primero intentar buscar por ID
-      const { data: embarquePorId, error: errorId } = await supabase
-        .from("embarques")
-        .select(`
-          *,
-          cliente:clientes(nombre),
-          operador:operadores(nombre, apellidos),
-          remolque:remolques(numero_economico, placas)
-        `)
-        .eq("id", embarqueId)
-        .single()
+      // Primero intentar buscar por ID (UUID format)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(embarqueId)
 
-      if (!errorId && embarquePorId) {
-        embarqueData = embarquePorId
-      } else {
-        // Si no se encuentra por ID, intentar por folio
+      if (isUUID) {
+        const { data: embarquePorId, error: errorId } = await supabase
+          .from("embarques")
+          .select(`
+            *,
+            cliente:clientes(nombre),
+            operador:operadores(nombre, apellidos),
+            remolque:remolques(numero_economico, placas)
+          `)
+          .eq("id", embarqueId)
+          .single()
+
+        if (!errorId && embarquePorId) {
+          embarqueData = embarquePorId
+        }
+      }
+
+      // Si no se encuentra por ID o no es UUID, buscar por folio
+      if (!embarqueData) {
+        console.log("Buscando por folio:", embarqueId)
         embarqueData = await buscarEmbarquePorFolio(embarqueId)
       }
 
       if (!embarqueData) {
-        setError("No se encontró el embarque especificado")
+        setError(`No se encontró el embarque con identificador: ${embarqueId}`)
         return
       }
 
+      console.log("Embarque encontrado:", embarqueData)
       setEmbarque(embarqueData)
 
       // Cargar fotos existentes
@@ -156,14 +162,7 @@ export default function SubirFotosEmbarquePage() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
 
-    const formatosPermitidos = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-      "image/jpg",
-      "image/gif",
-      "application/pdf",
-    ]
+    const formatosPermitidos = ["image/jpeg", "image/png", "image/webp", "image/jpg", "image/gif", "application/pdf"]
 
     const archivosValidos = files.filter((file) => {
       const esFormatoPermitido = formatosPermitidos.includes(file.type)
@@ -201,21 +200,19 @@ export default function SubirFotosEmbarquePage() {
     try {
       setUploading(true)
       setError("")
-      {
-        success && (
-          <Alert>
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )
-      }
+      success && (
+        <Alert>
+          <CheckCircle className="h-4 w-4" />
+          <AlertDescription>{success}</AlertDescription>
+        </Alert>
+      )
 
       let archivosSubidos = 0
 
       const ubicacion = await obtenerUbicacionActual()
 
       for (let index = 0; index < selectedFiles.length; index++) {
-        const file = selectedFiles[index];
+        const file = selectedFiles[index]
         try {
           // Crear nombre único que incluya el folio del embarque
           const timestamp = Date.now()
@@ -305,10 +302,7 @@ export default function SubirFotosEmbarquePage() {
       // 🧠 2. Eliminar de la base de datos Supabase
       console.log("🗑️ Eliminando foto:", foto)
 
-      const { data, error } = await supabase
-        .from("fotos_embarques")
-        .delete()
-        .eq("id", foto.id)
+      const { data, error } = await supabase.from("fotos_embarques").delete().eq("id", foto.id)
 
       console.log("✅ Supabase delete response:", { data, error })
 
@@ -521,7 +515,7 @@ export default function SubirFotosEmbarquePage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Fotos del Embarque ({fotos.filter(f => f.tipo_mime?.startsWith("image/")).length})</span>
+              <span>Fotos del Embarque ({fotos.filter((f) => f.tipo_mime?.startsWith("image/")).length})</span>
               <Badge variant="outline">
                 {fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0) > 0 &&
                   formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
@@ -538,151 +532,151 @@ export default function SubirFotosEmbarquePage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {fotos
-                    .filter((foto) => foto.tipo_mime?.startsWith("image/"))
-                    .map((foto) => (
-                  <div
-                    key={foto.id}
-                    className="border rounded-lg p-3 space-y-3 bg-white hover:shadow-md transition-shadow"
-                  >
-                    {foto.tipo_mime?.startsWith("image/") ? (
-                      <div
-                        className="relative group aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
-                        onClick={() => window.open(foto.url_blob, "_blank")}
-                      >
-                        <img
-                          src={foto.url_blob || "/placeholder.svg"}
-                          alt={foto.nombre_archivo}
-                          className="w-full h-full object-cover transition-opacity duration-300"
-                          onError={(e) => {
-                            e.currentTarget.src = "/placeholder.svg?height=200&width=300&text=Error+cargando+imagen"
-                          }}
-                        />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition duration-300">
-                          <div className="text-white text-center">
-                            <Eye className="h-6 w-6 mx-auto mb-1" />
-                            <span className="text-xs font-medium">Click para ver</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-center justify-center h-full bg-gray-50 aspect-video rounded-lg">
-                        <div className="text-center">
-                          <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
-                          <span className="text-sm text-gray-500">
-                            {foto.tipo_mime?.includes("pdf") ? "PDF" : "Archivo"}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Información del archivo */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium truncate">{foto.nombre_archivo}</p>
-                        <span className="text-xs text-gray-500">
-                          {foto.tamano_bytes && formatFileSize(foto.tamano_bytes)}
-                        </span>
-                      </div>
-
-                      {foto.subido_por && <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>}
-
-                      <p className="text-xs text-gray-400">
-                        {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
-                        {new Date(foto.fecha_subida).toLocaleTimeString()}
-                      </p>
-
-                          {foto.latitud && foto.longitud && (
-                            <a
-                              href={`https://www.google.com/maps?q=${foto.latitud},${foto.longitud}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex items-center space-x-1 text-xs text-blue-600 underline"
-                            >
-                              <MapPin className="h-3 w-3" />
-                              <span>Ubicación</span>
-                            </a>
-                          )}
-
-                          {foto.comentario && (
-                            <>
-                              <p className="text-sm text-gray-500">Comentario u Observación:</p>
-                              <p className="text-xs text-gray-500 font-bold">“{foto.comentario}”</p>
-                            </>
-                          )}
-
-                      {/* Acciones */}
-                      <div className="flex space-x-2 pt-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 bg-transparent"
+                {fotos
+                  .filter((foto) => foto.tipo_mime?.startsWith("image/"))
+                  .map((foto) => (
+                    <div
+                      key={foto.id}
+                      className="border rounded-lg p-3 space-y-3 bg-white hover:shadow-md transition-shadow"
+                    >
+                      {foto.tipo_mime?.startsWith("image/") ? (
+                        <div
+                          className="relative group aspect-video rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
                           onClick={() => window.open(foto.url_blob, "_blank")}
                         >
-                          <Eye className="h-3 w-3 mr-1" />
-                          Ver
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1 bg-transparent"
-                          onClick={async () => {
-                            try {
-                              const response = await fetch(foto.url_blob)
-                              const blob = await response.blob()
-                              const blobUrl = URL.createObjectURL(blob)
+                          <img
+                            src={foto.url_blob || "/placeholder.svg"}
+                            alt={foto.nombre_archivo}
+                            className="w-full h-full object-cover transition-opacity duration-300"
+                            onError={(e) => {
+                              e.currentTarget.src = "/placeholder.svg?height=200&width=300&text=Error+cargando+imagen"
+                            }}
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition duration-300">
+                            <div className="text-white text-center">
+                              <Eye className="h-6 w-6 mx-auto mb-1" />
+                              <span className="text-xs font-medium">Click para ver</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center h-full bg-gray-50 aspect-video rounded-lg">
+                          <div className="text-center">
+                            <FileText className="h-16 w-16 text-gray-400 mx-auto mb-2" />
+                            <span className="text-sm text-gray-500">
+                              {foto.tipo_mime?.includes("pdf") ? "PDF" : "Archivo"}
+                            </span>
+                          </div>
+                        </div>
+                      )}
 
-                              const link = document.createElement("a")
-                              link.href = blobUrl
-                              link.download = foto.nombre_archivo
-                              document.body.appendChild(link)
-                              link.click()
-                              document.body.removeChild(link)
+                      {/* Información del archivo */}
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium truncate">{foto.nombre_archivo}</p>
+                          <span className="text-xs text-gray-500">
+                            {foto.tamano_bytes && formatFileSize(foto.tamano_bytes)}
+                          </span>
+                        </div>
 
-                              // Liberar memoria
-                              URL.revokeObjectURL(blobUrl)
-                            } catch (error) {
-                              console.error("Error descargando el archivo:", error)
-                            }
-                          }}
-                        >
-                          <Download className="h-3 w-3 mr-1" />
-                          Descargar
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button variant="outline" size="sm">
-                              <Trash2 className="h-3 w-3 text-red-500" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>¿Eliminar foto?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                Esta acción no se puede deshacer. La foto se eliminará permanentemente.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction
-                                    onClick={() => eliminarFoto(foto)}
-                                    className="bg-red-500 hover:bg-red-600 text-white transition-all"
-                                  >
-                                    Eliminar
-                                  </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        {foto.subido_por && <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>}
+
+                        <p className="text-xs text-gray-400">
+                          {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
+                          {new Date(foto.fecha_subida).toLocaleTimeString()}
+                        </p>
+
+                        {foto.latitud && foto.longitud && (
+                          <a
+                            href={`https://www.google.com/maps?q=${foto.latitud},${foto.longitud}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center space-x-1 text-xs text-blue-600 underline"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            <span>Ubicación</span>
+                          </a>
+                        )}
+
+                        {foto.comentario && (
+                          <>
+                            <p className="text-sm text-gray-500">Comentario u Observación:</p>
+                            <p className="text-xs text-gray-500 font-bold">“{foto.comentario}”</p>
+                          </>
+                        )}
+
+                        {/* Acciones */}
+                        <div className="flex space-x-2 pt-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 bg-transparent"
+                            onClick={() => window.open(foto.url_blob, "_blank")}
+                          >
+                            <Eye className="h-3 w-3 mr-1" />
+                            Ver
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1 bg-transparent"
+                            onClick={async () => {
+                              try {
+                                const response = await fetch(foto.url_blob)
+                                const blob = await response.blob()
+                                const blobUrl = URL.createObjectURL(blob)
+
+                                const link = document.createElement("a")
+                                link.href = blobUrl
+                                link.download = foto.nombre_archivo
+                                document.body.appendChild(link)
+                                link.click()
+                                document.body.removeChild(link)
+
+                                // Liberar memoria
+                                URL.revokeObjectURL(blobUrl)
+                              } catch (error) {
+                                console.error("Error descargando el archivo:", error)
+                              }
+                            }}
+                          >
+                            <Download className="h-3 w-3 mr-1" />
+                            Descargar
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="outline" size="sm">
+                                <Trash2 className="h-3 w-3 text-red-500" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>¿Eliminar foto?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Esta acción no se puede deshacer. La foto se eliminará permanentemente.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => eliminarFoto(foto)}
+                                  className="bg-red-500 hover:bg-red-600 text-white transition-all"
+                                >
+                                  Eliminar
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </CardContent>
           <CardHeader className="mt-10">
             <CardTitle className="flex items-center justify-between">
-              <span>Documentos del Embarque ({fotos.filter(f => f.tipo_mime?.includes("pdf")).length})</span>
+              <span>Documentos del Embarque ({fotos.filter((f) => f.tipo_mime?.includes("pdf")).length})</span>
             </CardTitle>
             <CardDescription>Archivos PDF relacionados con el embarque</CardDescription>
           </CardHeader>
@@ -719,9 +713,7 @@ export default function SubirFotosEmbarquePage() {
                           </span>
                         </div>
 
-                        {foto.subido_por && (
-                          <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>
-                        )}
+                        {foto.subido_por && <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>}
 
                         <p className="text-xs text-gray-400">
                           {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
@@ -785,9 +777,7 @@ export default function SubirFotosEmbarquePage() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => eliminarFoto(foto)}>
-                                  Eliminar
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={() => eliminarFoto(foto)}>Eliminar</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -799,7 +789,7 @@ export default function SubirFotosEmbarquePage() {
             )}
           </CardContent>
         </Card>
-        
+
         {/* Estadísticas */}
         {fotos.length > 0 && (
           <Card>
@@ -848,16 +838,13 @@ export default function SubirFotosEmbarquePage() {
                 {successType === "upload" ? "¡Carga exitosa!" : "¡Eliminación exitosa!"}
               </AlertDialogTitle>
             </div>
-            <AlertDialogDescription className="text-gray-600">
-              {successMessage}
-            </AlertDialogDescription>
+            <AlertDialogDescription className="text-gray-600">{successMessage}</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className="justify-end pt-4">
             <AlertDialogAction
-              className={`${successType === "upload"
-                  ? "bg-green-500 hover:bg-green-600"
-                  : "bg-red-500 hover:bg-red-600"
-                } text-white px-4 py-2 rounded-md transition-all`}
+              className={`${
+                successType === "upload" ? "bg-green-500 hover:bg-green-600" : "bg-red-500 hover:bg-red-600"
+              } text-white px-4 py-2 rounded-md transition-all`}
               onClick={() => setOpenSuccessDialog(false)}
             >
               Aceptar

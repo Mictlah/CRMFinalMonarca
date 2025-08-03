@@ -1,15 +1,16 @@
 import { createClient } from "@supabase/supabase-js"
 
+// Get environment variables with fallbacks for development
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY environment variables.")
+  console.warn("Missing Supabase environment variables. Using fallback values for development.")
 }
 
 export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  supabaseUrl || "https://placeholder.supabase.co",
+  supabaseAnonKey || "placeholder-key",
 )
 
 // Tipos TypeScript para las tablas
@@ -656,7 +657,7 @@ export const obtenerFotosEmbarque = async (embarqueId: string): Promise<FotoEmba
 }
 
 export const guardarFotoEmbarque = async (
-  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">
+  foto: Omit<FotoEmbarque, "id" | "created_at" | "updated_at" | "fecha_subida">,
 ): Promise<FotoEmbarque | null> => {
   try {
     console.log("📦 Enviando metadata a Supabase:", foto)
