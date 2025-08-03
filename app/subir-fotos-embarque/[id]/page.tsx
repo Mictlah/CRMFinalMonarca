@@ -382,18 +382,30 @@ export default function SubirFotosEmbarquePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label className="text-sm font-medium text-gray-600">Cliente</Label>
-                <p className="text-sm">{embarque.cliente?.nombre || "No especificado"}</p>
+                <p className="text-sm font-bold">{embarque.cliente?.nombre || "No especificado"}</p>
               </div>
               <div>
+                <Label className="text-sm font-medium text-gray-600">Número de Tractocamión</Label>
+                <p className="text-sm font-bold">
+                  {embarque.camion?.numero_economico || "No especificado"}
+                </p>
+                <Label className="text-sm font-medium text-gray-600">Número de Caja</Label>
+                <p className="text-sm font-bold">
+                  {embarque.remolque?.numero_economico || "No asignado"}
+                </p>
                 <Label className="text-sm font-medium text-gray-600">Operador</Label>
-                <p className="text-sm">
+                <p className="text-sm font-bold">
                   {embarque.operador ? `${embarque.operador.nombre} ${embarque.operador.apellidos}` : "No asignado"}
                 </p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-gray-600">Origen → Destino</Label>
-                <p className="text-sm">
-                  {embarque.origen} → {embarque.destino}
+                <Label className="text-sm font-medium text-gray-600">Origen</Label>
+                <p className="text-sm font-bold">
+                  {embarque.origen}
+                </p>
+                <Label className="text-sm font-medium text-gray-600">Destino</Label>
+                <p className="text-sm font-bold">
+                  {embarque.destino}
                 </p>
               </div>
             </div>
