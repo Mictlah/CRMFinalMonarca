@@ -63,6 +63,9 @@ export const DropZone: React.FC<DropZoneProps> = ({ onFilesSelected, uploading }
             <p className="text-xs text-gray-500">
                 Formatos permitidos: Imágenes (JPG, PNG, etc.) y PDF. Tamaño máximo: 10MB por archivo.
             </p>
+            <p className="text-xs text-gray-500">
+                También puedes agregar comentarios a cada archivo subido.
+            </p>
         </div>
     )
 }

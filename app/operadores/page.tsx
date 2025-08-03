@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -470,7 +470,7 @@ export default function OperadoresPage() {
       <div className="space-y-4">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Operadores</h1>
+            <h1 className="text-3xl font-bold text-gray-900">Géstion de Operadores</h1>
             <p className="text-gray-600 mt-2">Gestión de operadores y conductores</p>
           </div>
           <Button
@@ -566,110 +566,175 @@ export default function OperadoresPage() {
         </Card>
 
         {/* Lista de operadores */}
-        <div className="grid grid-cols-1 gap-4">
+        {/* Lista de operadores en formato de tarjetas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {operadoresFiltrados.map((operador) => (
-            <Card key={operador.id}>
-              <CardHeader>
+            <Card key={operador.id} className="hover:shadow-lg transition-shadow duration-200">
+              <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
-                  <div>
-                    <CardTitle className="text-lg">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold text-gray-900 mb-2">
                       {operador.nombre} {operador.apellidos}
                     </CardTitle>
-                    <CardDescription>
-                      {operador.telefono && (
-                        <span className="flex items-center mr-4">
-                          <Phone className="h-3 w-3 mr-1" />
-                          {operador.telefono}
-                        </span>
-                      )}
-                      {operador.email && (
-                        <span className="flex items-center">
-                          <Mail className="h-3 w-3 mr-1" />
-                          {operador.email}
-                        </span>
-                      )}
-                    </CardDescription>
+                    <div className="flex items-center mb-2">{getEstadoBadge(operador.estado)}</div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    {getEstadoBadge(operador.estado)}
-                    <div className="flex space-x-1">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setOperadorDetalle(operador)
-                          setActiveTab("general")
-                          setShowDetailsModal(true)
-                          cargarDocumentosOperador(operador.id)
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleEdit(operador)}>
-                        <Edit className="h-4 w-4 mr-1" />
-                        Editar
-                      </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4 mr-1" />
-                            Eliminar
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>¿Eliminar operador?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Esta acción no se puede deshacer. Se eliminará permanentemente el operador{" "}
-                              {operador.nombre} {operador.apellidos}.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(operador.id)}>Eliminar</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                    </div>
+                  <div className="flex space-x-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setOperadorDetalle(operador)
+                        setActiveTab("general")
+                        setShowDetailsModal(true)
+                        cargarDocumentosOperador(operador.id)
+                      }}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleEdit(operador)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="outline" size="sm">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Eliminar operador?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminará permanentemente el operador {operador.nombre}{" "}
+                            {operador.apellidos}.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(operador.id)}>Eliminar</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+              <CardContent className="space-y-4">
+                {/* Información de contacto */}
+                <div className="space-y-2">
+                  {operador.telefono && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Phone className="h-4 w-4 text-gray-400" />
+                      <span>{operador.telefono}</span>
+                    </div>
+                  )}
+                  {operador.email && (
+                    <div className="flex items-center space-x-2 text-sm">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      <span className="truncate">{operador.email}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Información de documentos principales */}
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   {operador.licencia && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Licencia</label>
-                      <p className="text-sm text-gray-900">{operador.licencia}</p>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="flex items-center space-x-1 mb-1">
+                        <FileText className="h-3 w-3 text-gray-400" />
+                        <span className="font-medium text-xs">Licencia</span>
+                      </div>
+                      <p className="text-xs text-gray-600 truncate">{operador.licencia}</p>
+                      {operador.fecha_vencimiento_licencia && (
+                        <p className="text-xs text-gray-500">
+                          {new Date(operador.fecha_vencimiento_licencia).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   )}
+
+                  {operador.tipo_sangre && (
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="flex items-center space-x-1 mb-1">
+                        <AlertTriangle className="h-3 w-3 text-red-400" />
+                        <span className="font-medium text-xs">Tipo Sangre</span>
+                      </div>
+                      <p className="text-xs text-gray-600">{operador.tipo_sangre}</p>
+                    </div>
+                  )}
+
                   {operador.numero_visa && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Visa</label>
-                      <p className="text-sm text-gray-900">{operador.numero_visa}</p>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="flex items-center space-x-1 mb-1">
+                        <FileText className="h-3 w-3 text-blue-400" />
+                        <span className="font-medium text-xs">Visa</span>
+                      </div>
+                      <p className="text-xs text-gray-600 truncate">{operador.numero_visa}</p>
+                      {operador.fecha_vencimiento_visa && (
+                        <p className="text-xs text-gray-500">
+                          {new Date(operador.fecha_vencimiento_visa).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   )}
+
                   {operador.numero_fast && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">FAST</label>
-                      <p className="text-sm text-gray-900">{operador.numero_fast}</p>
+                    <div className="bg-gray-50 p-2 rounded">
+                      <div className="flex items-center space-x-1 mb-1">
+                        <CheckCircle className="h-3 w-3 text-green-400" />
+                        <span className="font-medium text-xs">FAST</span>
+                      </div>
+                      <p className="text-xs text-gray-600 truncate">{operador.numero_fast}</p>
+                      {operador.fecha_vencimiento_fast && (
+                        <p className="text-xs text-gray-500">
+                          {new Date(operador.fecha_vencimiento_fast).toLocaleDateString()}
+                        </p>
+                      )}
                     </div>
                   )}
-                  {operador.fecha_nacimiento && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                        Fecha Nacimiento
-                      </label>
-                      <p className="text-sm text-gray-900">
-                        {new Date(operador.fecha_nacimiento).toLocaleDateString()}
-                      </p>
+                </div>
+
+                {/* Información adicional */}
+                {operador.fecha_nacimiento && (
+                  <div className="bg-blue-50 p-2 rounded">
+                    <div className="flex items-center space-x-1 mb-1">
+                      <Users className="h-3 w-3 text-blue-400" />
+                      <span className="font-medium text-xs">Fecha de Nacimiento</span>
                     </div>
-                  )}
+                    <p className="text-xs text-gray-600">{new Date(operador.fecha_nacimiento).toLocaleDateString()}</p>
+                  </div>
+                )}
+
+                {/* Observaciones si existen */}
+                {operador.observaciones && (
+                  <div className="bg-yellow-50 p-2 rounded">
+                    <p className="text-xs">
+                      <strong>Obs:</strong>{" "}
+                      {operador.observaciones.length > 50
+                        ? `${operador.observaciones.substring(0, 50)}...`
+                        : operador.observaciones}
+                    </p>
+                  </div>
+                )}
+
+                {/* Fecha de registro */}
+                <div className="text-xs text-gray-400 pt-2 border-t">
+                  Registrado: {new Date(operador.fecha_registro).toLocaleDateString()}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
+
+        {/* Mensaje cuando no hay operadores */}
+        {operadoresFiltrados.length === 0 && (
+          <Card>
+            <CardContent className="text-center py-8">
+              <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500">No se encontraron operadores</p>
+              {searchTerm && <p className="text-sm text-gray-400 mt-1">Intenta con otros términos de búsqueda</p>}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Modal de Formulario */}
@@ -1342,21 +1407,6 @@ export default function OperadoresPage() {
                               value={fechaVencimiento}
                               onChange={(e) => setFechaVencimiento(e.target.value)}
                             />
-                          </div>
-
-                          {/* Selector de archivo */}
-                          <div className="space-y-2">
-                            <Label htmlFor="file">Seleccionar Archivo *</Label>
-                            <Input
-                              id="file"
-                              type="file"
-                              accept="image/*,.pdf"
-                              onChange={handleFileSelect}
-                              disabled={uploadingDoc}
-                            />
-                            <p className="text-xs text-gray-500">
-                              Formatos permitidos: Imágenes (JPG, PNG, etc.) y PDF. Tamaño máximo: 10MB.
-                            </p>
                           </div>
 
                           {/* Vista previa del archivo seleccionado */}

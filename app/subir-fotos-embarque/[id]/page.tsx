@@ -35,6 +35,7 @@ import {
   Camera,
   X,
   ArrowLeft,
+  MapPin
 } from "lucide-react"
 import {
   supabase,
@@ -47,6 +48,22 @@ import {
   obtenerConfirmacionOperador,
 } from "@/lib/supabase"
 import { subirFotoEmbarque, eliminarFotoEmbarque } from "@/lib/blob"
+
+export const obtenerUbicacionActual = (): Promise<{ lat: number; lng: number } | null> => {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) return resolve(null)
+
+    navigator.geolocation.getCurrentPosition(
+      (position) =>
+        resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  })
+}
 
 export default function SubirFotosEmbarquePage() {
   const params = useParams()
@@ -66,6 +83,7 @@ export default function SubirFotosEmbarquePage() {
   const [openSuccessDialog, setOpenSuccessDialog] = useState(false)
   const [successMessage, setSuccessMessage] = useState("")
   const [successType, setSuccessType] = useState<"upload" | "delete">("upload")
+  const [comentarios, setComentarios] = useState<string[]>([])
 
   useEffect(() => {
     const cargarFotos = async () => {
@@ -138,14 +156,21 @@ export default function SubirFotosEmbarquePage() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
 
-    // Validar archivos
+    const formatosPermitidos = [
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "image/jpg",
+      "image/gif",
+      "application/pdf",
+    ]
+
     const archivosValidos = files.filter((file) => {
-      const esImagen = file.type.startsWith("image/")
-      const esPDF = file.type === "application/pdf"
+      const esFormatoPermitido = formatosPermitidos.includes(file.type)
       const tamañoValido = file.size <= 10 * 1024 * 1024 // 10MB máximo
 
-      if (!esImagen && !esPDF) {
-        setError(`${file.name}: Solo se permiten imágenes y archivos PDF`)
+      if (!esFormatoPermitido) {
+        setError(`${file.name}: Formato no permitido. Solo imágenes (JPG, PNG...) y PDF`)
         return false
       }
 
@@ -187,7 +212,10 @@ export default function SubirFotosEmbarquePage() {
 
       let archivosSubidos = 0
 
-      for (const file of selectedFiles) {
+      const ubicacion = await obtenerUbicacionActual()
+
+      for (let index = 0; index < selectedFiles.length; index++) {
+        const file = selectedFiles[index];
         try {
           // Crear nombre único que incluya el folio del embarque
           const timestamp = Date.now()
@@ -205,6 +233,9 @@ export default function SubirFotosEmbarquePage() {
             tipo_mime: file.type,
             subido_por: operadorNombre.trim(),
             tamano_bytes: file.size,
+            latitud: ubicacion?.lat ?? null,
+            longitud: ubicacion?.lng ?? null,
+            comentario: comentarios[index] || null,
           })
 
           if (fotoGuardada) {
@@ -248,6 +279,7 @@ export default function SubirFotosEmbarquePage() {
         setSuccessMessage(`${archivosSubidos} archivo(s) subido(s) exitosamente.`)
         setOpenSuccessDialog(true)
         setSelectedFiles([])
+        setComentarios([])
       }
     } catch (error) {
       console.error("Error en subida:", error)
@@ -289,7 +321,8 @@ export default function SubirFotosEmbarquePage() {
       // ✅ 3. Eliminar del estado local
       setFotos((prev) => prev.filter((f) => f.id !== foto.id))
       setSuccessType("delete")
-      setSuccessMessage("Foto eliminada exitosamente.")
+      const esPDF = foto.tipo_mime?.includes("pdf")
+      setSuccessMessage(esPDF ? "Documento eliminado exitosamente." : "Foto eliminada exitosamente.")
       setOpenSuccessDialog(true)
     } catch (error) {
       console.error("❌ Error eliminando foto:", error)
@@ -325,10 +358,6 @@ export default function SubirFotosEmbarquePage() {
           <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-red-500" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Embarque no encontrado</h1>
           <p className="text-gray-600 mb-4">No se pudo encontrar el embarque especificado</p>
-          <Button onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Regresar
-          </Button>
         </div>
       </MainLayout>
     )
@@ -345,10 +374,6 @@ export default function SubirFotosEmbarquePage() {
               Folio: <span className="font-semibold">{embarque.folio}</span>
             </p>
           </div>
-          <Button variant="outline" onClick={() => router.back()}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Regresar
-          </Button>
         </div>
 
         {/* Información del embarque */}
@@ -427,27 +452,44 @@ export default function SubirFotosEmbarquePage() {
               onFilesSelected={(files) => handleFileSelect({ target: { files } } as any)}
             />
 
-            {/* Vista previa de archivos seleccionados */}
             {selectedFiles.length > 0 && (
               <div className="space-y-2">
                 <Label>Archivos Seleccionados ({selectedFiles.length})</Label>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                      <div className="flex items-center space-x-2">
-                        {file.type.startsWith("image/") ? (
-                          <ImageIcon className="h-4 w-4 text-blue-500" />
-                        ) : (
-                          <FileText className="h-4 w-4 text-red-500" />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium truncate max-w-48">{file.name}</p>
-                          <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                    <div key={index} className="flex flex-col gap-2 p-2 bg-gray-50 rounded">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center space-x-2">
+                          {file.type.startsWith("image/") ? (
+                            <ImageIcon className="h-4 w-4 text-blue-500" />
+                          ) : (
+                            <FileText className="h-4 w-4 text-red-500" />
+                          )}
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-48">{file.name}</p>
+                            <p className="text-xs text-gray-500">{formatFileSize(file.size)}</p>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeSelectedFile(index)}
+                          disabled={uploading}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => removeSelectedFile(index)} disabled={uploading}>
-                        <X className="h-4 w-4" />
-                      </Button>
+
+                      <Input
+                        placeholder="Comentario u observación (opcional)"
+                        value={comentarios[index] || ""}
+                        onChange={(e) => {
+                          const nuevos = [...comentarios]
+                          nuevos[index] = e.target.value
+                          setComentarios(nuevos)
+                        }}
+                        disabled={uploading}
+                      />
                     </div>
                   ))}
                 </div>
@@ -458,7 +500,7 @@ export default function SubirFotosEmbarquePage() {
             <Button
               onClick={subirArchivos}
               disabled={uploading || selectedFiles.length === 0 || !operadorNombre.trim()}
-              className="w-full"
+              className="w-1/8 mx-auto bg-blue-600 hover:bg-blue-700 text-white"
             >
               {uploading ? (
                 <>
@@ -485,7 +527,7 @@ export default function SubirFotosEmbarquePage() {
                   formatFileSize(fotos.reduce((total, foto) => total + (foto.tamano_bytes || 0), 0))}
               </Badge>
             </CardTitle>
-            <CardDescription>Todas las fotos y documentos asociados a este embarque</CardDescription>
+            <CardDescription>Todas las fotos asociadas a este embarque</CardDescription>
           </CardHeader>
           <CardContent>
             {fotos.length === 0 ? (
@@ -550,6 +592,25 @@ export default function SubirFotosEmbarquePage() {
                         {new Date(foto.fecha_subida).toLocaleTimeString()}
                       </p>
 
+                          {foto.latitud && foto.longitud && (
+                            <a
+                              href={`https://www.google.com/maps?q=${foto.latitud},${foto.longitud}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center space-x-1 text-xs text-blue-600 underline"
+                            >
+                              <MapPin className="h-3 w-3" />
+                              <span>Ubicación</span>
+                            </a>
+                          )}
+
+                          {foto.comentario && (
+                            <>
+                              <p className="text-sm text-gray-500">Comentario u Observación:</p>
+                              <p className="text-xs text-gray-500 font-bold">“{foto.comentario}”</p>
+                            </>
+                          )}
+
                       {/* Acciones */}
                       <div className="flex space-x-2 pt-2">
                         <Button
@@ -603,7 +664,12 @@ export default function SubirFotosEmbarquePage() {
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => eliminarFoto(foto)}>Eliminar</AlertDialogAction>
+                                  <AlertDialogAction
+                                    onClick={() => eliminarFoto(foto)}
+                                    className="bg-red-500 hover:bg-red-600 text-white transition-all"
+                                  >
+                                    Eliminar
+                                  </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -661,6 +727,13 @@ export default function SubirFotosEmbarquePage() {
                           {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}
                           {new Date(foto.fecha_subida).toLocaleTimeString()}
                         </p>
+
+                        {foto.comentario && (
+                          <>
+                            <p className="text-sm text-gray-500">Comentario u Observación:</p>
+                            <p className="text-xs text-gray-500 font-bold">“{foto.comentario}”</p>
+                          </>
+                        )}
 
                         <div className="flex space-x-2 pt-2">
                           <Button

@@ -1,13 +1,25 @@
-"use client"
+"use client";
 
-import { MainLayout } from "@/components/layout/main-layout"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
-import { Textarea } from "@/components/ui/textarea"
+import { MainLayout } from "@/components/layout/main-layout";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,83 +38,106 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import { Truck, Plus, Search, Edit, Trash2, Download, Gauge, Calendar, Shield, AlertTriangle, Eye } from "lucide-react"
-import { useState, useEffect } from "react"
-import { supabase, type Camion, type MarcaCamion } from "@/lib/supabase"
+} from "@/components/ui/alert-dialog";
+import {
+  Truck,
+  Plus,
+  Search,
+  Edit,
+  Trash2,
+  Download,
+  Gauge,
+  Calendar,
+  Shield,
+  AlertTriangle,
+  Eye,
+} from "lucide-react";
+import { useState, useEffect } from "react";
+import { supabase, type Camion, type MarcaCamion } from "@/lib/supabase";
+import { v4 as uuidv4 } from "uuid"; // Importar uuid para IDs únicos
+
+// Si usas TypeScript y ves errores de tipos, instala los tipos:
+// pnpm add -D @types/uuid
+
+// Definir una interfaz para la estructura de los comentarios
+interface Comentario {
+  id: string;
+  text: string;
+  date: string;
+}
 
 export default function CamionesPage() {
   // Helper variables and stubs for missing functions
-  const [marcasTableExists, setMarcasTableExists] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [editingMarca, setEditingMarca] = useState(false)
-  const [marcaFormData, setMarcaFormData] = useState({ nombre: "" })
-  const [loadingMarcas, setLoadingMarcas] = useState(false)
+  const [marcasTableExists, setMarcasTableExists] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [editingMarca, setEditingMarca] = useState(false);
+  const [marcaFormData, setMarcaFormData] = useState({ nombre: "" });
+  const [loadingMarcas, setLoadingMarcas] = useState(false);
 
   // Consulta real a Supabase para cargar camiones
   const cargarCamiones = async () => {
-    setLoading(true)
+    setLoading(true);
     try {
-      const { data, error } = await supabase.from("camiones").select("*")
+      const { data, error } = await supabase.from("camiones").select("*");
       if (error) {
-        console.error("Error cargando camiones:", error)
-        setCamiones([])
+        console.error("Error cargando camiones:", error);
+        setCamiones([]);
       } else {
-        setCamiones(data || [])
+        setCamiones(data || []);
       }
     } catch (error) {
-      console.error("Error inesperado cargando camiones:", error)
-      setCamiones([])
+      console.error("Error inesperado cargando camiones:", error);
+      setCamiones([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
   // Cargar camiones al montar el componente
   useEffect(() => {
-    cargarCamiones()
-  }, [])
+    cargarCamiones();
+  }, []);
 
   // Stub for limpiarFormulario
   const limpiarFormulario = () => {
-    setFormData({})
-    setEditingCamion(null)
-  }
+    setFormData({});
+    setEditingCamion(null);
+  };
 
   // Stub for guardarCamion
   const guardarCamion = async () => {
-    setSaving(true)
+    setSaving(true);
     // TODO: Implement actual save logic
-    setSaving(false)
-  }
+    setSaving(false);
+  };
 
   // Stub for limpiarFormularioMarca
   const limpiarFormularioMarca = () => {
-    setMarcaFormData({ nombre: "" })
-    setEditingMarca(false)
-  }
+    setMarcaFormData({ nombre: "" });
+    setEditingMarca(false);
+  };
 
   // Stub for guardarMarca
   const guardarMarca = async () => {
     // TODO: Implement actual save logic
-    limpiarFormularioMarca()
-  }
+    limpiarFormularioMarca();
+  };
 
   // Stub for editarMarca
   const editarMarca = (marca: MarcaCamion) => {
-    setEditingMarca(true)
-    setMarcaFormData({ nombre: marca.nombre })
-  }
+    setEditingMarca(true);
+    setMarcaFormData({ nombre: marca.nombre });
+  };
 
   // Stub for eliminarMarca
   const eliminarMarca = async (id: string) => {
     // TODO: Implement actual delete logic
-    return
-  }
+    return;
+  };
   // Main state variables
-  const [camiones, setCamiones] = useState<Camion[]>([])
-  const [searchTerm, setSearchTerm] = useState("")
-  const [showForm, setShowForm] = useState(false)
-  const [editingCamion, setEditingCamion] = useState<Camion | null>(null)
+  const [camiones, setCamiones] = useState<Camion[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [editingCamion, setEditingCamion] = useState<Camion | null>(null);
   const [formData, setFormData] = useState<any>({
     numero_economico: "",
     marca: "",
@@ -118,49 +153,238 @@ export default function CamionesPage() {
     fecha_vencimiento_seguro_mexicano: "",
     poliza_seguro_americano: "",
     fecha_vencimiento_seguro_americano: "",
-    comentarios: "",
+    comentarios: "", // Este campo se mantendrá para el formulario principal si es necesario, pero los detalles usarán historial_comentarios
     tag_americano: "",
     tag_mexicano: "",
     numero_base: "",
     numeros_adicionales: [],
-  })
-  const [tieneRegistrosKilometraje, setTieneRegistrosKilometraje] = useState(false)
-  const [registrosKilometrajeTableExists, setRegistrosKilometrajeTableExists] = useState(true)
-  const [registrosMantenimientoTableExists, setRegistrosMantenimientoTableExists] = useState(true)
-  const [marcas, setMarcas] = useState<MarcaCamion[]>([])
-  const marcasDefault = ["Kenworth", "Freightliner", "Volvo", "International", "Peterbilt"]
-  const [showMarcasForm, setShowMarcasForm] = useState(false)
+  });
+  const [tieneRegistrosKilometraje, setTieneRegistrosKilometraje] =
+    useState(false);
+  const [registrosKilometrajeTableExists, setRegistrosKilometrajeTableExists] =
+    useState(true);
+  const [
+    registrosMantenimientoTableExists,
+    setRegistrosMantenimientoTableExists,
+  ] = useState(true);
+  const [marcas, setMarcas] = useState<MarcaCamion[]>([]);
+  const marcasDefault = [
+    "Kenworth",
+    "Freightliner",
+    "Volvo",
+    "International",
+    "Peterbilt",
+  ];
+  const [showMarcasForm, setShowMarcasForm] = useState(false);
   // Cambiar la línea existente de activeTab para que maneje tanto el formulario como los detalles
-  const [activeTab, setActiveTab] = useState("basica")
-  const [loading, setLoading] = useState(false)
-  const [selectedCamionKilometraje, setSelectedCamionKilometraje] = useState<Camion | null>(null)
-  const [kilometrajeFormData, setKilometrajeFormData] = useState<any>({})
-  const [historialKilometraje, setHistorialKilometraje] = useState<any[]>([])
-  const [loadingHistorial, setLoadingHistorial] = useState(false)
-  const [historialMantenimiento, setHistorialMantenimiento] = useState<any[]>([])
-  const [showKilometrajeForm, setShowKilometrajeForm] = useState(false)
-  const [showMantenimientoForm, setShowMantenimientoForm] = useState(false)
-  const [selectedCamionMantenimiento, setSelectedCamionMantenimiento] = useState<Camion | null>(null)
-  const [mantenimientoFormData, setMantenimientoFormData] = useState<any>({})
-  const [camionDetalle, setCamionDetalle] = useState<Camion | null>(null)
-  const [showDetallesCamion, setShowDetallesCamion] = useState(false)
-  const [editingRegistro, setEditingRegistro] = useState<any>(null)
-  const [editRegistroFormData, setEditRegistroFormData] = useState<any>({})
-  const [showEditRegistroForm, setShowEditRegistroForm] = useState(false)
-  const [editingRegistroMantenimiento, setEditingRegistroMantenimiento] = useState<any>(null)
-  const [editMantenimientoFormData, setEditMantenimientoFormData] = useState<any>({})
-  const [showEditMantenimientoForm, setShowEditMantenimientoForm] = useState(false)
-  const [loadingHistorialMantenimiento, setLoadingHistorialMantenimiento] = useState(false)
-  const [currentPageKilometraje, setCurrentPageKilometraje] = useState(1)
-  const [recordsPerPageKilometraje, setRecordsPerPageKilometraje] = useState(10) // Default to 10 records per page
+  const [activeTab, setActiveTab] = useState("basica");
+  const [loading, setLoading] = useState(false);
+  const [selectedCamionKilometraje, setSelectedCamionKilometraje] =
+    useState<Camion | null>(null);
+  const [kilometrajeFormData, setKilometrajeFormData] = useState<any>({});
+  const [historialKilometraje, setHistorialKilometraje] = useState<any[]>([]);
+  const [loadingHistorial, setLoadingHistorial] = useState(false);
+  const [historialMantenimiento, setHistorialMantenimiento] = useState<any[]>(
+    []
+  );
+  const [showKilometrajeForm, setShowKilometrajeForm] = useState(false);
+  const [showMantenimientoForm, setShowMantenimientoForm] = useState(false);
+  const [selectedCamionMantenimiento, setSelectedCamionMantenimiento] =
+    useState<Camion | null>(null);
+  const [mantenimientoFormData, setMantenimientoFormData] = useState<any>({});
+  const [camionDetalle, setCamionDetalle] = useState<Camion | null>(null);
+  const [showDetallesCamion, setShowDetallesCamion] = useState(false);
+  const [editingRegistro, setEditingRegistro] = useState<any>(null);
+  const [editRegistroFormData, setEditRegistroFormData] = useState<any>({});
+  const [showEditRegistroForm, setShowEditRegistroForm] = useState(false);
+  const [editingRegistroMantenimiento, setEditingRegistroMantenimiento] =
+    useState<any>(null);
+  const [editMantenimientoFormData, setEditMantenimientoFormData] =
+    useState<any>({});
+  const [showEditMantenimientoForm, setShowEditMantenimientoForm] =
+    useState(false);
+  const [loadingHistorialMantenimiento, setLoadingHistorialMantenimiento] =
+    useState(false);
+  const [currentPageKilometraje, setCurrentPageKilometraje] = useState(1);
+  const [recordsPerPageKilometraje, setRecordsPerPageKilometraje] =
+    useState(10); // Default to 10 records per page
+
+  // Estados para la gestión de comentarios
+  const [newCommentText, setNewCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editedCommentText, setEditedCommentText] = useState("");
+
+  const handleAddComment = async () => {
+    if (!newCommentText.trim() || !camionDetalle) return;
+
+    const newComment: Comentario = {
+      id: uuidv4(),
+      text: newCommentText.trim(),
+      date: new Date().toISOString(),
+    };
+
+    let currentObservaciones: any = {};
+    try {
+      currentObservaciones = camionDetalle.observaciones
+        ? JSON.parse(camionDetalle.observaciones)
+        : {};
+    } catch (e) {
+      console.error("Error parsing observaciones:", e);
+    }
+
+    const updatedComments = [
+      ...(currentObservaciones.historial_comentarios || []),
+      newComment,
+    ];
+    const updatedObservaciones = {
+      ...currentObservaciones,
+      historial_comentarios: updatedComments,
+    };
+
+    try {
+      const { error } = await supabase
+        .from("camiones")
+        .update({
+          observaciones: JSON.stringify(updatedObservaciones),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", camionDetalle.id);
+
+      if (error) {
+        console.error("Error adding comment:", error);
+        alert("Error al agregar comentario.");
+      } else {
+        setCamionDetalle((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            observaciones: JSON.stringify(updatedObservaciones),
+          };
+        });
+        setNewCommentText("");
+        alert("Comentario agregado exitosamente.");
+      }
+    } catch (error) {
+      console.error("Error saving comment:", error);
+      alert("Error inesperado al guardar comentario.");
+    }
+  };
+
+  const handleEditComment = async (commentId: string) => {
+    if (!editedCommentText.trim() || !camionDetalle) return;
+
+    let currentObservaciones: any = {};
+    try {
+      currentObservaciones = camionDetalle.observaciones
+        ? JSON.parse(camionDetalle.observaciones)
+        : {};
+    } catch (e) {
+      console.error("Error parsing observaciones:", e);
+    }
+
+    const updatedComments = (
+      currentObservaciones.historial_comentarios || []
+    ).map((comment: Comentario) =>
+      comment.id === commentId
+        ? { ...comment, text: editedCommentText.trim() }
+        : comment
+    );
+
+    const updatedObservaciones = {
+      ...currentObservaciones,
+      historial_comentarios: updatedComments,
+    };
+
+    try {
+      const { error } = await supabase
+        .from("camiones")
+        .update({
+          observaciones: JSON.stringify(updatedObservaciones),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", camionDetalle.id);
+
+      if (error) {
+        console.error("Error editing comment:", error);
+        alert("Error al editar comentario.");
+      } else {
+        setCamionDetalle((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            observaciones: JSON.stringify(updatedObservaciones),
+          };
+        });
+        setEditingCommentId(null);
+        setEditedCommentText("");
+        alert("Comentario editado exitosamente.");
+      }
+    } catch (error) {
+      console.error("Error saving edited comment:", error);
+      alert("Error inesperado al guardar comentario editado.");
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (
+      !camionDetalle ||
+      !confirm("¿Estás seguro de eliminar este comentario?")
+    )
+      return;
+
+    let currentObservaciones: any = {};
+    try {
+      currentObservaciones = camionDetalle.observaciones
+        ? JSON.parse(camionDetalle.observaciones)
+        : {};
+    } catch (e) {
+      console.error("Error parsing observaciones:", e);
+    }
+
+    const updatedComments = (
+      currentObservaciones.historial_comentarios || []
+    ).filter((comment: Comentario) => comment.id !== commentId);
+
+    const updatedObservaciones = {
+      ...currentObservaciones,
+      historial_comentarios: updatedComments,
+    };
+
+    try {
+      const { error } = await supabase
+        .from("camiones")
+        .update({
+          observaciones: JSON.stringify(updatedObservaciones),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", camionDetalle.id);
+
+      if (error) {
+        console.error("Error deleting comment:", error);
+        alert("Error al eliminar comentario.");
+      } else {
+        setCamionDetalle((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            observaciones: JSON.stringify(updatedObservaciones),
+          };
+        });
+        alert("Comentario eliminado exitosamente.");
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+      alert("Error inesperado al eliminar comentario.");
+    }
+  };
 
   const eliminarCamion = async (id: string) => {
     try {
       // Obtener información del camión
-      const camion = camiones.find((c) => c.id === id)
+      const camion = camiones.find((c) => c.id === id);
       if (!camion) {
-        alert("Camión no encontrado")
-        return
+        alert("Camión no encontrado");
+        return;
       }
 
       // 1. Verificar si el camión está siendo usado en embarques ACTIVOS
@@ -168,40 +392,46 @@ export default function CamionesPage() {
         .from("embarques")
         .select("id, folio, estado")
         .eq("camion_id", id)
-        .in("estado", ["pendiente", "en-transito", "en-proceso", "asignado"])
+        .in("estado", ["pendiente", "en-transito", "en-proceso", "asignado"]);
 
       if (errorEmbarques) {
-        console.error("Error verificando embarques:", errorEmbarques)
-        alert("Error al verificar si el camión está en uso")
-        return
+        console.error("Error verificando embarques:", errorEmbarques);
+        alert("Error al verificar si el camión está en uso");
+        return;
       }
 
       if (embarquesActivos && embarquesActivos.length > 0) {
-        const folios = embarquesActivos.map((e) => e.folio).join(", ")
+        const folios = embarquesActivos.map((e) => e.folio).join(", ");
         alert(
-          `❌ NO SE PUEDE ELIMINAR\n\nEl camión ${camion.numero_economico} está asignado a ${embarquesActivos.length} embarque(s) activo(s):\n${folios}\n\n🔄 ACCIÓN REQUERIDA:\nPrimero debes reasignar estos embarques a otro camión o completar/cancelar los embarques antes de poder eliminar esta unidad.`,
-        )
-        return
+          `❌ NO SE PUEDE ELIMINAR\n\nEl camión ${camion.numero_economico} está asignado a ${embarquesActivos.length} embarque(s) activo(s):\n${folios}\n\n🔄 ACCIÓN REQUERIDA:\nPrimero debes reasignar estos embarques a otro camión o completar/cancelar los embarques antes de poder eliminar esta unidad.`
+        );
+        return;
       }
       // Validación adicional: impedir eliminar si hay embarques no archivados
-      const { data: embarquesNoArchivados, error: errorNoArchivados } = await supabase
-        .from("embarques")
-        .select("id, folio, estado_facturacion")
-        .eq("camion_id", id)
-        .not("estado_facturacion", "eq", "archivado")
+      const { data: embarquesNoArchivados, error: errorNoArchivados } =
+        await supabase
+          .from("embarques")
+          .select("id, folio, estado_facturacion")
+          .eq("camion_id", id)
+          .not("estado_facturacion", "eq", "archivado");
 
       if (errorNoArchivados) {
-        console.error("Error verificando embarques no archivados:", errorNoArchivados)
-        alert("Error al verificar embarques no archivados")
-        return
+        console.error(
+          "Error verificando embarques no archivados:",
+          errorNoArchivados
+        );
+        alert("Error al verificar embarques no archivados");
+        return;
       }
 
       if (embarquesNoArchivados && embarquesNoArchivados.length > 0) {
-        const foliosNoArchivados = embarquesNoArchivados.map((e) => e.folio).join(", ")
+        const foliosNoArchivados = embarquesNoArchivados
+          .map((e) => e.folio)
+          .join(", ");
         alert(
-          `❌ NO SE PUEDE ELIMINAR\n\nEl camión ${camion.numero_economico} tiene embarques que aún no están archivados en facturación y cobranza:\n${foliosNoArchivados}\n\n🔄 ACCIÓN REQUERIDA:\nDebes archivar estos embarques antes de poder eliminar esta unidad.`,
-        )
-        return
+          `❌ NO SE PUEDE ELIMINAR\n\nEl camión ${camion.numero_economico} tiene embarques que aún no están archivados en facturación y cobranza:\n${foliosNoArchivados}\n\n🔄 ACCIÓN REQUERIDA:\nDebes archivar estos embarques antes de poder eliminar esta unidad.`
+        );
+        return;
       }
 
       // 2. Verificar si el camión NO está marcado como "fuera-de-servicio"
@@ -209,11 +439,11 @@ export default function CamionesPage() {
         const confirmarCambioEstado = confirm(
           `⚠️ CAMBIO DE ESTADO REQUERIDO\n\nEl camión ${
             camion.numero_economico
-          } debe estar marcado como "Fuera de Servicio" antes de poder eliminarlo.\n\n📋 ESTADO ACTUAL: ${camion.estado.toUpperCase()}\n\n¿Deseas cambiar el estado a "Fuera de Servicio" ahora?\n\n(Después podrás proceder con la eliminación)`,
-        )
+          } debe estar marcado como "Fuera de Servicio" antes de poder eliminarlo.\n\n📋 ESTADO ACTUAL: ${camion.estado.toUpperCase()}\n\n¿Deseas cambiar el estado a "Fuera de Servicio" ahora?\n\n(Después podrás proceder con la eliminación)`
+        );
 
         if (!confirmarCambioEstado) {
-          return
+          return;
         }
 
         // Cambiar estado a fuera de servicio
@@ -223,123 +453,136 @@ export default function CamionesPage() {
             estado: "fuera-de-servicio",
             updated_at: new Date().toISOString(),
           })
-          .eq("id", id)
+          .eq("id", id);
 
         if (errorCambioEstado) {
-          console.error("Error cambiando estado:", errorCambioEstado)
-          alert("Error al cambiar el estado del camión")
-          return
+          console.error("Error cambiando estado:", errorCambioEstado);
+          alert("Error al cambiar el estado del camión");
+          return;
         }
 
         alert(
-          `✅ ESTADO ACTUALIZADO\n\nEl camión ${camion.numero_economico} ha sido marcado como "Fuera de Servicio".\n\n🗑️ Ahora puedes eliminarlo definitivamente si es necesario usando nuevamente el botón de eliminar.`,
-        )
+          `✅ ESTADO ACTUALIZADO\n\nEl camión ${camion.numero_economico} ha sido marcado como "Fuera de Servicio".\n\n🗑️ Ahora puedes eliminarlo definitivamente si es necesario usando nuevamente el botón de eliminar.`
+        );
 
-        await cargarCamiones() // Recargar la lista para mostrar el nuevo estado
-        return
+        await cargarCamiones(); // Recargar la lista para mostrar el nuevo estado
+        return;
       }
 
       // 3. Verificar embarques completados/históricos
-      const { data: embarquesHistoricos, error: errorHistoricos } = await supabase
-        .from("embarques")
-        .select("id")
-        .eq("camion_id", id)
+      const { data: embarquesHistoricos, error: errorHistoricos } =
+        await supabase.from("embarques").select("id").eq("camion_id", id);
 
       if (errorHistoricos) {
-        console.error("Error verificando embarques históricos:", errorHistoricos)
+        console.error(
+          "Error verificando embarques históricos:",
+          errorHistoricos
+        );
       }
 
       // 4. Verificar registros de kilometraje
-      let tieneRegistrosKilometraje = false
+      let tieneRegistrosKilometraje = false;
       if (registrosKilometrajeTableExists) {
         try {
           const { data: registrosKm, error: errorKm } = await supabase
             .from("registros_kilometraje")
             .select("id")
             .eq("camion_id", id)
-            .limit(1)
+            .limit(1);
 
           if (!errorKm && registrosKm && registrosKm.length > 0) {
-            tieneRegistrosKilometraje = true
+            tieneRegistrosKilometraje = true;
           }
         } catch (error) {
-          console.log("Error verificando registros de kilometraje:", error)
+          console.log("Error verificando registros de kilometraje:", error);
         }
       }
 
       // 5. Verificar registros de mantenimiento
-      let tieneRegistrosMantenimiento = false
+      let tieneRegistrosMantenimiento = false;
       if (registrosMantenimientoTableExists) {
         try {
           const { data: registrosMant, error: errorMant } = await supabase
             .from("registros_mantenimiento")
             .select("id")
             .eq("camion_id", id)
-            .limit(1)
+            .limit(1);
 
           if (!errorMant && registrosMant && registrosMant.length > 0) {
-            tieneRegistrosMantenimiento = true
+            tieneRegistrosMantenimiento = true;
           }
         } catch (error) {
-          console.log("Error verificando registros de mantenimiento:", error)
+          console.log("Error verificando registros de mantenimiento:", error);
         }
       }
 
       // 6. Verificar recordatorios relacionados
-      const { data: recordatoriosRelacionados, error: errorRecordatorios } = await supabase
-        .from("recordatorios")
-        .select("id, titulo, estado")
-        .eq("camion_id", id)
+      const { data: recordatoriosRelacionados, error: errorRecordatorios } =
+        await supabase
+          .from("recordatorios")
+          .select("id, titulo, estado")
+          .eq("camion_id", id);
 
       if (errorRecordatorios) {
-        console.error("Error verificando recordatorios:", errorRecordatorios)
+        console.error("Error verificando recordatorios:", errorRecordatorios);
       }
 
       // 7. Construir mensaje de advertencia final con todos los datos que se eliminarán
-      let mensajeAdvertencia = `🚨 ADVERTENCIA - ELIMINACIÓN DEFINITIVA\n\n`
-      mensajeAdvertencia += `Estás a punto de ELIMINAR PERMANENTEMENTE el camión:\n`
-      mensajeAdvertencia += `🚛 ${camion.numero_economico} - ${camion.marca} ${camion.modelo}\n\n`
+      let mensajeAdvertencia = `🚨 ADVERTENCIA - ELIMINACIÓN DEFINITIVA\n\n`;
+      mensajeAdvertencia += `Estás a punto de ELIMINAR PERMANENTEMENTE el camión:\n`;
+      mensajeAdvertencia += `🚛 ${camion.numero_economico} - ${camion.marca} ${camion.modelo}\n\n`;
 
-      mensajeAdvertencia += `📊 DATOS QUE SE ELIMINARÁN:\n`
+      mensajeAdvertencia += `📊 DATOS QUE SE ELIMINARÁN:\n`;
 
       if (embarquesHistoricos && embarquesHistoricos.length > 0) {
-        mensajeAdvertencia += `• ${embarquesHistoricos.length} embarque(s) histórico(s)\n`
+        mensajeAdvertencia += `• ${embarquesHistoricos.length} embarque(s) histórico(s)\n`;
       }
 
       if (tieneRegistrosKilometraje) {
-        mensajeAdvertencia += `• Historial completo de kilometraje y viajes\n`
+        mensajeAdvertencia += `• Historial completo de kilometraje y viajes\n`;
       }
 
       if (tieneRegistrosMantenimiento) {
-        mensajeAdvertencia += `• Historial completo de mantenimientos\n`
+        mensajeAdvertencia += `• Historial completo de mantenimientos\n`;
       }
 
       if (recordatoriosRelacionados && recordatoriosRelacionados.length > 0) {
-        const pendientes = recordatoriosRelacionados.filter((r) => r.estado === "pendiente").length
-        mensajeAdvertencia += `• ${recordatoriosRelacionados.length} recordatorio(s) (${pendientes} pendientes)\n`
+        const pendientes = recordatoriosRelacionados.filter(
+          (r) => r.estado === "pendiente"
+        ).length;
+        mensajeAdvertencia += `• ${recordatoriosRelacionados.length} recordatorio(s) (${pendientes} pendientes)\n`;
       }
 
-      mensajeAdvertencia += `• Toda la información técnica y documentos\n\n`
-      mensajeAdvertencia += `⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER\n\n`
-      mensajeAdvertencia += `¿Estás COMPLETAMENTE SEGURO de que deseas eliminar esta unidad y todos sus datos asociados?`
+      mensajeAdvertencia += `• Toda la información técnica y documentos\n\n`;
+      mensajeAdvertencia += `⚠️ ESTA ACCIÓN NO SE PUEDE DESHACER\n\n`;
+      mensajeAdvertencia += `¿Estás COMPLETAMENTE SEGURO de que deseas eliminar esta unidad y todos sus datos asociados?`;
 
-      const confirmarEliminacionFinal = confirm(mensajeAdvertencia)
+      const confirmarEliminacionFinal = confirm(mensajeAdvertencia);
 
       if (!confirmarEliminacionFinal) {
-        return
+        return;
       }
 
       // 8. Proceder con la eliminación en orden correcto
-      console.log("Iniciando eliminación completa del camión:", camion.numero_economico)
+      console.log(
+        "Iniciando eliminación completa del camión:",
+        camion.numero_economico
+      );
 
       // Eliminar registros de kilometraje
       if (tieneRegistrosKilometraje) {
-        const { error: errorEliminandoKm } = await supabase.from("registros_kilometraje").delete().eq("camion_id", id)
+        const { error: errorEliminandoKm } = await supabase
+          .from("registros_kilometraje")
+          .delete()
+          .eq("camion_id", id);
 
         if (errorEliminandoKm) {
-          console.error("Error eliminando registros de kilometraje:", errorEliminandoKm)
-          alert("Error al eliminar registros de kilometraje")
-          return
+          console.error(
+            "Error eliminando registros de kilometraje:",
+            errorEliminandoKm
+          );
+          alert("Error al eliminar registros de kilometraje");
+          return;
         }
       }
 
@@ -348,12 +591,15 @@ export default function CamionesPage() {
         const { error: errorEliminandoMant } = await supabase
           .from("registros_mantenimiento")
           .delete()
-          .eq("camion_id", id)
+          .eq("camion_id", id);
 
         if (errorEliminandoMant) {
-          console.error("Error eliminando registros de mantenimiento:", errorEliminandoMant)
-          alert("Error al eliminar registros de mantenimiento")
-          return
+          console.error(
+            "Error eliminando registros de mantenimiento:",
+            errorEliminandoMant
+          );
+          alert("Error al eliminar registros de mantenimiento");
+          return;
         }
       }
 
@@ -362,66 +608,78 @@ export default function CamionesPage() {
         const { error: errorEliminandoRecordatorios } = await supabase
           .from("recordatorios")
           .delete()
-          .eq("camion_id", id)
+          .eq("camion_id", id);
 
         if (errorEliminandoRecordatorios) {
-          console.error("Error eliminando recordatorios:", errorEliminandoRecordatorios)
-          alert("Error al eliminar recordatorios relacionados")
-          return
+          console.error(
+            "Error eliminando recordatorios:",
+            errorEliminandoRecordatorios
+          );
+          alert("Error al eliminar recordatorios relacionados");
+          return;
         }
       }
 
       // Eliminar embarques históricos
       if (embarquesHistoricos && embarquesHistoricos.length > 0) {
-        const { error: errorEliminandoEmbarques } = await supabase.from("embarques").delete().eq("camion_id", id)
+        const { error: errorEliminandoEmbarques } = await supabase
+          .from("embarques")
+          .delete()
+          .eq("camion_id", id);
 
         if (errorEliminandoEmbarques) {
-          console.error("Error eliminando embarques históricos:", errorEliminandoEmbarques)
-          alert("Error al eliminar embarques relacionados")
-          return
+          console.error(
+            "Error eliminando embarques históricos:",
+            errorEliminandoEmbarques
+          );
+          alert("Error al eliminar embarques relacionados");
+          return;
         }
       }
 
       // Finally, eliminar el camión
-      const { error } = await supabase.from("camiones").delete().eq("id", id)
+      const { error } = await supabase.from("camiones").delete().eq("id", id);
 
       if (error) {
-        console.error("Error eliminando camión:", error)
-        alert("Error al eliminar el camión")
-        return
+        console.error("Error eliminando camión:", error);
+        alert("Error al eliminar el camión");
+        return;
       }
 
       // Mensaje de confirmación
-      let mensajeExito = `✅ ELIMINACIÓN COMPLETADA\n\n`
-      mensajeExito += `El camión ${camion.numero_economico} ha sido eliminado exitosamente junto con:\n`
+      let mensajeExito = `✅ ELIMINACIÓN COMPLETADA\n\n`;
+      mensajeExito += `El camión ${camion.numero_economico} ha sido eliminado exitosamente junto con:\n`;
 
       if (embarquesHistoricos && embarquesHistoricos.length > 0) {
-        mensajeExito += `• ${embarquesHistoricos.length} embarque(s) histórico(s)\n`
+        mensajeExito += `• ${embarquesHistoricos.length} embarque(s) histórico(s)\n`;
       }
       if (tieneRegistrosKilometraje) {
-        mensajeExito += `• Historial de kilometraje\n`
+        mensajeExito += `• Historial de kilometraje\n`;
       }
       if (tieneRegistrosMantenimiento) {
-        mensajeExito += `• Historial de mantenimientos\n`
+        mensajeExito += `• Historial de mantenimientos\n`;
       }
       if (recordatoriosRelacionados && recordatoriosRelacionados.length > 0) {
-        mensajeExito += `• ${recordatoriosRelacionados.length} recordatorio(s)\n`
+        mensajeExito += `• ${recordatoriosRelacionados.length} recordatorio(s)\n`;
       }
 
-      alert(mensajeExito)
-      await cargarCamiones() // Recargar la lista
+      alert(mensajeExito);
+      await cargarCamiones(); // Recargar la lista
     } catch (error) {
-      console.error("Error en eliminación:", error)
-      alert("Error inesperado al eliminar el camión")
+      console.error("Error en eliminación:", error);
+      alert("Error inesperado al eliminar el camión");
     }
-  }
+  };
 
   const cambiarEstadoFueraServicio = async (id: string) => {
     try {
-      const camion = camiones.find((c) => c.id === id)
-      if (!camion) return
+      const camion = camiones.find((c) => c.id === id);
+      if (!camion) return;
 
-      const nuevoEstado = camion.estado === "fuera-de-servicio" ? "disponible" : "fuera-de-servicio"
+      const nuevoEstado =
+        camion.estado === "fuera-de-servicio"
+          ? "disponible"
+          : "fuera-de-servicio";
 
       const { error } = await supabase
         .from("camiones")
@@ -429,33 +687,40 @@ export default function CamionesPage() {
           estado: nuevoEstado,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", id)
+        .eq("id", id);
 
       if (error) {
-        console.error("Error cambiando estado:", error)
-        alert("Error al cambiar estado del camión")
-        return
+        console.error("Error cambiando estado:", error);
+        alert("Error al cambiar estado del camión");
+        return;
       }
 
       alert(
         `Camión ${camion.numero_economico} ${
-          nuevoEstado === "fuera-de-servicio" ? "marcado como fuera de servicio" : "reactivado"
-        }`,
-      )
-      await cargarCamiones() // Recargar la lista
+          nuevoEstado === "fuera-de-servicio"
+            ? "marcado como fuera de servicio"
+            : "reactivado"
+        }`
+      );
+      await cargarCamiones(); // Recargar la lista
     } catch (error) {
-      console.error("Error:", error)
-      alert("Error al cambiar estado del camión")
+      console.error("Error:", error);
+      alert("Error al cambiar estado del camión");
     }
-  }
+  };
 
   const camionesFiltrados = camiones.filter(
     (camion) =>
-      camion.numero_economico.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (camion.marca && camion.marca.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (camion.modelo && camion.modelo.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (camion.placas && camion.placas.toLowerCase().includes(searchTerm.toLowerCase())),
-  )
+      camion.numero_economico
+        .toLowerCase()
+        .includes(searchTerm.toLowerCase()) ||
+      (camion.marca &&
+        camion.marca.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (camion.modelo &&
+        camion.modelo.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (camion.placas &&
+        camion.placas.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
 
   const getEstadoBadge = (estado: string) => {
     const estados = {
@@ -469,28 +734,36 @@ export default function CamionesPage() {
         color: "bg-red-100 text-red-800",
         label: "Fuera de Servicio",
       },
-    }
+    };
 
     const estadoInfo = estados[estado as keyof typeof estados] || {
       color: "bg-gray-100 text-gray-800",
       label: estado,
-    }
+    };
 
-    return <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>{estadoInfo.label}</Badge>
-  }
+    return (
+      <Badge className={`${estadoInfo.color} hover:${estadoInfo.color}`}>
+        {estadoInfo.label}
+      </Badge>
+    );
+  };
 
   const verificarVencimientos = (camion: Camion) => {
-    const alertas = []
+    const alertas = [];
 
     if (camion.observaciones) {
       try {
-        const datos = JSON.parse(camion.observaciones)
+        const datos = JSON.parse(camion.observaciones);
 
         // Verificar seguro mexicano
         if (datos.fecha_vencimiento_seguro_mexicano) {
-          const fechaVencimiento = new Date(datos.fecha_vencimiento_seguro_mexicano)
-          const hoy = new Date()
-          const diasRestantes = Math.ceil((fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+          const fechaVencimiento = new Date(
+            datos.fecha_vencimiento_seguro_mexicano
+          );
+          const hoy = new Date();
+          const diasRestantes = Math.ceil(
+            (fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+          );
 
           if (diasRestantes <= 30) {
             alertas.push({
@@ -500,17 +773,23 @@ export default function CamionesPage() {
               fecha: fechaVencimiento.toLocaleDateString(),
               mensaje:
                 diasRestantes <= 0
-                  ? `Seguro Mexicano vencido hace ${Math.abs(diasRestantes)} días`
+                  ? `Seguro Mexicano vencido hace ${Math.abs(
+                      diasRestantes
+                    )} días`
                   : `Seguro Mexicano vence en ${diasRestantes} días`,
-            })
+            });
           }
         }
 
         // Verificar seguro americano
         if (datos.fecha_vencimiento_seguro_americano) {
-          const fechaVencimiento = new Date(datos.fecha_vencimiento_seguro_americano)
-          const hoy = new Date()
-          const diasRestantes = Math.ceil((fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+          const fechaVencimiento = new Date(
+            datos.fecha_vencimiento_seguro_americano
+          );
+          const hoy = new Date();
+          const diasRestantes = Math.ceil(
+            (fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
+          );
 
           if (diasRestantes <= 30) {
             alertas.push({
@@ -520,17 +799,22 @@ export default function CamionesPage() {
               fecha: fechaVencimiento.toLocaleDateString(),
               mensaje:
                 diasRestantes <= 0
-                  ? `Seguro Americano vencido hace ${Math.abs(diasRestantes)} días`
+                  ? `Seguro Americano vencido hace ${Math.abs(
+                      diasRestantes
+                    )} días`
                   : `Seguro Americano vence en ${diasRestantes} días`,
-            })
+            });
           }
         }
 
         // Verificar verificación
         if (datos.frecuencia_verificacion) {
-          const proximaVerificacion = new Date(datos.frecuencia_verificacion)
-          const hoy = new Date()
-          const diasRestantes = Math.ceil((proximaVerificacion.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+          const proximaVerificacion = new Date(datos.frecuencia_verificacion);
+          const hoy = new Date();
+          const diasRestantes = Math.ceil(
+            (proximaVerificacion.getTime() - hoy.getTime()) /
+              (1000 * 60 * 60 * 24)
+          );
 
           if (diasRestantes <= 15) {
             alertas.push({
@@ -542,7 +826,7 @@ export default function CamionesPage() {
                 diasRestantes <= 0
                   ? `Verificación vencida hace ${Math.abs(diasRestantes)} días`
                   : `Verificación en ${Math.abs(diasRestantes)} días`,
-            })
+            });
           }
         }
       } catch (error) {
@@ -550,16 +834,25 @@ export default function CamionesPage() {
       }
     }
 
-    return alertas
-  }
+    return alertas;
+  };
 
   const descargarExcel = () => {
     if (camiones.length === 0) {
-      alert("No hay camiones para descargar")
-      return
+      alert("No hay camiones para descargar");
+      return;
     }
 
-    const headers = ["Número Económico", "Marca", "Modelo", "Año", "Placas", "Kilometraje", "Estado", "Fecha Registro"]
+    const headers = [
+      "Número Económico",
+      "Marca",
+      "Modelo",
+      "Año",
+      "Placas",
+      "Kilometraje",
+      "Estado",
+      "Fecha Registro",
+    ];
 
     const csvContent = [
       headers.join(","),
@@ -573,30 +866,33 @@ export default function CamionesPage() {
           `"${camion.kilometraje}"`,
           `"${camion.estado}"`,
           `"${camion.fecha_registro}"`,
-        ].join(","),
+        ].join(",")
       ),
-    ].join("\n")
+    ].join("\n");
 
     const blob = new Blob(["\ufeff" + csvContent], {
       type: "text/csv;charset=utf-8;",
-    })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    link.setAttribute("download", `camiones_${new Date().toISOString().split("T")[0]}.csv`)
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `camiones_${new Date().toISOString().split("T")[0]}.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   // Obtener marcas disponibles (de la BD o por defecto)
   const getMarcasDisponibles = () => {
     if (marcasTableExists && marcas.length > 0) {
-      return marcas.map((marca) => marca.nombre)
+      return marcas.map((marca) => marca.nombre);
     }
-    return marcasDefault
-  }
+    return marcasDefault;
+  };
 
   const limpiarFormularioKilometraje = () => {
     setKilometrajeFormData({
@@ -604,58 +900,76 @@ export default function CamionesPage() {
       tramo_recorrido: "",
       fecha_viaje: "",
       comentarios_viaje: "",
-    })
-    setSelectedCamionKilometraje(null)
-  }
+    });
+    setSelectedCamionKilometraje(null);
+  };
 
   const verificarTablaRegistrosKilometraje = async () => {
     try {
-      const { data, error } = await supabase.from("registros_kilometraje").select("id").limit(1)
+      const { data, error } = await supabase
+        .from("registros_kilometraje")
+        .select("id")
+        .limit(1);
 
       if (error) {
-        if (error.message.includes("does not exist") || error.code === "42P01") {
-          console.log("Tabla registros_kilometraje no existe")
-          setRegistrosKilometrajeTableExists(false)
+        if (
+          error.message.includes("does not exist") ||
+          error.code === "42P01"
+        ) {
+          console.log("Tabla registros_kilometraje no existe");
+          setRegistrosKilometrajeTableExists(false);
         } else {
-          console.error("Error verificando tabla registros_kilometraje:", error)
-          setRegistrosKilometrajeTableExists(false)
+          console.error(
+            "Error verificando tabla registros_kilometraje:",
+            error
+          );
+          setRegistrosKilometrajeTableExists(false);
         }
       } else {
-        setRegistrosKilometrajeTableExists(true)
+        setRegistrosKilometrajeTableExists(true);
       }
     } catch (error) {
-      console.error("Error en verificarTablaRegistrosKilometraje:", error)
-      setRegistrosKilometrajeTableExists(false)
+      console.error("Error en verificarTablaRegistrosKilometraje:", error);
+      setRegistrosKilometrajeTableExists(false);
     }
-  }
+  };
 
   const verificarTablaRegistrosMantenimiento = async () => {
     try {
-      const { data, error } = await supabase.from("registros_mantenimiento").select("id").limit(1)
+      const { data, error } = await supabase
+        .from("registros_mantenimiento")
+        .select("id")
+        .limit(1);
 
       if (error) {
-        if (error.message.includes("does not exist") || error.code === "42P01") {
-          console.log("Tabla registros_mantenimiento no existe")
-          setRegistrosMantenimientoTableExists(false)
+        if (
+          error.message.includes("does not exist") ||
+          error.code === "42P01"
+        ) {
+          console.log("Tabla registros_mantenimiento no existe");
+          setRegistrosMantenimientoTableExists(false);
         } else {
-          console.error("Error verificando tabla registros_mantenimiento:", error)
-          setRegistrosMantenimientoTableExists(false)
+          console.error(
+            "Error verificando tabla registros_mantenimiento:",
+            error
+          );
+          setRegistrosMantenimientoTableExists(false);
         }
       } else {
-        setRegistrosMantenimientoTableExists(true)
+        setRegistrosMantenimientoTableExists(true);
       }
     } catch (error) {
-      console.error("Error en verificarTablaRegistrosMantenimiento:", error)
-      setRegistrosMantenimientoTableExists(false)
+      console.error("Error en verificarTablaRegistrosMantenimiento:", error);
+      setRegistrosMantenimientoTableExists(false);
     }
-  }
+  };
 
   const guardarKilometraje = async () => {
     if (!registrosKilometrajeTableExists) {
       alert(
-        "La tabla de registros de kilometraje no existe. Por favor ejecuta el script de migración de base de datos.",
-      )
-      return
+        "La tabla de registros de kilometraje no existe. Por favor ejecuta el script de migración de base de datos."
+      );
+      return;
     }
 
     if (
@@ -664,17 +978,22 @@ export default function CamionesPage() {
       !kilometrajeFormData.tramo_recorrido ||
       !kilometrajeFormData.fecha_viaje
     ) {
-      alert("Por favor completa todos los campos obligatorios")
-      return
+      alert("Por favor completa todos los campos obligatorios");
+      return;
     }
 
     try {
-      const kilometrajeActual = Number.parseInt(kilometrajeFormData.kilometraje_actual)
-      const kilometrajeAgregado = kilometrajeActual - selectedCamionKilometraje.kilometraje
+      const kilometrajeActual = Number.parseInt(
+        kilometrajeFormData.kilometraje_actual
+      );
+      const kilometrajeAgregado =
+        kilometrajeActual - selectedCamionKilometraje.kilometraje;
 
       if (kilometrajeAgregado <= 0) {
-        alert("El kilometraje actual debe ser mayor al kilometraje anterior del camión")
-        return
+        alert(
+          "El kilometraje actual debe ser mayor al kilometraje anterior del camión"
+        );
+        return;
       }
 
       // Actualizar el kilometraje del camión
@@ -684,12 +1003,12 @@ export default function CamionesPage() {
           kilometraje: kilometrajeActual,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", selectedCamionKilometraje.id)
+        .eq("id", selectedCamionKilometraje.id);
 
       if (errorCamion) {
-        console.error("Error actualizando kilometraje:", errorCamion)
-        alert("Error al actualizar kilometraje del camión")
-        return
+        console.error("Error actualizando kilometraje:", errorCamion);
+        alert("Error al actualizar kilometraje del camión");
+        return;
       }
 
       // Crear registro de viaje
@@ -702,38 +1021,42 @@ export default function CamionesPage() {
         fecha_viaje: kilometrajeFormData.fecha_viaje,
         comentarios: kilometrajeFormData.comentarios_viaje,
         fecha_registro: new Date().toISOString(),
-      }
+      };
 
       // Intentar guardar en tabla de registros de viaje
-      const { error: errorViaje } = await supabase.from("registros_kilometraje").insert(registroViaje)
+      const { error: errorViaje } = await supabase
+        .from("registros_kilometraje")
+        .insert(registroViaje);
 
       if (errorViaje) {
-        console.log("Tabla de registros de kilometraje no existe, solo se actualizó el camión")
+        console.log(
+          "Tabla de registros de kilometraje no existe, solo se actualizó el camión"
+        );
       }
 
       // Verificar si se alcanzaron los 30,000 km para programar mantenimiento
-      const kilometrajeAnterior = selectedCamionKilometraje.kilometraje
-      const nuevoKilometrajeTotal = kilometrajeActual
+      const kilometrajeAnterior = selectedCamionKilometraje.kilometraje;
+      const nuevoKilometrajeTotal = kilometrajeActual;
 
       // Calcular en qué múltiplo de 30,000 estaba antes y en cuál está ahora
-      const multiploAnterior = Math.floor(kilometrajeAnterior / 30000)
-      const multiploNuevo = Math.floor(nuevoKilometrajeTotal / 30000)
+      const multiploAnterior = Math.floor(kilometrajeAnterior / 30000);
+      const multiploNuevo = Math.floor(nuevoKilometrajeTotal / 30000);
 
       // Si cambió de múltiplo, significa que cruzó una marca de 30,000 km
       if (multiploNuevo > multiploAnterior) {
-        const kilometrajeMeta = multiploNuevo * 30000
+        const kilometrajeMeta = multiploNuevo * 30000;
 
         // Mostrar popup de alerta inmediatamente
         const mensaje = `¡ATENCIÓN - MANTENIMIENTO REQUERIDO!\n\nEl camión ${
           selectedCamionKilometraje.numero_economico
-        } ha alcanzado ${kilometrajeMeta.toLocaleString()} kilómetros.\n\nSe ha programado automáticamente un recordatorio de mantenimiento que aparecerá en:\n• La sección de Recordatorios\n• Las notificaciones del sistema (campana)\n\n¿Desea continuar?`
+        } ha alcanzado ${kilometrajeMeta.toLocaleString()} kilómetros.\n\nSe ha programado automáticamente un recordatorio de mantenimiento que aparecerá en:\n• La sección de Recordatorios\n• Las notificaciones del sistema (campana)\n\n¿Desea continuar?`;
 
         if (confirm(mensaje)) {
           await programarMantenimientoPorKilometraje(
             selectedCamionKilometraje.id,
             selectedCamionKilometraje.numero_economico,
-            kilometrajeMeta,
-          )
+            kilometrajeMeta
+          );
         }
       }
 
@@ -741,7 +1064,7 @@ export default function CamionesPage() {
       setSelectedCamionKilometraje({
         ...selectedCamionKilometraje,
         kilometraje: kilometrajeActual,
-      })
+      });
 
       // Limpiar solo los campos del formulario, mantener el camión seleccionado
       setKilometrajeFormData({
@@ -749,29 +1072,29 @@ export default function CamionesPage() {
         tramo_recorrido: "",
         fecha_viaje: new Date().toISOString().split("T")[0],
         comentarios_viaje: "",
-      })
+      });
 
-      await cargarCamiones()
+      await cargarCamiones();
 
       // Recargar historial si estamos en la ventana de detalles
       if (camionDetalle && camionDetalle.id === selectedCamionKilometraje.id) {
-        await cargarHistorialKilometraje(selectedCamionKilometraje.id)
+        await cargarHistorialKilometraje(selectedCamionKilometraje.id);
       }
 
-      alert("Kilometraje registrado exitosamente")
+      alert("Kilometraje registrado exitosamente");
     } catch (error) {
-      console.error("Error guardando kilometraje:", error)
-      alert("Error al guardar kilometraje")
+      console.error("Error guardando kilometraje:", error);
+      alert("Error al guardar kilometraje");
     }
-  }
+  };
 
   const programarMantenimientoPorKilometraje = async (
     camionId: string,
     numeroEconomico: string,
-    kilometraje: number,
+    kilometraje: number
   ) => {
     try {
-      const fechaActual = new Date()
+      const fechaActual = new Date();
 
       const recordatorio = {
         titulo: `🔧 MANTENIMIENTO PROGRAMADO - Camión ${numeroEconomico}`,
@@ -781,84 +1104,96 @@ export default function CamionesPage() {
         prioridad: "alta",
         estado: "pendiente",
         camion_id: camionId,
-      }
+      };
 
-      const { error } = await supabase.from("recordatorios").insert(recordatorio)
+      const { error } = await supabase
+        .from("recordatorios")
+        .insert(recordatorio);
 
       if (error) {
-        console.error("Error creando recordatorio de mantenimiento:", error)
-        alert("Error al crear el recordatorio de mantenimiento")
+        console.error("Error creando recordatorio de mantenimiento:", error);
+        alert("Error al crear el recordatorio de mantenimiento");
       } else {
         // Mostrar confirmación de que se creó el recordatorio
         alert(
-          `✅ RECORDATORIO CREADO\n\nSe ha programado un recordatorio de mantenimiento para el camión ${numeroEconomico}.\n\nPodrás verlo en:\n• Sección Recordatorios\n• Notificaciones (campana) en el header`,
-        )
+          `✅ RECORDATORIO CREADO\n\nSe ha programado un recordatorio de mantenimiento para el camión ${numeroEconomico}.\n\nPodrás verlo en:\n• Sección Recordatorios\n• Notificaciones (campana) en el header`
+        );
       }
     } catch (error) {
-      console.error("Error programando mantenimiento:", error)
-      alert("Error al programar el mantenimiento")
+      console.error("Error programando mantenimiento:", error);
+      alert("Error al programar el mantenimiento");
     }
-  }
+  };
 
   const cargarHistorialKilometraje = async (camionId: string) => {
     try {
-      setLoadingHistorial(true)
+      setLoadingHistorial(true);
       const { data, error } = await supabase
         .from("registros_kilometraje")
         .select("*")
         .eq("camion_id", camionId)
-        .order("fecha_registro", { ascending: false })
+        .order("fecha_registro", { ascending: false });
 
       if (error) {
-        console.log("Tabla de registros de kilometraje no existe")
-        setHistorialKilometraje([])
+        console.log("Tabla de registros de kilometraje no existe");
+        setHistorialKilometraje([]);
       } else {
-        setHistorialKilometraje(data || [])
+        setHistorialKilometraje(data || []);
       }
     } catch (error) {
-      console.error("Error cargando historial:", error)
-      setHistorialKilometraje([])
+      console.error("Error cargando historial:", error);
+      setHistorialKilometraje([]);
     } finally {
-      setLoadingHistorial(false)
+      setLoadingHistorial(false);
     }
-  }
+  };
 
   const cargarHistorialMantenimiento = async (camionId: string) => {
     try {
-      setLoadingHistorialMantenimiento(true)
+      setLoadingHistorialMantenimiento(true);
       const { data, error } = await supabase
         .from("registros_mantenimiento")
         .select("*")
         .eq("camion_id", camionId)
-        .order("fecha_mantenimiento", { ascending: false })
+        .order("fecha_mantenimiento", { ascending: false });
 
       if (error) {
-        console.log("Tabla de registros de mantenimiento no existe")
-        setHistorialMantenimiento([])
+        console.log("Tabla de registros de mantenimiento no existe");
+        setHistorialMantenimiento([]);
       } else {
-        setHistorialMantenimiento(data || [])
+        setHistorialMantenimiento(data || []);
       }
     } catch (error) {
-      console.error("Error cargando historial de mantenimiento:", error)
-      setHistorialMantenimiento([])
+      console.error("Error cargando historial de mantenimiento:", error);
+      setHistorialMantenimiento([]);
     } finally {
-      setLoadingHistorialMantenimiento(false)
+      setLoadingHistorialMantenimiento(false);
     }
-  }
+  };
 
-  const eliminarRegistroKilometraje = async (registroId: string, camionId: string, kilometrajeEliminado: number) => {
+  const eliminarRegistroKilometraje = async (
+    registroId: string,
+    camionId: string,
+    kilometrajeEliminado: number
+  ) => {
     try {
-      const { error } = await supabase.from("registros_kilometraje").delete().eq("id", registroId)
+      const { error } = await supabase
+        .from("registros_kilometraje")
+        .delete()
+        .eq("id", registroId);
 
       if (error) {
-        alert("Error al eliminar registro")
-        return
+        alert("Error al eliminar registro");
+        return;
       }
 
       // Actualizar el kilometraje del camión restando el kilometraje eliminado
-      const camionActual = camiones.find((c) => c.id === camionId)
+      const camionActual = camiones.find((c) => c.id === camionId);
       if (camionActual) {
-        const nuevoKilometraje = Math.max(0, camionActual.kilometraje - kilometrajeEliminado)
+        const nuevoKilometraje = Math.max(
+          0,
+          camionActual.kilometraje - kilometrajeEliminado
+        );
 
         await supabase
           .from("camiones")
@@ -866,27 +1201,27 @@ export default function CamionesPage() {
             kilometraje: nuevoKilometraje,
             updated_at: new Date().toISOString(),
           })
-          .eq("id", camionId)
+          .eq("id", camionId);
       }
 
-      await cargarCamiones()
-      await cargarHistorialKilometraje(camionId)
+      await cargarCamiones();
+      await cargarHistorialKilometraje(camionId);
     } catch (error) {
-      console.error("Error eliminando registro:", error)
-      alert("Error al eliminar registro")
+      console.error("Error eliminando registro:", error);
+      alert("Error al eliminar registro");
     }
-  }
+  };
 
   const editarRegistroKilometraje = (registro: any) => {
-    setEditingRegistro(registro)
+    setEditingRegistro(registro);
     setEditRegistroFormData({
       kilometraje_agregado: registro.kilometraje_agregado?.toString() || "",
       tramo_recorrido: registro.tramo_recorrido || "",
       fecha_viaje: registro.fecha_viaje || "",
       comentarios_viaje: registro.comentarios || "",
-    })
-    setShowEditRegistroForm(true)
-  }
+    });
+    setShowEditRegistroForm(true);
+  };
 
   const guardarEdicionRegistro = async () => {
     if (
@@ -895,35 +1230,39 @@ export default function CamionesPage() {
       !editRegistroFormData.tramo_recorrido ||
       !editRegistroFormData.fecha_viaje
     ) {
-      alert("Por favor completa todos los campos obligatorios")
-      return
+      alert("Por favor completa todos los campos obligatorios");
+      return;
     }
 
     try {
-      const nuevoKilometrajeAgregado = Number.parseInt(editRegistroFormData.kilometraje_agregado)
-      const diferencia = nuevoKilometrajeAgregado - editingRegistro.kilometraje_agregado
+      const nuevoKilometrajeAgregado = Number.parseInt(
+        editRegistroFormData.kilometraje_agregado
+      );
+      const diferencia =
+        nuevoKilometrajeAgregado - editingRegistro.kilometraje_agregado;
 
       // Actualizar el registro
       const { error } = await supabase
         .from("registros_kilometraje")
         .update({
           kilometraje_agregado: nuevoKilometrajeAgregado,
-          kilometraje_nuevo: editingRegistro.kilometraje_anterior + nuevoKilometrajeAgregado,
+          kilometraje_nuevo:
+            editingRegistro.kilometraje_anterior + nuevoKilometrajeAgregado,
           tramo_recorrido: editRegistroFormData.tramo_recorrido,
           fecha_viaje: editRegistroFormData.fecha_viaje,
           comentarios: editRegistroFormData.comentarios_viaje,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", editingRegistro.id)
+        .eq("id", editingRegistro.id);
 
       if (error) {
-        alert("Error al actualizar registro")
-        return
+        alert("Error al actualizar registro");
+        return;
       }
 
       // Actualizar el kilometraje del camión
       if (camionDetalle && diferencia !== 0) {
-        const nuevoKilometrajeTotal = camionDetalle.kilometraje + diferencia
+        const nuevoKilometrajeTotal = camionDetalle.kilometraje + diferencia;
 
         await supabase
           .from("camiones")
@@ -931,41 +1270,41 @@ export default function CamionesPage() {
             kilometraje: Math.max(0, nuevoKilometrajeTotal),
             updated_at: new Date().toISOString(),
           })
-          .eq("id", camionDetalle.id)
+          .eq("id", camionDetalle.id);
       }
 
-      alert("Registro actualizado exitosamente")
-      setShowEditRegistroForm(false)
-      setEditingRegistro(null)
-      await cargarCamiones()
-      await cargarHistorialKilometraje(camionDetalle.id)
+      alert("Registro actualizado exitosamente");
+      setShowEditRegistroForm(false);
+      setEditingRegistro(null);
+      await cargarCamiones();
+      await cargarHistorialKilometraje(camionDetalle.id);
     } catch (error) {
-      console.error("Error actualizando registro:", error)
-      alert("Error al actualizar registro")
+      console.error("Error actualizando registro:", error);
+      alert("Error al actualizar registro");
     }
-  }
+  };
 
   const cancelarEdicionRegistro = () => {
-    setShowEditRegistroForm(false)
-    setEditingRegistro(null)
+    setShowEditRegistroForm(false);
+    setEditingRegistro(null);
     setEditRegistroFormData({
       kilometraje_agregado: "",
       tramo_recorrido: "",
       fecha_viaje: "",
       comentarios_viaje: "",
-    })
-  }
+    });
+  };
 
   const editarRegistroMantenimiento = (registro: any) => {
-    setEditingRegistroMantenimiento(registro)
+    setEditingRegistroMantenimiento(registro);
     setEditMantenimientoFormData({
       fecha_mantenimiento: registro.fecha_mantenimiento || "",
       tipo_mantenimiento: registro.tipo_mantenimiento || "",
       detalles_mantenimiento: registro.detalles_mantenimiento || "",
       proximo_mantenimiento: registro.proximo_mantenimiento || "",
-    })
-    setShowEditMantenimientoForm(true)
-  }
+    });
+    setShowEditMantenimientoForm(true);
+  };
 
   const guardarEdicionMantenimiento = async () => {
     if (
@@ -973,8 +1312,8 @@ export default function CamionesPage() {
       !editMantenimientoFormData.fecha_mantenimiento ||
       !editMantenimientoFormData.detalles_mantenimiento
     ) {
-      alert("Por favor completa los campos obligatorios: fecha y detalles")
-      return
+      alert("Por favor completa los campos obligatorios: fecha y detalles");
+      return;
     }
 
     try {
@@ -983,72 +1322,77 @@ export default function CamionesPage() {
         .update({
           fecha_mantenimiento: editMantenimientoFormData.fecha_mantenimiento,
           tipo_mantenimiento: editMantenimientoFormData.tipo_mantenimiento,
-          detalles_mantenimiento: editMantenimientoFormData.detalles_mantenimiento,
-          proximo_mantenimiento: editMantenimientoFormData.proximo_mantenimiento,
+          detalles_mantenimiento:
+            editMantenimientoFormData.detalles_mantenimiento,
+          proximo_mantenimiento:
+            editMantenimientoFormData.proximo_mantenimiento,
           updated_at: new Date().toISOString(),
         })
-        .eq("id", editingRegistroMantenimiento.id)
+        .eq("id", editingRegistroMantenimiento.id);
 
       if (error) {
-        alert("Error al actualizar registro de mantenimiento")
-        return
+        alert("Error al actualizar registro de mantenimiento");
+        return;
       }
 
-      alert("Registro de mantenimiento actualizado exitosamente")
-      setShowEditMantenimientoForm(false)
-      setEditingRegistroMantenimiento(null)
-      await cargarHistorialMantenimiento(camionDetalle.id)
+      alert("Registro de mantenimiento actualizado exitosamente");
+      setShowEditMantenimientoForm(false);
+      setEditingRegistroMantenimiento(null);
+      await cargarHistorialMantenimiento(camionDetalle.id);
     } catch (error) {
-      console.error("Error actualizando registro de mantenimiento:", error)
-      alert("Error al actualizar registro de mantenimiento")
+      console.error("Error actualizando registro de mantenimiento:", error);
+      alert("Error al actualizar registro de mantenimiento");
     }
-  }
+  };
 
   const cancelarEdicionMantenimiento = () => {
-    setShowEditMantenimientoForm(false)
-    setEditingRegistroMantenimiento(null)
+    setShowEditMantenimientoForm(false);
+    setEditingRegistroMantenimiento(null);
     setEditMantenimientoFormData({
       fecha_mantenimiento: "",
       tipo_mantenimiento: "",
       detalles_mantenimiento: "",
       proximo_mantenimiento: "",
-    })
-  }
+    });
+  };
 
   const eliminarRegistroMantenimiento = async (registroId: string) => {
     try {
-      const { error } = await supabase.from("registros_mantenimiento").delete().eq("id", registroId)
+      const { error } = await supabase
+        .from("registros_mantenimiento")
+        .delete()
+        .eq("id", registroId);
 
       if (error) {
-        alert("Error al eliminar registro de mantenimiento")
-        return
+        alert("Error al eliminar registro de mantenimiento");
+        return;
       }
 
-      alert("Registro de mantenimiento eliminado exitosamente")
-      await cargarHistorialMantenimiento(camionDetalle.id)
+      alert("Registro de mantenimiento eliminado exitosamente");
+      await cargarHistorialMantenimiento(camionDetalle.id);
     } catch (error) {
-      console.error("Error eliminando registro de mantenimiento:", error)
-      alert("Error al eliminar registro de mantenimiento")
+      console.error("Error eliminando registro de mantenimiento:", error);
+      alert("Error al eliminar registro de mantenimiento");
     }
-  }
+  };
 
   const seleccionarCamionKilometraje = (camion: Camion) => {
-    setSelectedCamionKilometraje(camion)
+    setSelectedCamionKilometraje(camion);
     setKilometrajeFormData({
       kilometraje_actual: "",
       tramo_recorrido: "",
       fecha_viaje: new Date().toISOString().split("T")[0],
       comentarios_viaje: "",
-    })
-  }
+    });
+  };
 
   const verDetallesCamion = (camion: Camion) => {
-    setCamionDetalle(camion)
-    setActiveTab("informacion") // Establecer pestaña inicial para detalles
-    setShowDetallesCamion(true)
-    cargarHistorialKilometraje(camion.id)
-    cargarHistorialMantenimiento(camion.id)
-  }
+    setCamionDetalle(camion);
+    setActiveTab("informacion"); // Establecer pestaña inicial para detalles
+    setShowDetallesCamion(true);
+    cargarHistorialKilometraje(camion.id);
+    cargarHistorialMantenimiento(camion.id);
+  };
 
   const limpiarFormularioMantenimiento = () => {
     setMantenimientoFormData({
@@ -1056,9 +1400,9 @@ export default function CamionesPage() {
       detalles_mantenimiento: "",
       proximo_mantenimiento: "",
       tipo_mantenimiento: "",
-    })
-    setSelectedCamionMantenimiento(null)
-  }
+    });
+    setSelectedCamionMantenimiento(null);
+  };
 
   const guardarMantenimiento = async () => {
     if (
@@ -1066,8 +1410,10 @@ export default function CamionesPage() {
       !mantenimientoFormData.fecha_mantenimiento ||
       !mantenimientoFormData.detalles_mantenimiento
     ) {
-      alert("Por favor completa los campos obligatorios: fecha de mantenimiento y detalles")
-      return
+      alert(
+        "Por favor completa los campos obligatorios: fecha de mantenimiento y detalles"
+      );
+      return;
     }
 
     try {
@@ -1076,21 +1422,26 @@ export default function CamionesPage() {
         const registroMantenimiento = {
           camion_id: selectedCamionMantenimiento.id,
           fecha_mantenimiento: mantenimientoFormData.fecha_mantenimiento,
-          tipo_mantenimiento: mantenimientoFormData.tipo_mantenimiento || "general",
+          tipo_mantenimiento:
+            mantenimientoFormData.tipo_mantenimiento || "general",
           detalles_mantenimiento: mantenimientoFormData.detalles_mantenimiento,
-          proximo_mantenimiento: mantenimientoFormData.proximo_mantenimiento || null,
+          proximo_mantenimiento:
+            mantenimientoFormData.proximo_mantenimiento || null,
           kilometraje_actual: selectedCamionMantenimiento.kilometraje,
           fecha_registro: new Date().toISOString(),
-        }
+        };
 
         const { error: errorMantenimiento } = await supabase
           .from("registros_mantenimiento")
-          .insert(registroMantenimiento)
+          .insert(registroMantenimiento);
 
         if (errorMantenimiento) {
-          console.error("Error guardando registro de mantenimiento:", errorMantenimiento)
-          alert("Error al guardar el registro de mantenimiento")
-          return
+          console.error(
+            "Error guardando registro de mantenimiento:",
+            errorMantenimiento
+          );
+          alert("Error al guardar el registro de mantenimiento");
+          return;
         }
       }
 
@@ -1105,15 +1456,17 @@ export default function CamionesPage() {
         prioridad: "media",
         estado: "completado",
         camion_id: selectedCamionMantenimiento.id,
-      }
+      };
 
-      await supabase.from("recordatorios").insert(recordatorioRealizado)
+      await supabase.from("recordatorios").insert(recordatorioRealizado);
 
       // Si hay fecha de próximo mantenimiento, crear recordatorio con aviso 2 semanas antes
       if (mantenimientoFormData.proximo_mantenimiento) {
-        const fechaProximoMantenimiento = new Date(mantenimientoFormData.proximo_mantenimiento)
-        const fechaRecordatorio = new Date(fechaProximoMantenimiento)
-        fechaRecordatorio.setDate(fechaRecordatorio.getDate() - 14) // 2 semanas antes
+        const fechaProximoMantenimiento = new Date(
+          mantenimientoFormData.proximo_mantenimiento
+        );
+        const fechaRecordatorio = new Date(fechaProximoMantenimiento);
+        fechaRecordatorio.setDate(fechaRecordatorio.getDate() - 14); // 2 semanas antes
 
         const recordatorioProximo = {
           titulo: `Próximo Mantenimiento - Camión ${selectedCamionMantenimiento.numero_economico}`,
@@ -1125,118 +1478,203 @@ export default function CamionesPage() {
           prioridad: "alta",
           estado: "pendiente",
           camion_id: selectedCamionMantenimiento.id,
-        }
+        };
 
-        await supabase.from("recordatorios").insert(recordatorioProximo)
+        await supabase.from("recordatorios").insert(recordatorioProximo);
       }
 
-      alert("Mantenimiento registrado exitosamente. Los recordatorios han sido creados.")
-      limpiarFormularioMantenimiento()
-      setShowMantenimientoForm(false)
+      alert(
+        "Mantenimiento registrado exitosamente. Los recordatorios han sido creados."
+      );
+      limpiarFormularioMantenimiento();
+      setShowMantenimientoForm(false);
 
       // Recargar historial de mantenimiento si estamos en la ventana de detalles
-      if (camionDetalle && camionDetalle.id === selectedCamionMantenimiento.id) {
-        await cargarHistorialMantenimiento(selectedCamionMantenimiento.id)
+      if (
+        camionDetalle &&
+        camionDetalle.id === selectedCamionMantenimiento.id
+      ) {
+        await cargarHistorialMantenimiento(selectedCamionMantenimiento.id);
       }
     } catch (error) {
-      console.error("Error guardando mantenimiento:", error)
-      alert("Error al guardar el mantenimiento")
+      console.error("Error guardando mantenimiento:", error);
+      alert("Error al guardar el mantenimiento");
     }
-  }
+  };
 
   const descargarExcelCamion = (camion: Camion) => {
     if (!camion) {
-      alert("No hay información del camión para descargar")
-      return
+      alert("No hay información del camión para descargar");
+      return;
     }
 
     // Preparar datos básicos del camión
-    let datosAdicionales = {}
+    let datosAdicionales: any = {};
     if (camion.observaciones) {
       try {
-        datosAdicionales = JSON.parse(camion.observaciones)
+        datosAdicionales = JSON.parse(camion.observaciones);
       } catch (error) {
-        console.log("No se pudieron parsear datos adicionales")
+        console.log("No se pudieron parsear datos adicionales");
       }
     }
 
     // Crear contenido CSV
-    const csvContent = []
+    const csvContent = [];
 
     // Información básica del camión
-    const x = 1
-    csvContent.push("INFORMACIÓN BÁSICA DEL CAMIÓN")
-    csvContent.push("Campo,Valor")
-    csvContent.push(`"Número Económico","${camion.numero_economico}"`)
-    csvContent.push(`"Marca","${camion.marca || "No especificado"}"`)
-    csvContent.push(`"Modelo","${camion.modelo || "No especificado"}"`)
-    csvContent.push(`"Año","${camion.año || "No especificado"}"`)
-    csvContent.push(`"Placas","${camion.placas || "No especificado"}"`)
-    csvContent.push(`"Kilometraje Actual","${camion.kilometraje.toLocaleString()} km"`)
-    csvContent.push(`"Estado","${camion.estado}"`)
-    csvContent.push(`"Fecha de Registro","${new Date(camion.fecha_registro).toLocaleDateString()}"`)
+    csvContent.push("INFORMACIÓN BÁSICA DEL CAMIÓN");
+    csvContent.push("Campo,Valor");
+    csvContent.push(`"Número Económico","${camion.numero_economico}"`);
+    csvContent.push(`"Marca","${camion.marca || "No especificado"}"`);
+    csvContent.push(`"Modelo","${camion.modelo || "No especificado"}"`);
+    csvContent.push(`"Año","${camion.año || "No especificado"}"`);
+    csvContent.push(`"Placas","${camion.placas || "No especificado"}"`);
+    csvContent.push(
+      `"Kilometraje Actual","${camion.kilometraje.toLocaleString()} km"`
+    );
+    csvContent.push(`"Estado","${camion.estado}"`);
+    csvContent.push(
+      `"Fecha de Registro","${new Date(
+        camion.fecha_registro
+      ).toLocaleDateString()}"`
+    );
 
     // Información adicional
     if (datosAdicionales.numero_serie) {
-      csvContent.push(`"Número de Serie","${datosAdicionales.numero_serie}"`)
+      csvContent.push(`"Número de Serie","${datosAdicionales.numero_serie}"`);
     }
-    if (datosAdicionales.poliza_seguro) {
-      csvContent.push(`"Póliza de Seguro","${datosAdicionales.poliza_seguro}"`)
-    }
-    if (datosAdicionales.fecha_vencimiento_seguro) {
+    if (datosAdicionales.poliza_seguro_mexicano) {
       csvContent.push(
-        `"Vencimiento Seguro","${new Date(datosAdicionales.fecha_vencimiento_seguro).toLocaleDateString()}"`,
-      )
+        `"Póliza de Seguro Mexicano","${datosAdicionales.poliza_seguro_mexicano}"`
+      );
+    }
+    if (datosAdicionales.fecha_vencimiento_seguro_mexicano) {
+      csvContent.push(
+        `"Vencimiento Seguro Mexicano","${new Date(
+          datosAdicionales.fecha_vencimiento_seguro_mexicano
+        ).toLocaleDateString()}"`
+      );
+    }
+    if (datosAdicionales.poliza_seguro_americano) {
+      csvContent.push(
+        `"Póliza de Seguro Americano","${datosAdicionales.poliza_seguro_americano}"`
+      );
+    }
+    if (datosAdicionales.fecha_vencimiento_seguro_americano) {
+      csvContent.push(
+        `"Vencimiento Seguro Americano","${new Date(
+          datosAdicionales.fecha_vencimiento_seguro_americano
+        ).toLocaleDateString()}"`
+      );
     }
     if (datosAdicionales.ultima_verificacion) {
-      csvContent.push(`"Última Verificación","${new Date(datosAdicionales.ultima_verificacion).toLocaleDateString()}"`)
+      csvContent.push(
+        `"Última Verificación","${new Date(
+          datosAdicionales.ultima_verificacion
+        ).toLocaleDateString()}"`
+      );
     }
     if (datosAdicionales.frecuencia_verificacion) {
       csvContent.push(
-        `"Próxima Verificación","${new Date(datosAdicionales.frecuencia_verificacion).toLocaleDateString()}"`,
-      )
+        `"Próxima Verificación","${new Date(
+          datosAdicionales.frecuencia_verificacion
+        ).toLocaleDateString()}"`
+      );
     }
-    if (datosAdicionales.comentarios) {
-      csvContent.push(`"Comentarios","${datosAdicionales.comentarios}"`)
+    if (datosAdicionales.tag_americano) {
+      csvContent.push(`"Tag Americano","${datosAdicionales.tag_americano}"`);
+    }
+    if (datosAdicionales.tag_mexicano) {
+      csvContent.push(`"Tag Mexicano","${datosAdicionales.tag_mexicano}"`);
+    }
+    if (datosAdicionales.numero_base) {
+      csvContent.push(`"Número de Base","${datosAdicionales.numero_base}"`);
+    }
+    if (
+      datosAdicionales.numeros_adicionales &&
+      datosAdicionales.numeros_adicionales.length > 0
+    ) {
+      datosAdicionales.numeros_adicionales.forEach((num: any) => {
+        csvContent.push(`"${num.nombre}","${num.numero}"`);
+      });
     }
 
-    csvContent.push("")
-    csvContent.push("")
+    csvContent.push("");
+    csvContent.push("");
+
+    // Historial de comentarios
+    csvContent.push("HISTORIAL DE COMENTARIOS");
+    if (
+      datosAdicionales.historial_comentarios &&
+      datosAdicionales.historial_comentarios.length > 0
+    ) {
+      csvContent.push("Fecha,Comentario");
+      datosAdicionales.historial_comentarios.forEach(
+        (comentario: Comentario) => {
+          csvContent.push(
+            `"${new Date(
+              comentario.date
+            ).toLocaleDateString()}","${comentario.text.replace(/"/g, '""')}"`
+          );
+        }
+      );
+    } else {
+      csvContent.push("No hay comentarios registrados");
+    }
+
+    csvContent.push("");
+    csvContent.push("");
 
     // Historial de kilometraje
-    csvContent.push("HISTORIAL DE KILOMETRAJE")
+    csvContent.push("HISTORIAL DE KILOMETRAJE");
     if (historialKilometraje.length > 0) {
-      csvContent.push("Fecha Viaje,Tramo Recorrido,Km Agregados,Km Anterior,Km Nuevo,Comentarios,Fecha Registro")
+      csvContent.push(
+        "Fecha Viaje,Tramo Recorrido,Km Agregados,Km Anterior,Km Nuevo,Comentarios,Fecha Registro"
+      );
       historialKilometraje.forEach((registro) => {
         csvContent.push(
           [
-            `"${registro.fecha_viaje ? new Date(registro.fecha_viaje).toLocaleDateString() : "No especificado"}"`,
+            `"${
+              registro.fecha_viaje
+                ? new Date(registro.fecha_viaje).toLocaleDateString()
+                : "No especificado"
+            }"`,
             `"${registro.tramo_recorrido || "No especificado"}"`,
             `"${registro.kilometraje_agregado?.toLocaleString() || 0}"`,
             `"${registro.kilometraje_anterior?.toLocaleString() || 0}"`,
             `"${registro.kilometraje_nuevo?.toLocaleString() || 0}"`,
-            `"${registro.comentarios || "Sin comentarios"}"`,
+            `"${
+              registro.comentarios
+                ? registro.comentarios.replace(/"/g, '""')
+                : "Sin comentarios"
+            }"`,
             `"${new Date(registro.fecha_registro).toLocaleDateString()}"`,
-          ].join(","),
-        )
-      })
+          ].join(",")
+        );
+      });
     } else {
-      csvContent.push("No hay registros de kilometraje")
+      csvContent.push("No hay registros de kilometraje");
     }
 
-    csvContent.push("")
-    csvContent.push("")
+    csvContent.push("");
+    csvContent.push("");
 
     // Historial de mantenimiento
-    csvContent.push("HISTORIAL DE MANTENIMIENTO")
+    csvContent.push("HISTORIAL DE MANTENIMIENTO");
     if (historialMantenimiento.length > 0) {
-      csvContent.push("Fecha Mantenimiento,Tipo,Detalles,Próximo Mantenimiento,Kilometraje,Fecha Registro")
+      csvContent.push(
+        "Fecha Mantenimiento,Tipo,Detalles,Próximo Mantenimiento,Kilometraje,Fecha Registro"
+      );
       historialMantenimiento.forEach((registro) => {
         csvContent.push(
           [
             `"${new Date(registro.fecha_mantenimiento).toLocaleDateString()}"`,
             `"${registro.tipo_mantenimiento || "General"}"`,
-            `"${registro.detalles_mantenimiento || "Sin detalles"}"`,
+            `"${
+              registro.detalles_mantenimiento
+                ? registro.detalles_mantenimiento.replace(/"/g, '""')
+                : "Sin detalles"
+            }"`,
             `"${
               registro.proximo_mantenimiento
                 ? new Date(registro.proximo_mantenimiento).toLocaleDateString()
@@ -1244,26 +1682,31 @@ export default function CamionesPage() {
             }"`,
             `"${registro.kilometraje_actual?.toLocaleString() || 0} km"`,
             `"${new Date(registro.fecha_registro).toLocaleDateString()}"`,
-          ].join(","),
-        )
-      })
+          ].join(",")
+        );
+      });
     } else {
-      csvContent.push("No hay registros de mantenimiento")
+      csvContent.push("No hay registros de mantenimiento");
     }
 
     // Crear y descargar archivo
     const blob = new Blob(["\ufeff" + csvContent.join("\n")], {
       type: "text/csv;charset=utf-8;",
-    })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    link.setAttribute("download", `camion_${camion.numero_economico}_${new Date().toISOString().split("T")[0]}.csv`)
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
+    });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute(
+      "download",
+      `camion_${camion.numero_economico}_${
+        new Date().toISOString().split("T")[0]
+      }.csv`
+    );
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   if (loading) {
     return (
@@ -1275,7 +1718,7 @@ export default function CamionesPage() {
           </div>
         </div>
       </MainLayout>
-    )
+    );
   }
 
   return (
@@ -1283,19 +1726,29 @@ export default function CamionesPage() {
       <div className="space-y-6">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gestión de Tractocamiones</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Gestión de Tractocamiones
+            </h1>
             <p className="text-gray-600 mt-2">Administrar flota de camiones</p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline" onClick={descargarExcel} disabled={camiones.length === 0}>
+            <Button
+              variant="outline"
+              onClick={descargarExcel}
+              disabled={camiones.length === 0}
+            >
               <Download className="h-4 w-4 mr-2" />
-              Descargar Excel
+              Descargar Reporte
             </Button>
             <Button
               variant="outline"
               onClick={() => setShowMarcasForm(true)}
               disabled={!marcasTableExists}
-              title={!marcasTableExists ? "Ejecuta el script de migración para habilitar esta función" : ""}
+              title={
+                !marcasTableExists
+                  ? "Ejecuta el script de migración para habilitar esta función"
+                  : ""
+              }
             >
               <Plus className="h-4 w-4 mr-2" />
               Gestionar Marcas
@@ -1306,15 +1759,18 @@ export default function CamionesPage() {
                   onClick={() => limpiarFormulario()}
                   className="bg-[#16A34A] hover:bg-[#12813a] text-white font-semibold"
                 >
-
                   <Plus className="h-4 w-4 mr-2" />
                   Nuevo Camión
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>{editingCamion ? "Editar Camión" : "Nuevo Camión"}</DialogTitle>
-                  <DialogDescription>Completa la información del camión</DialogDescription>
+                  <DialogTitle>
+                    {editingCamion ? "Editar Camión" : "Nuevo Camión"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Completa la información del camión
+                  </DialogDescription>
                 </DialogHeader>
 
                 <div className="w-full">
@@ -1368,7 +1824,9 @@ export default function CamionesPage() {
                       <div className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                           <div className="space-y-2">
-                            <Label htmlFor="numero_economico">Número Económico *</Label>
+                            <Label htmlFor="numero_economico">
+                              Número Económico *
+                            </Label>
                             <Input
                               id="numero_economico"
                               value={formData.numero_economico}
@@ -1385,7 +1843,9 @@ export default function CamionesPage() {
                             <Label htmlFor="marca">Marca *</Label>
                             <Select
                               value={formData.marca}
-                              onValueChange={(value) => setFormData({ ...formData, marca: value })}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, marca: value })
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleccionar marca" />
@@ -1434,7 +1894,9 @@ export default function CamionesPage() {
                             />
                           </div>
                           <div className="space-y-2">
-                            <Label htmlFor="numero_serie">Número de Serie</Label>
+                            <Label htmlFor="numero_serie">
+                              Número de Serie
+                            </Label>
                             <Input
                               id="numero_serie"
                               value={formData.numero_serie}
@@ -1489,26 +1951,36 @@ export default function CamionesPage() {
                                   ? "Kilometraje actual del camión"
                                   : "Kilometraje inicial del camión (opcional)"
                               }
-                              disabled={editingCamion && tieneRegistrosKilometraje}
+                              disabled={
+                                editingCamion && tieneRegistrosKilometraje
+                              }
                               className={
-                                editingCamion && tieneRegistrosKilometraje ? "bg-gray-100 cursor-not-allowed" : ""
+                                editingCamion && tieneRegistrosKilometraje
+                                  ? "bg-gray-100 cursor-not-allowed"
+                                  : ""
                               }
                             />
                             {editingCamion && tieneRegistrosKilometraje ? (
                               <p className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
-                                <strong>Bloqueado:</strong> No se puede modificar el kilometraje porque este camión ya
-                                tiene registros de viajes en la bitácora. Para cambiar el kilometraje inicial, primero
-                                elimina todos los registros de viajes desde la ventana de detalles del camión.
+                                <strong>Bloqueado:</strong> No se puede
+                                modificar el kilometraje porque este camión ya
+                                tiene registros de viajes en la bitácora. Para
+                                cambiar el kilometraje inicial, primero elimina
+                                todos los registros de viajes desde la ventana
+                                de detalles del camión.
                               </p>
                             ) : editingCamion ? (
                               <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded border border-blue-200">
-                                <strong>Editable:</strong> Este camión no tiene registros de viajes, por lo que puedes
-                                modificar su kilometraje actual.
+                                <strong>Editable:</strong> Este camión no tiene
+                                registros de viajes, por lo que puedes modificar
+                                su kilometraje actual.
                               </p>
                             ) : (
                               <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
-                                <strong>Importante:</strong> Una vez que registres viajes para este camión, no podrás
-                                modificar este valor inicial. Los registros de viajes se calcularán basándose en este
+                                <strong>Importante:</strong> Una vez que
+                                registres viajes para este camión, no podrás
+                                modificar este valor inicial. Los registros de
+                                viajes se calcularán basándose en este
                                 kilometraje de referencia.
                               </p>
                             )}
@@ -1517,16 +1989,24 @@ export default function CamionesPage() {
                             <Label htmlFor="estado">Estado</Label>
                             <Select
                               value={formData.estado}
-                              onValueChange={(value) => setFormData({ ...formData, estado: value })}
+                              onValueChange={(value) =>
+                                setFormData({ ...formData, estado: value })
+                              }
                             >
                               <SelectTrigger>
                                 <SelectValue placeholder="Seleccionar estado" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="disponible">Disponible</SelectItem>
+                                <SelectItem value="disponible">
+                                  Disponible
+                                </SelectItem>
                                 <SelectItem value="en-uso">En Uso</SelectItem>
-                                <SelectItem value="mantenimiento">Mantenimiento</SelectItem>
-                                <SelectItem value="fuera-de-servicio">Fuera de Servicio</SelectItem>
+                                <SelectItem value="mantenimiento">
+                                  Mantenimiento
+                                </SelectItem>
+                                <SelectItem value="fuera-de-servicio">
+                                  Fuera de Servicio
+                                </SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
@@ -1537,10 +2017,14 @@ export default function CamionesPage() {
                     {activeTab === "documentos" && (
                       <div className="space-y-6">
                         <div className="space-y-4">
-                          <h4 className="text-md font-medium text-gray-900">Verificación y Mantenimiento</h4>
+                          <h4 className="text-md font-medium text-gray-900">
+                            Verificación y Mantenimiento
+                          </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="ultima_verificacion">Última Verificación</Label>
+                              <Label htmlFor="ultima_verificacion">
+                                Última Verificación
+                              </Label>
                               <Input
                                 id="ultima_verificacion"
                                 type="date"
@@ -1554,7 +2038,9 @@ export default function CamionesPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="proxima_verificacion">Próxima Verificación</Label>
+                              <Label htmlFor="proxima_verificacion">
+                                Próxima Verificación
+                              </Label>
                               <Input
                                 id="proxima_verificacion"
                                 type="date"
@@ -1571,10 +2057,14 @@ export default function CamionesPage() {
                         </div>
 
                         <div className="space-y-4">
-                          <h4 className="text-md font-medium text-gray-900">Información del Seguro Mexicano</h4>
+                          <h4 className="text-md font-medium text-gray-900">
+                            Información del Seguro Mexicano
+                          </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="poliza_seguro_mexicano">Póliza de Seguro Mexicano</Label>
+                              <Label htmlFor="poliza_seguro_mexicano">
+                                Póliza de Seguro Mexicano
+                              </Label>
                               <Input
                                 id="poliza_seguro_mexicano"
                                 value={formData.poliza_seguro_mexicano}
@@ -1594,11 +2084,14 @@ export default function CamionesPage() {
                               <Input
                                 id="fecha_vencimiento_seguro_mexicano"
                                 type="date"
-                                value={formData.fecha_vencimiento_seguro_mexicano}
+                                value={
+                                  formData.fecha_vencimiento_seguro_mexicano
+                                }
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
-                                    fecha_vencimiento_seguro_mexicano: e.target.value,
+                                    fecha_vencimiento_seguro_mexicano:
+                                      e.target.value,
                                   })
                                 }
                               />
@@ -1607,10 +2100,14 @@ export default function CamionesPage() {
                         </div>
 
                         <div className="space-y-4">
-                          <h4 className="text-md font-medium text-gray-900">Información del Seguro Americano</h4>
+                          <h4 className="text-md font-medium text-gray-900">
+                            Información del Seguro Americano
+                          </h4>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="poliza_seguro_americano">Póliza de Seguro Americano</Label>
+                              <Label htmlFor="poliza_seguro_americano">
+                                Póliza de Seguro Americano
+                              </Label>
                               <Input
                                 id="poliza_seguro_americano"
                                 value={formData.poliza_seguro_americano}
@@ -1630,11 +2127,14 @@ export default function CamionesPage() {
                               <Input
                                 id="fecha_vencimiento_seguro_americano"
                                 type="date"
-                                value={formData.fecha_vencimiento_seguro_americano}
+                                value={
+                                  formData.fecha_vencimiento_seguro_americano
+                                }
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
-                                    fecha_vencimiento_seguro_americano: e.target.value,
+                                    fecha_vencimiento_seguro_americano:
+                                      e.target.value,
                                   })
                                 }
                               />
@@ -1647,10 +2147,14 @@ export default function CamionesPage() {
                     {activeTab === "tags" && (
                       <div className="space-y-6">
                         <div className="space-y-4">
-                          <h4 className="text-md font-medium text-gray-900">Tags y Números de Identificación</h4>
+                          <h4 className="text-md font-medium text-gray-900">
+                            Tags y Números de Identificación
+                          </h4>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                              <Label htmlFor="tag_americano">Número de Tag Americano</Label>
+                              <Label htmlFor="tag_americano">
+                                Número de Tag Americano
+                              </Label>
                               <Input
                                 id="tag_americano"
                                 value={formData.tag_americano}
@@ -1664,7 +2168,9 @@ export default function CamionesPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="tag_mexicano">Número de Tag Mexicano</Label>
+                              <Label htmlFor="tag_mexicano">
+                                Número de Tag Mexicano
+                              </Label>
                               <Input
                                 id="tag_mexicano"
                                 value={formData.tag_mexicano}
@@ -1678,7 +2184,9 @@ export default function CamionesPage() {
                               />
                             </div>
                             <div className="space-y-2">
-                              <Label htmlFor="numero_base">Número de Base</Label>
+                              <Label htmlFor="numero_base">
+                                Número de Base
+                              </Label>
                               <Input
                                 id="numero_base"
                                 value={formData.numero_base}
@@ -1696,7 +2204,9 @@ export default function CamionesPage() {
 
                         <div className="space-y-4">
                           <div className="flex items-center justify-between">
-                            <h4 className="text-md font-medium text-gray-900">Números Adicionales</h4>
+                            <h4 className="text-md font-medium text-gray-900">
+                              Números Adicionales
+                            </h4>
                             <Button
                               type="button"
                               variant="outline"
@@ -1705,11 +2215,16 @@ export default function CamionesPage() {
                                 if (formData.numeros_adicionales.length < 5) {
                                   setFormData({
                                     ...formData,
-                                    numeros_adicionales: [...formData.numeros_adicionales, { nombre: "", numero: "" }],
-                                  })
+                                    numeros_adicionales: [
+                                      ...formData.numeros_adicionales,
+                                      { nombre: "", numero: "" },
+                                    ],
+                                  });
                                 }
                               }}
-                              disabled={formData.numeros_adicionales.length >= 5}
+                              disabled={
+                                formData.numeros_adicionales.length >= 5
+                              }
                             >
                               <Plus className="h-4 w-4 mr-2" />
                               Agregar Número
@@ -1718,66 +2233,85 @@ export default function CamionesPage() {
 
                           {formData.numeros_adicionales.length > 0 && (
                             <div className="space-y-3">
-                              {formData.numeros_adicionales.map((item, index) => (
-                                <div
-                                  key={index}
-                                  className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 border rounded-lg bg-gray-50"
-                                >
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`nombre_adicional_${index}`}>Nombre del Registro</Label>
-                                    <Input
-                                      id={`nombre_adicional_${index}`}
-                                      value={item.nombre}
-                                      onChange={(e) => {
-                                        const nuevosNumeros = [...formData.numeros_adicionales]
-                                        nuevosNumeros[index].nombre = e.target.value
-
-                                        setFormData({
-                                          ...formData,
-                                          numeros_adicionales: nuevosNumeros,
-                                        })
-                                      }}
-                                      placeholder="Ej: Número de Permiso SCT"
-                                    />
-                                  </div>
-                                  <div className="space-y-2">
-                                    <Label htmlFor={`numero_adicional_${index}`}>Número</Label>
-                                    <div className="flex space-x-2">
-                                      <Input
-                                        id={`numero_adicional_${index}`}
-                                        value={item.numero}
-                                        onChange={(e) => {
-                                          const nuevosNumeros = [...formData.numeros_adicionales]
-                                          nuevosNumeros[index].numero = e.target.value
-                                          setFormData({
-                                            ...formData,
-                                            numeros_adicionales: nuevosNumeros,
-                                          })
-                                        }}
-                                        placeholder="Ej: SCT123456"
-                                        className="flex-1"
-                                      />
-                                      <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => {
-                                          const nuevosNumeros = formData.numeros_adicionales.filter(
-                                            (_, i) => i !== index,
-                                          )
-                                          setFormData({
-                                            ...formData,
-                                            numeros_adicionales: nuevosNumeros,
-                                          })
-                                        }}
-                                        className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              {formData.numeros_adicionales.map(
+                                (item, index) => (
+                                  <div
+                                    key={index}
+                                    className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 border rounded-lg bg-gray-50"
+                                  >
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`nombre_adicional_${index}`}
                                       >
-                                        <Trash2 className="h-4 w-4" />
-                                      </Button>
+                                        Nombre del Registro
+                                      </Label>
+                                      <Input
+                                        id={`nombre_adicional_${index}`}
+                                        value={item.nombre}
+                                        onChange={(e) => {
+                                          const nuevosNumeros = [
+                                            ...formData.numeros_adicionales,
+                                          ];
+                                          nuevosNumeros[index].nombre =
+                                            e.target.value;
+
+                                          setFormData({
+                                            ...formData,
+                                            numeros_adicionales: nuevosNumeros,
+                                          });
+                                        }}
+                                        placeholder="Ej: Número de Permiso SCT"
+                                      />
+                                    </div>
+                                    <div className="space-y-2">
+                                      <Label
+                                        htmlFor={`numero_adicional_${index}`}
+                                      >
+                                        Número
+                                      </Label>
+                                      <div className="flex space-x-2">
+                                        <Input
+                                          id={`numero_adicional_${index}`}
+                                          value={item.numero}
+                                          onChange={(e) => {
+                                            const nuevosNumeros = [
+                                              ...formData.numeros_adicionales,
+                                            ];
+                                            nuevosNumeros[index].numero =
+                                              e.target.value;
+                                            setFormData({
+                                              ...formData,
+                                              numeros_adicionales:
+                                                nuevosNumeros,
+                                            });
+                                          }}
+                                          placeholder="Ej: SCT123456"
+                                          className="flex-1"
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            const nuevosNumeros =
+                                              formData.numeros_adicionales.filter(
+                                                (_, i) => i !== index
+                                              );
+                                            setFormData({
+                                              ...formData,
+                                              numeros_adicionales:
+                                                nuevosNumeros,
+                                            });
+                                          }}
+                                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                              ))}
+                                )
+                              )}
                             </div>
                           )}
 
@@ -1785,7 +2319,8 @@ export default function CamionesPage() {
                             <div className="text-center py-8 text-gray-500 border-2 border-dashed border-gray-300 rounded-lg">
                               <p>No hay números adicionales registrados</p>
                               <p className="text-sm">
-                                Haz clic en "Agregar Número" para añadir registros personalizados
+                                Haz clic en "Agregar Número" para añadir
+                                registros personalizados
                               </p>
                             </div>
                           )}
@@ -1796,7 +2331,9 @@ export default function CamionesPage() {
                     {activeTab === "comentarios" && (
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label htmlFor="comentarios">Comentarios Adicionales</Label>
+                          <Label htmlFor="comentarios">
+                            Comentarios Adicionales
+                          </Label>
                           <Textarea
                             id="comentarios"
                             value={formData.comentarios}
@@ -1815,7 +2352,11 @@ export default function CamionesPage() {
                   </div>
 
                   <div className="flex justify-end space-x-2 mt-8 pt-6 border-t">
-                    <Button variant="outline" onClick={() => setShowForm(false)} disabled={saving}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowForm(false)}
+                      disabled={saving}
+                    >
                       Cancelar
                     </Button>
                     <Button onClick={guardarCamion} disabled={saving}>
@@ -1846,8 +2387,8 @@ export default function CamionesPage() {
                 <div>
                   <p className="font-medium">Tabla de marcas no encontrada</p>
                   <p className="text-sm">
-                    Se están usando marcas por defecto. Ejecuta el script de migración para habilitar la gestión de
-                    marcas.
+                    Se están usando marcas por defecto. Ejecuta el script de
+                    migración para habilitar la gestión de marcas.
                   </p>
                 </div>
               </div>
@@ -1856,54 +2397,124 @@ export default function CamionesPage() {
         )}
 
         {/* Estadísticas rpidas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Total Tractocamiones</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Total Tractocamiones
+                  </p>
                   <p className="text-2xl font-bold">{camiones.length}</p>
                 </div>
                 <Truck className="h-8 w-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
+
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Disponibles</p>
+                  <p className="text-sm font-medium text-gray-600">
+                    Fuera de Servicio
+                  </p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {
+                      camiones.filter((c) => c.estado === "fuera-de-servicio")
+                        .length
+                    }
+                  </p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">
+                    Seguros por Vencer
+                  </p>
+                  <p className="text-2xl font-bold text-orange-600">
+                    {(() => {
+                      let segurosVenciendo = 0;
+                      camiones.forEach((camion) => {
+                        if (camion.observaciones) {
+                          try {
+                            const datos = JSON.parse(camion.observaciones);
+                            const hoy = new Date();
+
+                            // Verificar seguro mexicano
+                            if (datos.fecha_vencimiento_seguro_mexicano) {
+                              const fechaVencimiento = new Date(
+                                datos.fecha_vencimiento_seguro_mexicano
+                              );
+                              const diasRestantes = Math.ceil(
+                                (fechaVencimiento.getTime() - hoy.getTime()) /
+                                  (1000 * 60 * 60 * 24)
+                              );
+                              if (diasRestantes <= 30) segurosVenciendo++;
+                            }
+
+                            // Verificar seguro americano
+                            if (datos.fecha_vencimiento_seguro_americano) {
+                              const fechaVencimiento = new Date(
+                                datos.fecha_vencimiento_seguro_americano
+                              );
+                              const diasRestantes = Math.ceil(
+                                (fechaVencimiento.getTime() - hoy.getTime()) /
+                                  (1000 * 60 * 60 * 24)
+                              );
+                              if (diasRestantes <= 30) segurosVenciendo++;
+                            }
+                          } catch (error) {
+                            // Ignorar errores de parsing
+                          }
+                        }
+                      });
+                      return segurosVenciendo;
+                    })()}
+                  </p>
+                </div>
+                <Shield className="h-8 w-8 text-orange-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">
+                    En Mantenimiento
+                  </p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {
+                      camiones.filter((c) => c.estado === "mantenimiento")
+                        .length
+                    }
+                  </p>
+                </div>
+                <Gauge className="h-8 w-8 text-yellow-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">
+                    Disponibles
+                  </p>
                   <p className="text-2xl font-bold text-green-600">
                     {camiones.filter((c) => c.estado === "disponible").length}
                   </p>
                 </div>
                 <Truck className="h-8 w-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">En Uso</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {camiones.filter((c) => c.estado === "en-uso").length}
-                  </p>
-                </div>
-                <Truck className="h-8 w-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Mantenimiento</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {camiones.filter((c) => c.estado === "mantenimiento").length}
-                  </p>
-                </div>
-                <Truck className="h-8 w-8 text-yellow-600" />
               </div>
             </CardContent>
           </Card>
@@ -1927,19 +2538,19 @@ export default function CamionesPage() {
         {/* Lista de camiones */}
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {camionesFiltrados.map((camion) => {
-            const alertas = verificarVencimientos(camion)
+            const alertas = verificarVencimientos(camion);
             let datosAdicionales = {
               poliza_seguro: "",
               fecha_vencimiento_seguro: "",
               comentarios: "",
-            }
+            };
 
             if (camion.observaciones) {
               try {
                 datosAdicionales = {
                   ...datosAdicionales,
                   ...JSON.parse(camion.observaciones),
-                }
+                };
               } catch (error) {
                 // Ignorar errores de parsing
               }
@@ -1950,15 +2561,22 @@ export default function CamionesPage() {
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle className="text-lg">{camion.numero_economico}</CardTitle>
+                      <CardTitle className="text-lg">
+                        {camion.numero_economico}
+                      </CardTitle>
                       <CardDescription>
-                        {camion.marca} {camion.modelo} {camion.año && `(${camion.año})`}
+                        {camion.marca} {camion.modelo}{" "}
+                        {camion.año && `(${camion.año})`}
                       </CardDescription>
                     </div>
                     <div className="flex items-center space-x-2">
                       {getEstadoBadge(camion.estado)}
                       <div className="flex space-x-1">
-                        <Button variant="outline" size="sm" onClick={() => verDetallesCamion(camion)}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => verDetallesCamion(camion)}
+                        >
                           <Eye className="h-4 w-4" />
                         </Button>
                         <Button
@@ -1971,7 +2589,9 @@ export default function CamionesPage() {
                               : "text-red-600 hover:text-red-700 hover:bg-red-50"
                           }
                           title={
-                            camion.estado === "fuera-de-servicio" ? "Reactivar unidad" : "Marcar como fuera de servicio"
+                            camion.estado === "fuera-de-servicio"
+                              ? "Reactivar unidad"
+                              : "Marcar como fuera de servicio"
                           }
                         >
                           <AlertTriangle className="h-4 w-4" />
@@ -1984,15 +2604,22 @@ export default function CamionesPage() {
                           </AlertDialogTrigger>
                           <AlertDialogContent>
                             <AlertDialogHeader>
-                              <AlertDialogTitle>¿Eliminar camión?</AlertDialogTitle>
+                              <AlertDialogTitle>
+                                ¿Eliminar camión?
+                              </AlertDialogTitle>
                               <AlertDialogDescription>
-                                Esta acción no se puede deshacer. Se eliminará permanentemente el camión y todos sus
+                                Esta acción no se puede deshacer. Se eliminará
+                                permanentemente el camión y todos sus
                                 recordatorios asociados.
                               </AlertDialogDescription>
                             </AlertDialogHeader>
                             <AlertDialogFooter>
                               <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => eliminarCamion(camion.id)}>Eliminar</AlertDialogAction>
+                              <AlertDialogAction
+                                onClick={() => eliminarCamion(camion.id)}
+                              >
+                                Eliminar
+                              </AlertDialogAction>
                             </AlertDialogFooter>
                           </AlertDialogContent>
                         </AlertDialog>
@@ -2014,30 +2641,39 @@ export default function CamionesPage() {
                         >
                           <div className="flex items-start space-x-2">
                             <AlertTriangle
-                              className={`h-4 w-4 mt-0.5 ${alerta.vencido ? "text-red-600" : "text-yellow-600"}`}
+                              className={`h-4 w-4 mt-0.5 ${
+                                alerta.vencido
+                                  ? "text-red-600"
+                                  : "text-yellow-600"
+                              }`}
                             />
                             <div>
                               <p className="text-sm font-medium">
                                 {alerta.tipo === "seguro_mexicano"
                                   ? "🛡️ Seguro MX"
                                   : alerta.tipo === "seguro_americano"
-                                    ? "🇺🇸 Seguro US"
-                                    : alerta.tipo === "seguro"
-                                      ? "🛡️ Seguro"
-                                      : "🔍 Verificación"}
+                                  ? "🇺🇸 Seguro US"
+                                  : alerta.tipo === "seguro"
+                                  ? "🛡️ Seguro"
+                                  : "🔍 Verificación"}
                               </p>
                               <p className="text-xs">
-                                {alerta.vencido ? "Vencido el" : "Vence el"}: {alerta.fecha}
+                                {alerta.vencido ? "Vencido el" : "Vence el"}:{" "}
+                                {alerta.fecha}
                               </p>
                             </div>
                           </div>
                           <div className="text-right">
                             <span
                               className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                                alerta.vencido ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"
+                                alerta.vencido
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-yellow-100 text-yellow-800"
                               }`}
                             >
-                              {alerta.vencido ? `${alerta.dias} días vencido` : `${alerta.dias} días restantes`}
+                              {alerta.vencido
+                                ? `${alerta.dias} días vencido`
+                                : `${alerta.dias} días restantes`}
                             </span>
                           </div>
                         </div>
@@ -2064,7 +2700,10 @@ export default function CamionesPage() {
                     )}
                     <div className="flex items-center space-x-2 text-sm">
                       <Calendar className="h-4 w-4 text-gray-400" />
-                      <span>Registrado: {new Date(camion.fecha_registro).toLocaleDateString()}</span>
+                      <span>
+                        Registrado:{" "}
+                        {new Date(camion.fecha_registro).toLocaleDateString()}
+                      </span>
                     </div>
                     {datosAdicionales.comentarios && (
                       <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded">
@@ -2075,7 +2714,7 @@ export default function CamionesPage() {
                   </div>
                 </CardContent>
               </Card>
-            )
+            );
           })}
         </div>
 
@@ -2084,7 +2723,11 @@ export default function CamionesPage() {
             <CardContent className="text-center py-8">
               <Truck className="h-12 w-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-500">No se encontraron camiones</p>
-              {searchTerm && <p className="text-sm text-gray-400 mt-1">Intenta con otros términos de búsqueda</p>}
+              {searchTerm && (
+                <p className="text-sm text-gray-400 mt-1">
+                  Intenta con otros términos de búsqueda
+                </p>
+              )}
             </CardContent>
           </Card>
         )}
@@ -2096,21 +2739,29 @@ export default function CamionesPage() {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Gestión de Marcas de Camiones</DialogTitle>
-              <DialogDescription>Administrar marcas disponibles para los camiones</DialogDescription>
+              <DialogDescription>
+                Administrar marcas disponibles para los camiones
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-6">
               {/* Formulario para nueva marca */}
               <div className="space-y-4">
-                <h3 className="text-lg font-semibold">{editingMarca ? "Editar Marca" : "Nueva Marca"}</h3>
+                <h3 className="text-lg font-semibold">
+                  {editingMarca ? "Editar Marca" : "Nueva Marca"}
+                </h3>
                 <div className="flex space-x-2">
                   <Input
                     placeholder="Nombre de la marca"
                     value={marcaFormData.nombre}
-                    onChange={(e) => setMarcaFormData({ nombre: e.target.value })}
+                    onChange={(e) =>
+                      setMarcaFormData({ nombre: e.target.value })
+                    }
                     className="flex-1"
                   />
-                  <Button onClick={guardarMarca}>{editingMarca ? "Actualizar" : "Agregar"}</Button>
+                  <Button onClick={guardarMarca}>
+                    {editingMarca ? "Actualizar" : "Agregar"}
+                  </Button>
                   {editingMarca && (
                     <Button variant="outline" onClick={limpiarFormularioMarca}>
                       Cancelar
@@ -2125,15 +2776,24 @@ export default function CamionesPage() {
                 {loadingMarcas ? (
                   <div className="text-center py-4">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-2 text-sm text-gray-600">Cargando marcas...</p>
+                    <p className="mt-2 text-sm text-gray-600">
+                      Cargando marcas...
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {marcas.map((marca) => (
-                      <div key={marca.id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div
+                        key={marca.id}
+                        className="flex items-center justify-between p-3 border rounded-lg"
+                      >
                         <span className="font-medium">{marca.nombre}</span>
                         <div className="flex space-x-1">
-                          <Button variant="outline" size="sm" onClick={() => editarMarca(marca)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => editarMarca(marca)}
+                          >
                             <Edit className="h-4 w-4" />
                           </Button>
                           <AlertDialog>
@@ -2144,15 +2804,22 @@ export default function CamionesPage() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>¿Eliminar marca?</AlertDialogTitle>
+                                <AlertDialogTitle>
+                                  ¿Eliminar marca?
+                                </AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Esta acción no afectará los camiones ya registrados. Si la marca está en uso, se
+                                  Esta acción no afectará los camiones ya
+                                  registrados. Si la marca está en uso, se
                                   marcará como inactiva.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => eliminarMarca(marca.id)}>Eliminar</AlertDialogAction>
+                                <AlertDialogAction
+                                  onClick={() => eliminarMarca(marca.id)}
+                                >
+                                  Eliminar
+                                </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -2162,12 +2829,17 @@ export default function CamionesPage() {
                   </div>
                 )}
                 {marcas.length === 0 && !loadingMarcas && (
-                  <p className="text-center text-gray-500 py-4">No hay marcas registradas</p>
+                  <p className="text-center text-gray-500 py-4">
+                    No hay marcas registradas
+                  </p>
                 )}
               </div>
 
               <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setShowMarcasForm(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMarcasForm(false)}
+                >
                   Cerrar
                 </Button>
               </div>
@@ -2181,16 +2853,21 @@ export default function CamionesPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Captura de Kilometraje</DialogTitle>
-            <DialogDescription>Selecciona un camión y registra el kilometraje del viaje realizado</DialogDescription>
+            <DialogDescription>
+              Selecciona un camión y registra el kilometraje del viaje realizado
+            </DialogDescription>
           </DialogHeader>
           {!registrosKilometrajeTableExists && (
             <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
               <div className="flex items-center space-x-2 text-red-800">
                 <AlertTriangle className="h-5 w-5" />
                 <div>
-                  <p className="font-medium">Tabla de registros de kilometraje no encontrada</p>
+                  <p className="font-medium">
+                    Tabla de registros de kilometraje no encontrada
+                  </p>
                   <p className="text-sm">
-                    Ejecuta el script de migración para crear la tabla y habilitar el almacenamiento de registros.
+                    Ejecuta el script de migración para crear la tabla y
+                    habilitar el almacenamiento de registros.
                   </p>
                 </div>
               </div>
@@ -2212,14 +2889,21 @@ export default function CamionesPage() {
                       >
                         <CardContent className="pt-4">
                           <div className="text-center">
-                            <p className="font-semibold">{camion.numero_economico}</p>
+                            <p className="font-semibold">
+                              {camion.numero_economico}
+                            </p>
                             <p className="text-sm text-gray-600">
                               {camion.marca} {camion.modelo}
                             </p>
                             <p className="text-sm text-gray-500">
-                              Kilometraje actual: {camion.kilometraje.toLocaleString()} km
+                              Kilometraje actual:{" "}
+                              {camion.kilometraje.toLocaleString()} km
                             </p>
-                            <Badge className={getEstadoBadge(camion.estado).props.className}>
+                            <Badge
+                              className={
+                                getEstadoBadge(camion.estado).props.className
+                              }
+                            >
                               {getEstadoBadge(camion.estado).props.children}
                             </Badge>
                           </div>
@@ -2233,13 +2917,16 @@ export default function CamionesPage() {
                 {/* Información del camión seleccionado */}
                 <div className="bg-blue-50 p-4 rounded-lg">
                   <h3 className="text-lg font-semibold text-blue-900">
-                    Camión Seleccionado: {selectedCamionKilometraje.numero_economico}
+                    Camión Seleccionado:{" "}
+                    {selectedCamionKilometraje.numero_economico}
                   </h3>
                   <p className="text-blue-700">
-                    {selectedCamionKilometraje.marca} {selectedCamionKilometraje.modelo}
+                    {selectedCamionKilometraje.marca}{" "}
+                    {selectedCamionKilometraje.modelo}
                   </p>
                   <p className="text-blue-600">
-                    Kilometraje actual: {selectedCamionKilometraje.kilometraje.toLocaleString()} km
+                    Kilometraje actual:{" "}
+                    {selectedCamionKilometraje.kilometraje.toLocaleString()} km
                   </p>
                 </div>
 
@@ -2249,7 +2936,9 @@ export default function CamionesPage() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="kilometraje_actual">Kilometraje Actual del Camión *</Label>
+                      <Label htmlFor="kilometraje_actual">
+                        Kilometraje Actual del Camión *
+                      </Label>
                       <Input
                         id="kilometraje_actual"
                         type="number"
@@ -2264,8 +2953,9 @@ export default function CamionesPage() {
                         placeholder="Kilometraje que marca actualmente el camión"
                       />
                       <p className="text-xs text-gray-600 bg-blue-50 p-2 rounded border border-blue-200">
-                        <strong>Instrucciones:</strong> Ingresa el kilometraje que actualmente marca el odómetro del
-                        camión. El sistema calculará automáticamente los kilómetros recorridos.
+                        <strong>Instrucciones:</strong> Ingresa el kilometraje
+                        que actualmente marca el odómetro del camión. El sistema
+                        calculará automáticamente los kilómetros recorridos.
                       </p>
                       {kilometrajeFormData.kilometraje_actual && (
                         <div className="bg-green-50 p-2 rounded border border-green-200">
@@ -2273,14 +2963,20 @@ export default function CamionesPage() {
                             <strong>Kilómetros recorridos:</strong>{" "}
                             {Math.max(
                               0,
-                              Number.parseInt(kilometrajeFormData.kilometraje_actual || "0") -
-                                selectedCamionKilometraje.kilometraje,
+                              Number.parseInt(
+                                kilometrajeFormData.kilometraje_actual || "0"
+                              ) - selectedCamionKilometraje.kilometraje
                             ).toLocaleString()}{" "}
                             km
                           </p>
                           <p className="text-xs text-green-600">
-                            (Desde {selectedCamionKilometraje.kilometraje.toLocaleString()} km hasta{" "}
-                            {Number.parseInt(kilometrajeFormData.kilometraje_actual || "0").toLocaleString()} km)
+                            (Desde{" "}
+                            {selectedCamionKilometraje.kilometraje.toLocaleString()}{" "}
+                            km hasta{" "}
+                            {Number.parseInt(
+                              kilometrajeFormData.kilometraje_actual || "0"
+                            ).toLocaleString()}{" "}
+                            km)
                           </p>
                         </div>
                       )}
@@ -2318,7 +3014,9 @@ export default function CamionesPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="comentarios_viaje">Comentarios del Viaje</Label>
+                    <Label htmlFor="comentarios_viaje">
+                      Comentarios del Viaje
+                    </Label>
                     <Textarea
                       id="comentarios_viaje"
                       value={kilometrajeFormData.comentarios_viaje}
@@ -2338,49 +3036,67 @@ export default function CamionesPage() {
                   <Button
                     variant="outline"
                     onClick={async () => {
-                      setShowKilometrajeForm(false)
+                      setShowKilometrajeForm(false);
 
                       // Si hay un camión seleccionado para kilometraje, actualizar sus datos y mostrar detalles
                       if (selectedCamionKilometraje) {
                         // Recargar los datos del camión desde la base de datos para obtener el kilometraje actualizado
                         try {
-                          const { data: camionActualizado, error } = await supabase
-                            .from("camiones")
-                            .select("*")
-                            .eq("id", selectedCamionKilometraje.id)
-                            .single()
+                          const { data: camionActualizado, error } =
+                            await supabase
+                              .from("camiones")
+                              .select("*")
+                              .eq("id", selectedCamionKilometraje.id)
+                              .single();
 
                           if (!error && camionActualizado) {
                             // Actualizar el camión en el estado local
                             setCamiones((prev) =>
-                              prev.map((c) => (c.id === camionActualizado.id ? camionActualizado : c)),
-                            )
+                              prev.map((c) =>
+                                c.id === camionActualizado.id
+                                  ? camionActualizado
+                                  : c
+                              )
+                            );
 
                             // Establecer como camión de detalle y mostrar la ventana de detalles
-                            setCamionDetalle(camionActualizado)
-                            setShowDetallesCamion(true)
+                            setCamionDetalle(camionActualizado);
+                            setShowDetallesCamion(true);
 
                             // Cargar el historial actualizado
-                            await cargarHistorialKilometraje(camionActualizado.id)
-                            await cargarHistorialMantenimiento(camionActualizado.id)
+                            await cargarHistorialKilometraje(
+                              camionActualizado.id
+                            );
+                            await cargarHistorialMantenimiento(
+                              camionActualizado.id
+                            );
                           }
                         } catch (error) {
-                          console.error("Error recargando datos del camión:", error)
+                          console.error(
+                            "Error recargando datos del camión:",
+                            error
+                          );
                           // En caso de error, usar los datos que tenemos
-                          setCamionDetalle(selectedCamionKilometraje)
-                          setShowDetallesCamion(true)
-                          await cargarHistorialKilometraje(selectedCamionKilometraje.id)
-                          await cargarHistorialMantenimiento(selectedCamionKilometraje.id)
+                          setCamionDetalle(selectedCamionKilometraje);
+                          setShowDetallesCamion(true);
+                          await cargarHistorialKilometraje(
+                            selectedCamionKilometraje.id
+                          );
+                          await cargarHistorialMantenimiento(
+                            selectedCamionKilometraje.id
+                          );
                         }
                       }
 
                       // Limpiar el formulario de kilometraje
-                      limpiarFormularioKilometraje()
+                      limpiarFormularioKilometraje();
                     }}
                   >
                     Finalizar Captura
                   </Button>
-                  <Button onClick={guardarKilometraje}>Guardar y Continuar</Button>
+                  <Button onClick={guardarKilometraje}>
+                    Guardar y Continuar
+                  </Button>
                 </div>
               </div>
             )}
@@ -2395,14 +3111,16 @@ export default function CamionesPage() {
             <DialogTitle className="text-2xl font-bold text-gray-900">
               Detalles del Camión - {camionDetalle?.numero_economico}
             </DialogTitle>
-            <DialogDescription className="text-gray-600">Información completa y gestión de la unidad</DialogDescription>
+            <DialogDescription className="text-gray-600">
+              Información completa y gestión de la unidad
+            </DialogDescription>
           </DialogHeader>
 
           {camionDetalle && (
             <div className="space-y-6">
               {/* Alertas de Vencimiento - Mostrar primero si existen */}
               {(() => {
-                const alertas = verificarVencimientos(camionDetalle)
+                const alertas = verificarVencimientos(camionDetalle);
                 if (alertas.length > 0) {
                   return (
                     <div className="flex flex-wrap gap-2">
@@ -2412,13 +3130,15 @@ export default function CamionesPage() {
                           className="flex items-center space-x-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded-md border border-red-200 flex-shrink-0"
                         >
                           <AlertTriangle className="h-3 w-3" />
-                          <span className="whitespace-nowrap">{alerta.mensaje}</span>
+                          <span className="whitespace-nowrap">
+                            {alerta.mensaje}
+                          </span>
                         </div>
                       ))}
                     </div>
-                  )
+                  );
                 }
-                return null
+                return null;
               })()}
 
               {/* Sistema de Pestañas */}
@@ -2493,7 +3213,9 @@ export default function CamionesPage() {
                             {" "}
                             {/* Replaced CardHeader */}
                             <Truck className="h-5 w-5 text-gray-600" />
-                            <h3 className="text-lg font-semibold text-gray-900">Datos del Vehículo</h3>{" "}
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Datos del Vehículo
+                            </h3>{" "}
                             {/* Replaced CardTitle */}
                           </div>
                           <div className="space-y-3">
@@ -2506,13 +3228,17 @@ export default function CamionesPage() {
                                 <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                   Número Económico
                                 </Label>
-                                <p className="text-base font-medium text-gray-900">{camionDetalle.numero_economico}</p>
+                                <p className="text-base font-medium text-gray-900">
+                                  {camionDetalle.numero_economico}
+                                </p>
                               </div>
                               <div>
                                 <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                   Estado
                                 </Label>
-                                <div className="mt-1">{getEstadoBadge(camionDetalle.estado)}</div>
+                                <div className="mt-1">
+                                  {getEstadoBadge(camionDetalle.estado)}
+                                </div>
                               </div>
                             </div>
                             <div className="grid grid-cols-2 gap-3">
@@ -2539,7 +3265,9 @@ export default function CamionesPage() {
                               {" "}
                               {/* Reduced gap */}
                               <div>
-                                <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Año</Label>
+                                <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                  Año
+                                </Label>
                                 <p className="text-base font-medium text-gray-900">
                                   {camionDetalle.año || "No especificado"}
                                 </p>
@@ -2563,7 +3291,9 @@ export default function CamionesPage() {
                             {" "}
                             {/* Replaced CardHeader */}
                             <Gauge className="h-5 w-5 text-gray-600" />
-                            <h3 className="text-lg font-semibold text-gray-900">Kilometraje y Registro</h3>{" "}
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Kilometraje y Registro
+                            </h3>{" "}
                             {/* Replaced CardTitle */}
                           </div>
                           <div className="space-y-3">
@@ -2589,13 +3319,17 @@ export default function CamionesPage() {
                                 </Label>
                                 <p className="text-base font-medium text-gray-900 flex items-center">
                                   <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                                  {new Date(camionDetalle.fecha_registro).toLocaleDateString()}
+                                  {new Date(
+                                    camionDetalle.fecha_registro
+                                  ).toLocaleDateString()}
                                 </p>
                               </div>
                               {camionDetalle.observaciones &&
                                 (() => {
                                   try {
-                                    const datos = JSON.parse(camionDetalle.observaciones)
+                                    const datos = JSON.parse(
+                                      camionDetalle.observaciones
+                                    );
                                     return (
                                       datos.numero_serie && (
                                         <div>
@@ -2609,9 +3343,9 @@ export default function CamionesPage() {
                                           </p>
                                         </div>
                                       )
-                                    )
+                                    );
                                   } catch (error) {
-                                    return null
+                                    return null;
                                   }
                                 })()}
                             </div>
@@ -2623,12 +3357,15 @@ export default function CamionesPage() {
                       {camionDetalle.observaciones &&
                         (() => {
                           try {
-                            const datos = JSON.parse(camionDetalle.observaciones)
+                            const datos = JSON.parse(
+                              camionDetalle.observaciones
+                            );
                             const tieneTagsONumeros =
                               datos.tag_americano ||
                               datos.tag_mexicano ||
                               datos.numero_base ||
-                              (datos.numeros_adicionales && datos.numeros_adicionales.length > 0)
+                              (datos.numeros_adicionales &&
+                                datos.numeros_adicionales.length > 0);
 
                             if (tieneTagsONumeros) {
                               return (
@@ -2638,7 +3375,9 @@ export default function CamionesPage() {
                                   <div className="flex items-center space-x-2 mb-4">
                                     {" "}
                                     {/* Replaced CardHeader */}
-                                    <span className="text-gray-600 text-lg font-semibold">#</span>{" "}
+                                    <span className="text-gray-600 text-lg font-semibold">
+                                      #
+                                    </span>{" "}
                                     {/* Adjusted styling */}
                                     <h3 className="text-lg font-semibold text-gray-900">
                                       Tags y Números de Identificación
@@ -2658,7 +3397,9 @@ export default function CamionesPage() {
                                           <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                             Tag Americano
                                           </Label>
-                                          <p className="text-base font-medium text-gray-900">{datos.tag_americano}</p>
+                                          <p className="text-base font-medium text-gray-900">
+                                            {datos.tag_americano}
+                                          </p>
                                         </div>
                                       )}
                                       {datos.tag_mexicano && (
@@ -2668,7 +3409,9 @@ export default function CamionesPage() {
                                           <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                             Tag Mexicano
                                           </Label>
-                                          <p className="text-base font-medium text-gray-900">{datos.tag_mexicano}</p>
+                                          <p className="text-base font-medium text-gray-900">
+                                            {datos.tag_mexicano}
+                                          </p>
                                         </div>
                                       )}
                                       {datos.numero_base && (
@@ -2678,38 +3421,50 @@ export default function CamionesPage() {
                                           <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                                             Número de Base
                                           </Label>
-                                          <p className="text-base font-medium text-gray-900">{datos.numero_base}</p>
+                                          <p className="text-base font-medium text-gray-900">
+                                            {datos.numero_base}
+                                          </p>
                                         </div>
                                       )}
                                     </div>
-                                    {datos.numeros_adicionales && datos.numeros_adicionales.length > 0 && (
-                                      <div className="space-y-2 mt-4">
-                                        {" "}
-                                        {/* Adjusted margin-top */}
-                                        <Label className="text-sm font-medium text-gray-700">Números Adicionales</Label>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    {datos.numeros_adicionales &&
+                                      datos.numeros_adicionales.length > 0 && (
+                                        <div className="space-y-2 mt-4">
                                           {" "}
-                                          {/* Reduced gap */}
-                                          {datos.numeros_adicionales.map((item, index) => (
-                                            <div key={index} className="bg-gray-100 p-3 rounded-lg">
-                                              {" "}
-                                              {/* Adjusted styling */}
-                                              <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
-                                                {item.nombre}
-                                              </Label>
-                                              <p className="text-base font-medium text-gray-900">{item.numero}</p>
-                                            </div>
-                                          ))}
+                                          {/* Adjusted margin-top */}
+                                          <Label className="text-sm font-medium text-gray-700">
+                                            Números Adicionales
+                                          </Label>
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                            {" "}
+                                            {/* Reduced gap */}
+                                            {datos.numeros_adicionales.map(
+                                              (item: any, index: number) => (
+                                                <div
+                                                  key={index}
+                                                  className="bg-gray-100 p-3 rounded-lg"
+                                                >
+                                                  {" "}
+                                                  {/* Adjusted styling */}
+                                                  <Label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                                    {item.nombre}
+                                                  </Label>
+                                                  <p className="text-base font-medium text-gray-900">
+                                                    {item.numero}
+                                                  </p>
+                                                </div>
+                                              )
+                                            )}
+                                          </div>
                                         </div>
-                                      </div>
-                                    )}
+                                      )}
                                   </div>
                                 </div>
-                              )
+                              );
                             }
-                            return null
+                            return null;
                           } catch (error) {
-                            return null
+                            return null;
                           }
                         })()}
 
@@ -2725,11 +3480,14 @@ export default function CamionesPage() {
                       {camionDetalle.observaciones &&
                         (() => {
                           try {
-                            const datosAdicionales = JSON.parse(camionDetalle.observaciones)
+                            const datosAdicionales = JSON.parse(
+                              camionDetalle.observaciones
+                            );
                             return (
                               <>
                                 {/* Verificaciones */}
-                                {(datosAdicionales.ultima_verificacion || datosAdicionales.frecuencia_verificacion) && (
+                                {(datosAdicionales.ultima_verificacion ||
+                                  datosAdicionales.frecuencia_verificacion) && (
                                   <div className="p-4 bg-white rounded-lg">
                                     {" "}
                                     {/* Removed Card, added padding and background */}
@@ -2737,7 +3495,9 @@ export default function CamionesPage() {
                                       {" "}
                                       {/* Replaced CardHeader */}
                                       <Shield className="h-5 w-5 text-gray-600" />
-                                      <h3 className="text-lg font-semibold text-gray-900">Verificaciones</h3>{" "}
+                                      <h3 className="text-lg font-semibold text-gray-900">
+                                        Verificaciones
+                                      </h3>{" "}
                                       {/* Replaced CardTitle */}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2751,7 +3511,9 @@ export default function CamionesPage() {
                                             Última Verificación
                                           </Label>
                                           <p className="text-base font-medium text-gray-900">
-                                            {new Date(datosAdicionales.ultima_verificacion).toLocaleDateString()}
+                                            {new Date(
+                                              datosAdicionales.ultima_verificacion
+                                            ).toLocaleDateString()}
                                           </p>
                                         </div>
                                       )}
@@ -2763,7 +3525,9 @@ export default function CamionesPage() {
                                             Próxima Verificación
                                           </Label>
                                           <p className="text-base font-medium text-gray-900">
-                                            {new Date(datosAdicionales.frecuencia_verificacion).toLocaleDateString()}
+                                            {new Date(
+                                              datosAdicionales.frecuencia_verificacion
+                                            ).toLocaleDateString()}
                                           </p>
                                         </div>
                                       )}
@@ -2781,7 +3545,9 @@ export default function CamionesPage() {
                                       {" "}
                                       {/* Replaced CardHeader */}
                                       <Shield className="h-5 w-5 text-gray-600" />
-                                      <h3 className="text-lg font-semibold text-gray-900">Seguro Mexicano</h3>{" "}
+                                      <h3 className="text-lg font-semibold text-gray-900">
+                                        Seguro Mexicano
+                                      </h3>{" "}
                                       {/* Replaced CardTitle */}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2795,7 +3561,9 @@ export default function CamionesPage() {
                                           <p className="text-base font-medium text-gray-900 bg-gray-100 p-3 rounded">
                                             {" "}
                                             {/* Adjusted styling */}
-                                            {datosAdicionales.poliza_seguro_mexicano}
+                                            {
+                                              datosAdicionales.poliza_seguro_mexicano
+                                            }
                                           </p>
                                         </div>
                                       )}
@@ -2808,7 +3576,7 @@ export default function CamionesPage() {
                                             {" "}
                                             {/* Adjusted styling */}
                                             {new Date(
-                                              datosAdicionales.fecha_vencimiento_seguro_mexicano,
+                                              datosAdicionales.fecha_vencimiento_seguro_mexicano
                                             ).toLocaleDateString()}
                                           </p>
                                         </div>
@@ -2827,7 +3595,9 @@ export default function CamionesPage() {
                                       {" "}
                                       {/* Replaced CardHeader */}
                                       <Shield className="h-5 w-5 text-gray-600" />
-                                      <h3 className="text-lg font-semibold text-gray-900">Seguro Americano</h3>{" "}
+                                      <h3 className="text-lg font-semibold text-gray-900">
+                                        Seguro Americano
+                                      </h3>{" "}
                                       {/* Replaced CardTitle */}
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2841,7 +3611,9 @@ export default function CamionesPage() {
                                           <p className="text-base font-medium text-gray-900 bg-gray-100 p-3 rounded">
                                             {" "}
                                             {/* Adjusted styling */}
-                                            {datosAdicionales.poliza_seguro_americano}
+                                            {
+                                              datosAdicionales.poliza_seguro_americano
+                                            }
                                           </p>
                                         </div>
                                       )}
@@ -2854,7 +3626,7 @@ export default function CamionesPage() {
                                             {" "}
                                             {/* Adjusted styling */}
                                             {new Date(
-                                              datosAdicionales.fecha_vencimiento_seguro_americano,
+                                              datosAdicionales.fecha_vencimiento_seguro_americano
                                             ).toLocaleDateString()}
                                           </p>
                                         </div>
@@ -2863,16 +3635,18 @@ export default function CamionesPage() {
                                   </div>
                                 )}
                               </>
-                            )
+                            );
                           } catch (error) {
                             return (
                               <div className="p-4 bg-white rounded-lg text-center py-8">
                                 {" "}
                                 {/* Removed Card, added padding and background */}
                                 <Shield className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                                <p className="text-gray-500">No hay información de documentos disponible</p>
+                                <p className="text-gray-500">
+                                  No hay información de documentos disponible
+                                </p>
                               </div>
-                            )
+                            );
                           }
                         })()}
                     </div>
@@ -2891,7 +3665,9 @@ export default function CamionesPage() {
                           {/* Replaced CardHeader */}
                           <div className="flex items-center space-x-2">
                             <Gauge className="h-5 w-5 text-purple-600" />
-                            <h3 className="text-lg font-semibold text-gray-900">Historial de Kilometraje</h3>{" "}
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Historial de Kilometraje
+                            </h3>{" "}
                             {/* Replaced CardTitle */}
                           </div>
                           <div className="flex items-center space-x-3">
@@ -2902,23 +3678,30 @@ export default function CamionesPage() {
                               {" "}
                               {/* Adjusted padding, reduced space-x */}
                               <div className="text-center">
-                                <p className="text-xs text-purple-700 font-medium">Actual</p>{" "}
+                                <p className="text-xs text-purple-700 font-medium">
+                                  Actual
+                                </p>{" "}
                                 {/* Adjusted text color */}
                                 <p className="text-lg font-bold text-purple-900">
-                                  {camionDetalle.kilometraje.toLocaleString()} km
+                                  {camionDetalle.kilometraje.toLocaleString()}{" "}
+                                  km
                                 </p>
                               </div>
                               <div className="text-center">
-                                <p className="text-xs text-purple-700 font-medium">Total Viajes</p>{" "}
+                                <p className="text-xs text-purple-700 font-medium">
+                                  Total Viajes
+                                </p>{" "}
                                 {/* Adjusted text color */}
-                                <p className="text-lg font-semibold text-purple-900">{historialKilometraje.length}</p>
+                                <p className="text-lg font-semibold text-purple-900">
+                                  {historialKilometraje.length}
+                                </p>
                               </div>
                             </div>
                             <Button
                               onClick={() => {
-                                setShowDetallesCamion(false)
-                                seleccionarCamionKilometraje(camionDetalle)
-                                setShowKilometrajeForm(true)
+                                setShowDetallesCamion(false);
+                                seleccionarCamionKilometraje(camionDetalle);
+                                setShowKilometrajeForm(true);
                               }}
                               size="sm"
                               className="bg-purple-600 hover:bg-purple-700"
@@ -2931,12 +3714,14 @@ export default function CamionesPage() {
                         {historialKilometraje.length > 0 && (
                           <div className="flex justify-between items-center mb-4">
                             <div className="flex items-center space-x-2">
-                              <Label htmlFor="records-per-page-kilometraje">Registros por página:</Label>
+                              <Label htmlFor="records-per-page-kilometraje">
+                                Registros por página:
+                              </Label>
                               <Select
                                 value={String(recordsPerPageKilometraje)}
                                 onValueChange={(value) => {
-                                  setRecordsPerPageKilometraje(Number(value))
-                                  setCurrentPageKilometraje(1) // Reset to first page when changing per page
+                                  setRecordsPerPageKilometraje(Number(value));
+                                  setCurrentPageKilometraje(1); // Reset to first page when changing per page
                                 }}
                               >
                                 <SelectTrigger className="w-[100px]">
@@ -2947,7 +3732,11 @@ export default function CamionesPage() {
                                   <SelectItem value="10">10</SelectItem>
                                   <SelectItem value="15">15</SelectItem>
                                   <SelectItem value="20">20</SelectItem>
-                                  <SelectItem value={String(historialKilometraje.length)}>Todos</SelectItem>
+                                  <SelectItem
+                                    value={String(historialKilometraje.length)}
+                                  >
+                                    Todos
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -2959,7 +3748,9 @@ export default function CamionesPage() {
                           {loadingHistorial ? (
                             <div className="text-center py-8">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 mx-auto"></div>
-                              <p className="mt-4 text-gray-600">Cargando historial...</p>
+                              <p className="mt-4 text-gray-600">
+                                Cargando historial...
+                              </p>
                             </div>
                           ) : historialKilometraje.length > 0 ? (
                             <>
@@ -2970,134 +3761,182 @@ export default function CamionesPage() {
                                     <div className="grid grid-cols-12 gap-4 text-xs font-medium text-gray-500 uppercase tracking-wide">
                                       <div className="col-span-2">Fecha</div>
                                       <div className="col-span-3">Tramo</div>
-                                      <div className="col-span-2">Km Agregados</div>
+                                      <div className="col-span-2">
+                                        Km Agregados
+                                      </div>
                                       <div className="col-span-2">Km Total</div>
-                                      <div className="col-span-2">Comentarios</div>
+                                      <div className="col-span-2">
+                                        Comentarios
+                                      </div>
                                       <div className="col-span-1">Acciones</div>
                                     </div>
                                   </div>
                                   <div className="max-h-96 overflow-y-auto">
                                     {/* Apply pagination logic here */}
                                     {(() => {
-                                      const indexOfLastRecord = currentPageKilometraje * recordsPerPageKilometraje
-                                      const indexOfFirstRecord = indexOfLastRecord - recordsPerPageKilometraje
-                                      const currentRecords = historialKilometraje.slice(
-                                        indexOfFirstRecord,
-                                        indexOfLastRecord,
-                                      )
+                                      const indexOfLastRecord =
+                                        currentPageKilometraje *
+                                        recordsPerPageKilometraje;
+                                      const indexOfFirstRecord =
+                                        indexOfLastRecord -
+                                        recordsPerPageKilometraje;
+                                      const currentRecords =
+                                        historialKilometraje.slice(
+                                          indexOfFirstRecord,
+                                          indexOfLastRecord
+                                        );
 
-                                      return currentRecords.map((registro, index) => (
-                                        <div
-                                          key={registro.id || index}
-                                          className="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors"
-                                        >
-                                          <div className="grid grid-cols-12 gap-4 items-center">
-                                            <div className="col-span-2">
-                                              <p className="text-sm font-medium text-gray-900">
-                                                {new Date(
-                                                  registro.fecha_viaje || registro.fecha_registro,
-                                                ).toLocaleDateString()}
-                                              </p>
-                                              <p className="text-xs text-gray-500">
-                                                {new Date(
-                                                  registro.fecha_viaje || registro.fecha_registro,
-                                                ).toLocaleDateString("es-ES", {
-                                                  weekday: "short",
-                                                })}
-                                              </p>
-                                            </div>
-                                            <div className="col-span-3">
-                                              <p className="text-sm text-gray-900 font-medium">
-                                                {registro.tramo_recorrido || "No especificado"}
-                                              </p>
-                                            </div>
-                                            <div className="col-span-2">
-                                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                                                +{registro.kilometraje_agregado?.toLocaleString() || 0} km
-                                              </span>
-                                            </div>
-                                            <div className="col-span-2">
-                                              <p className="text-sm font-semibold text-gray-900">
-                                                {registro.kilometraje_nuevo?.toLocaleString() || 0} km
-                                              </p>
-                                              <p className="text-xs text-gray-500">
-                                                (desde {registro.kilometraje_anterior?.toLocaleString() || 0})
-                                              </p>
-                                            </div>
-                                            <div className="col-span-2">
-                                              {registro.comentarios ? (
-                                                <p
-                                                  className="text-xs text-gray-600 truncate"
-                                                  title={registro.comentarios}
-                                                >
-                                                  {registro.comentarios}
+                                      return currentRecords.map(
+                                        (registro, index) => (
+                                          <div
+                                            key={registro.id || index}
+                                            className="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors"
+                                          >
+                                            <div className="grid grid-cols-12 gap-4 items-center">
+                                              <div className="col-span-2">
+                                                <p className="text-sm font-medium text-gray-900">
+                                                  {new Date(
+                                                    registro.fecha_viaje ||
+                                                      registro.fecha_registro
+                                                  ).toLocaleDateString()}
                                                 </p>
-                                              ) : (
-                                                <span className="text-xs text-gray-400">Sin comentarios</span>
-                                              )}
-                                            </div>
-                                            <div className="col-span-1">
-                                              <div className="flex space-x-1">
-                                                <Button
-                                                  variant="outline"
-                                                  size="sm"
-                                                  onClick={() => editarRegistroKilometraje(registro)}
-                                                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 h-7 w-7"
-                                                >
-                                                  <Edit className="h-3 w-3" />
-                                                </Button>
-                                                <Button
-                                                  variant="outline"
-                                                  size="sm"
-                                                  onClick={() => {
-                                                    if (
-                                                      confirm(
-                                                        "¿Estás seguro de eliminar este registro? El kilometraje del camión se ajustará automáticamente.",
-                                                      )
-                                                    ) {
-                                                      eliminarRegistroKilometraje(
-                                                        registro.id,
-                                                        camionDetalle.id,
-                                                        registro.kilometraje_agregado || 0,
+                                                <p className="text-xs text-gray-500">
+                                                  {new Date(
+                                                    registro.fecha_viaje ||
+                                                      registro.fecha_registro
+                                                  ).toLocaleDateString(
+                                                    "es-ES",
+                                                    {
+                                                      weekday: "short",
+                                                    }
+                                                  )}
+                                                </p>
+                                              </div>
+                                              <div className="col-span-3">
+                                                <p className="text-sm text-gray-900 font-medium">
+                                                  {registro.tramo_recorrido ||
+                                                    "No especificado"}
+                                                </p>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                                                  +
+                                                  {registro.kilometraje_agregado?.toLocaleString() ||
+                                                    0}{" "}
+                                                  km
+                                                </span>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <p className="text-sm font-semibold text-gray-900">
+                                                  {registro.kilometraje_nuevo?.toLocaleString() ||
+                                                    0}{" "}
+                                                  km
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                  (desde{" "}
+                                                  {registro.kilometraje_anterior?.toLocaleString() ||
+                                                    0}
+                                                  )
+                                                </p>
+                                              </div>
+                                              <div className="col-span-2">
+                                                {registro.comentarios ? (
+                                                  <p
+                                                    className="text-xs text-gray-600 truncate"
+                                                    title={registro.comentarios}
+                                                  >
+                                                    {registro.comentarios}
+                                                  </p>
+                                                ) : (
+                                                  <span className="text-xs text-gray-400">
+                                                    Sin comentarios
+                                                  </span>
+                                                )}
+                                              </div>
+                                              <div className="col-span-1">
+                                                <div className="flex space-x-1">
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                      editarRegistroKilometraje(
+                                                        registro
                                                       )
                                                     }
-                                                  }}
-                                                  className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-7 w-7"
-                                                >
-                                                  <Trash2 className="h-3 w-3" />
-                                                </Button>
+                                                    className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 h-7 w-7"
+                                                  >
+                                                    <Edit className="h-3 w-3" />
+                                                  </Button>
+                                                  <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    onClick={() => {
+                                                      if (
+                                                        confirm(
+                                                          "¿Estás seguro de eliminar este registro? El kilometraje del camión se ajustará automáticamente."
+                                                        )
+                                                      ) {
+                                                        eliminarRegistroKilometraje(
+                                                          registro.id,
+                                                          camionDetalle.id,
+                                                          registro.kilometraje_agregado ||
+                                                            0
+                                                        );
+                                                      }
+                                                    }}
+                                                    className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-7 w-7"
+                                                  >
+                                                    <Trash2 className="h-3 w-3" />
+                                                  </Button>
+                                                </div>
                                               </div>
                                             </div>
                                           </div>
-                                        </div>
-                                      ))
+                                        )
+                                      );
                                     })()}
                                   </div>
                                 </div>
                               </div>
                               {/* Pagination Controls */}
-                              {historialKilometraje.length > recordsPerPageKilometraje && (
+                              {historialKilometraje.length >
+                                recordsPerPageKilometraje && (
                                 <div className="flex justify-center items-center space-x-2 mt-4">
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    onClick={() => setCurrentPageKilometraje((prev) => Math.max(1, prev - 1))}
+                                    onClick={() =>
+                                      setCurrentPageKilometraje((prev) =>
+                                        Math.max(1, prev - 1)
+                                      )
+                                    }
                                     disabled={currentPageKilometraje === 1}
                                   >
                                     Anterior
                                   </Button>
                                   {Array.from(
-                                    { length: Math.ceil(historialKilometraje.length / recordsPerPageKilometraje) },
+                                    {
+                                      length: Math.ceil(
+                                        historialKilometraje.length /
+                                          recordsPerPageKilometraje
+                                      ),
+                                    },
                                     (_, i) => (
                                       <Button
                                         key={i + 1}
-                                        variant={currentPageKilometraje === i + 1 ? "default" : "outline"}
+                                        variant={
+                                          currentPageKilometraje === i + 1
+                                            ? "default"
+                                            : "outline"
+                                        }
                                         size="sm"
-                                        onClick={() => setCurrentPageKilometraje(i + 1)}
+                                        onClick={() =>
+                                          setCurrentPageKilometraje(i + 1)
+                                        }
                                       >
                                         {i + 1}
                                       </Button>
-                                    ),
+                                    )
                                   )}
                                   <Button
                                     variant="outline"
@@ -3105,14 +3944,20 @@ export default function CamionesPage() {
                                     onClick={() =>
                                       setCurrentPageKilometraje((prev) =>
                                         Math.min(
-                                          Math.ceil(historialKilometraje.length / recordsPerPageKilometraje),
-                                          prev + 1,
-                                        ),
+                                          Math.ceil(
+                                            historialKilometraje.length /
+                                              recordsPerPageKilometraje
+                                          ),
+                                          prev + 1
+                                        )
                                       )
                                     }
                                     disabled={
                                       currentPageKilometraje ===
-                                      Math.ceil(historialKilometraje.length / recordsPerPageKilometraje)
+                                      Math.ceil(
+                                        historialKilometraje.length /
+                                          recordsPerPageKilometraje
+                                      )
                                     }
                                   >
                                     Siguiente
@@ -3123,15 +3968,18 @@ export default function CamionesPage() {
                           ) : (
                             <div className="text-center py-12">
                               <Gauge className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                              <p className="text-lg text-gray-500 mb-2">No hay registros de kilometraje</p>
+                              <p className="text-lg text-gray-500 mb-2">
+                                No hay registros de kilometraje
+                              </p>
                               <p className="text-sm text-gray-400 mb-4">
-                                Cuando captures kilometraje de esta unidad, se mostrarán aquí los detalles de cada viaje
+                                Cuando captures kilometraje de esta unidad, se
+                                mostrarán aquí los detalles de cada viaje
                               </p>
                               <Button
                                 onClick={() => {
-                                  setShowDetallesCamion(false)
-                                  seleccionarCamionKilometraje(camionDetalle)
-                                  setShowKilometrajeForm(true)
+                                  setShowDetallesCamion(false);
+                                  seleccionarCamionKilometraje(camionDetalle);
+                                  setShowKilometrajeForm(true);
                                 }}
                                 className="mt-2"
                               >
@@ -3158,7 +4006,9 @@ export default function CamionesPage() {
                           {/* Replaced CardHeader */}
                           <div className="flex items-center space-x-2">
                             <AlertTriangle className="h-5 w-5 text-gray-600" />
-                            <h3 className="text-lg font-semibold text-gray-900">Historial de Mantenimiento</h3>{" "}
+                            <h3 className="text-lg font-semibold text-gray-900">
+                              Historial de Mantenimiento
+                            </h3>{" "}
                             {/* Replaced CardTitle */}
                           </div>
                           <div className="flex items-center space-x-3">
@@ -3169,28 +4019,40 @@ export default function CamionesPage() {
                               {" "}
                               {/* Adjusted padding, reduced space-x */}
                               <div className="text-center">
-                                <p className="text-xs text-gray-700 font-medium">Total</p> {/* Adjusted text color */}
-                                <p className="text-lg font-bold text-gray-900">{historialMantenimiento.length}</p>
+                                <p className="text-xs text-gray-700 font-medium">
+                                  Total
+                                </p>{" "}
+                                {/* Adjusted text color */}
+                                <p className="text-lg font-bold text-gray-900">
+                                  {historialMantenimiento.length}
+                                </p>
                               </div>
                               <div className="text-center">
-                                <p className="text-xs text-gray-700 font-medium">Último</p> {/* Adjusted text color */}
+                                <p className="text-xs text-gray-700 font-medium">
+                                  Último
+                                </p>{" "}
+                                {/* Adjusted text color */}
                                 <p className="text-sm font-semibold text-gray-900">
                                   {historialMantenimiento.length > 0
-                                    ? new Date(historialMantenimiento[0].fecha_mantenimiento).toLocaleDateString()
+                                    ? new Date(
+                                        historialMantenimiento[0].fecha_mantenimiento
+                                      ).toLocaleDateString()
                                     : "N/A"}
                                 </p>
                               </div>
                             </div>
                             <Button
                               onClick={() => {
-                                setSelectedCamionMantenimiento(camionDetalle)
+                                setSelectedCamionMantenimiento(camionDetalle);
                                 setMantenimientoFormData({
-                                  fecha_mantenimiento: new Date().toISOString().split("T")[0],
+                                  fecha_mantenimiento: new Date()
+                                    .toISOString()
+                                    .split("T")[0],
                                   detalles_mantenimiento: "",
                                   proximo_mantenimiento: "",
                                   tipo_mantenimiento: "",
-                                })
-                                setShowMantenimientoForm(true)
+                                });
+                                setShowMantenimientoForm(true);
                               }}
                               size="sm"
                               className="bg-orange-600 hover:bg-orange-700"
@@ -3208,9 +4070,13 @@ export default function CamionesPage() {
                               <div className="flex items-center space-x-2 text-yellow-800">
                                 <AlertTriangle className="h-5 w-5" />
                                 <div>
-                                  <p className="font-medium">Tabla de registros de mantenimiento no encontrada</p>
+                                  <p className="font-medium">
+                                    Tabla de registros de mantenimiento no
+                                    encontrada
+                                  </p>
                                   <p className="text-sm">
-                                    Ejecuta el script de migración para crear la tabla y habilitar el almacenamiento de
+                                    Ejecuta el script de migración para crear la
+                                    tabla y habilitar el almacenamiento de
                                     registros.
                                   </p>
                                 </div>
@@ -3220,7 +4086,9 @@ export default function CamionesPage() {
                           {loadingHistorialMantenimiento ? (
                             <div className="text-center py-8">
                               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-600 mx-auto"></div>
-                              <p className="mt-4 text-gray-600">Cargando historial de mantenimiento...</p>
+                              <p className="mt-4 text-gray-600">
+                                Cargando historial de mantenimiento...
+                              </p>
                             </div>
                           ) : historialMantenimiento.length > 0 ? (
                             <div className="space-y-4">
@@ -3232,105 +4100,134 @@ export default function CamionesPage() {
                                     <div className="col-span-2">Tipo</div>
                                     <div className="col-span-3">Detalles</div>
                                     <div className="col-span-2">Próximo</div>
-                                    <div className="col-span-2">Kilometraje</div>
+                                    <div className="col-span-2">
+                                      Kilometraje
+                                    </div>
                                     <div className="col-span-1">Acciones</div>
                                   </div>
                                 </div>
                                 <div className="max-h-96 overflow-y-auto">
-                                  {historialMantenimiento.map((registro, index) => (
-                                    <div
-                                      key={registro.id || index}
-                                      className="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors"
-                                    >
-                                      <div className="grid grid-cols-12 gap-4 items-center">
-                                        <div className="col-span-2">
-                                          <p className="text-sm font-medium text-gray-900">
-                                            {new Date(registro.fecha_mantenimiento).toLocaleDateString()}
-                                          </p>
-                                          <p className="text-xs text-gray-500">
-                                            {new Date(registro.fecha_mantenimiento).toLocaleDateString("es-ES", {
-                                              weekday: "short",
-                                            })}
-                                          </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                                            {registro.tipo_mantenimiento || "General"}
-                                          </span>
-                                        </div>
-                                        <div className="col-span-3">
-                                          <p
-                                            className="text-sm text-gray-900 truncate"
-                                            title={registro.detalles_mantenimiento}
-                                          >
-                                            {registro.detalles_mantenimiento || "Sin detalles"}
-                                          </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                          {registro.proximo_mantenimiento ? (
-                                            <p className="text-sm text-gray-900">
-                                              {new Date(registro.proximo_mantenimiento).toLocaleDateString()}
+                                  {historialMantenimiento.map(
+                                    (registro, index) => (
+                                      <div
+                                        key={registro.id || index}
+                                        className="px-4 py-3 border-b last:border-b-0 hover:bg-gray-50 transition-colors"
+                                      >
+                                        <div className="grid grid-cols-12 gap-4 items-center">
+                                          <div className="col-span-2">
+                                            <p className="text-sm font-medium text-gray-900">
+                                              {new Date(
+                                                registro.fecha_mantenimiento
+                                              ).toLocaleDateString()}
                                             </p>
-                                          ) : (
-                                            <span className="text-xs text-gray-400">No programado</span>
-                                          )}
-                                        </div>
-                                        <div className="col-span-2">
-                                          <p className="text-sm font-medium text-gray-900">
-                                            {registro.kilometraje_actual?.toLocaleString() || 0} km
-                                          </p>
-                                        </div>
-                                        <div className="col-span-1">
-                                          <div className="flex space-x-1">
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => editarRegistroMantenimiento(registro)}
-                                              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 h-7 w-7"
+                                            <p className="text-xs text-gray-500">
+                                              {new Date(
+                                                registro.fecha_mantenimiento
+                                              ).toLocaleDateString("es-ES", {
+                                                weekday: "short",
+                                              })}
+                                            </p>
+                                          </div>
+                                          <div className="col-span-2">
+                                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                              {registro.tipo_mantenimiento ||
+                                                "General"}
+                                            </span>
+                                          </div>
+                                          <div className="col-span-3">
+                                            <p
+                                              className="text-sm text-gray-900 truncate"
+                                              title={
+                                                registro.detalles_mantenimiento
+                                              }
                                             >
-                                              <Edit className="h-3 w-3" />
-                                            </Button>
-                                            <Button
-                                              variant="outline"
-                                              size="sm"
-                                              onClick={() => {
-                                                if (
-                                                  confirm(
-                                                    "¿Estás seguro de eliminar este registro de mantenimiento? Esta acción no se puede deshacer.",
+                                              {registro.detalles_mantenimiento ||
+                                                "Sin detalles"}
+                                            </p>
+                                          </div>
+                                          <div className="col-span-2">
+                                            {registro.proximo_mantenimiento ? (
+                                              <p className="text-sm text-gray-900">
+                                                {new Date(
+                                                  registro.proximo_mantenimiento
+                                                ).toLocaleDateString()}
+                                              </p>
+                                            ) : (
+                                              <span className="text-xs text-gray-400">
+                                                No programado
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="col-span-2">
+                                            <p className="text-sm font-medium text-gray-900">
+                                              {registro.kilometraje_actual?.toLocaleString() ||
+                                                0}{" "}
+                                              km
+                                            </p>
+                                          </div>
+                                          <div className="col-span-1">
+                                            <div className="flex space-x-1">
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() =>
+                                                  editarRegistroMantenimiento(
+                                                    registro
                                                   )
-                                                ) {
-                                                  eliminarRegistroMantenimiento(registro.id)
                                                 }
-                                              }}
-                                              className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-7 w-7"
-                                            >
-                                              <Trash2 className="h-3 w-3" />
-                                            </Button>
+                                                className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 h-7 w-7"
+                                              >
+                                                <Edit className="h-3 w-3" />
+                                              </Button>
+                                              <Button
+                                                variant="outline"
+                                                size="sm"
+                                                onClick={() => {
+                                                  if (
+                                                    confirm(
+                                                      "¿Estás seguro de eliminar este registro de mantenimiento? Esta acción no se puede deshacer."
+                                                    )
+                                                  ) {
+                                                    eliminarRegistroMantenimiento(
+                                                      registro.id
+                                                    );
+                                                  }
+                                                }}
+                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-7 w-7"
+                                              >
+                                                <Trash2 className="h-3 w-3" />
+                                              </Button>
+                                            </div>
                                           </div>
                                         </div>
                                       </div>
-                                    </div>
-                                  ))}
+                                    )
+                                  )}
                                 </div>
                               </div>
                             </div>
                           ) : (
                             <div className="text-center py-12">
                               <AlertTriangle className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                              <p className="text-lg text-gray-500 mb-2">No hay registros de mantenimiento</p>
+                              <p className="text-lg text-gray-500 mb-2">
+                                No hay registros de mantenimiento
+                              </p>
                               <p className="text-sm text-gray-400 mb-4">
-                                Cuando registres mantenimientos de esta unidad, se mostrarán aquí con todos los detalles
+                                Cuando registres mantenimientos de esta unidad,
+                                se mostrarán aquí con todos los detalles
                               </p>
                               <Button
                                 onClick={() => {
-                                  setSelectedCamionMantenimiento(camionDetalle)
+                                  setSelectedCamionMantenimiento(camionDetalle);
                                   setMantenimientoFormData({
-                                    fecha_mantenimiento: new Date().toISOString().split("T")[0],
+                                    fecha_mantenimiento: new Date()
+                                      .toISOString()
+                                      .split("T")[0],
                                     detalles_mantenimiento: "",
                                     proximo_mantenimiento: "",
                                     tipo_mantenimiento: "",
-                                  })
-                                  setShowMantenimientoForm(true)
+                                  });
+                                  setShowMantenimientoForm(true);
                                 }}
                                 className="mt-2"
                               >
@@ -3344,62 +4241,169 @@ export default function CamionesPage() {
                     </div>
                   )}
 
-                  {/* Pestaña de Acciones de Gestión */}
+                  {/* Pestaña de Comentarios */}
                   {activeTab === "acciones" && (
                     <div className="space-y-4">
                       <div className="p-4 bg-white rounded-lg">
                         <div className="mb-4">
-                          <h3 className="text-lg font-semibold text-gray-900">Comentarios Adicionales</h3>
+                          <h3 className="text-lg font-semibold text-gray-900">
+                            Gestión de Comentarios
+                          </h3>
                         </div>
                         <div className="space-y-4">
+                          {/* Input para añadir nuevo comentario */}
                           <div className="space-y-2">
-                            <Label htmlFor="comentarios_camion">Comentarios</Label>
-                            <Textarea
-                              id="comentarios_camion"
-                              value={(() => {
-                                if (camionDetalle.observaciones) {
-                                  try {
-                                    const datos = JSON.parse(camionDetalle.observaciones)
-                                    return datos.comentarios || ""
-                                  } catch (error) {
-                                    return ""
-                                  }
+                            <Label htmlFor="new_comment_text">
+                              Añadir Nuevo Comentario
+                            </Label>
+                            <div className="flex space-x-2">
+                              <Textarea
+                                id="new_comment_text"
+                                value={newCommentText}
+                                onChange={(e) =>
+                                  setNewCommentText(e.target.value)
                                 }
-                                return ""
+                                placeholder="Escribe un nuevo comentario..."
+                                rows={3}
+                                className="flex-1"
+                              />
+                              <Button
+                                onClick={handleAddComment}
+                                disabled={!newCommentText.trim()}
+                              >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Añadir
+                              </Button>
+                            </div>
+                          </div>
+
+                          {/* Lista de comentarios existentes */}
+                          <div className="space-y-3">
+                            <h4 className="text-md font-medium text-gray-900">
+                              Historial de Comentarios
+                            </h4>
+                            {camionDetalle.observaciones &&
+                              (() => {
+                                try {
+                                  const datos = JSON.parse(
+                                    camionDetalle.observaciones
+                                  );
+                                  const comentarios =
+                                    datos.historial_comentarios || [];
+                                  if (comentarios.length > 0) {
+                                    return (
+                                      <div className="border rounded-lg overflow-hidden">
+                                        {comentarios.map(
+                                          (comment: Comentario) => (
+                                            <div
+                                              key={comment.id}
+                                              className="p-3 border-b last:border-b-0 bg-gray-50"
+                                            >
+                                              {editingCommentId ===
+                                              comment.id ? (
+                                                <div className="flex flex-col space-y-2">
+                                                  <Textarea
+                                                    value={editedCommentText}
+                                                    onChange={(e) =>
+                                                      setEditedCommentText(
+                                                        e.target.value
+                                                      )
+                                                    }
+                                                    rows={2}
+                                                  />
+                                                  <div className="flex justify-end space-x-2">
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      onClick={() => {
+                                                        setEditingCommentId(
+                                                          null
+                                                        );
+                                                        setEditedCommentText(
+                                                          ""
+                                                        );
+                                                      }}
+                                                    >
+                                                      Cancelar
+                                                    </Button>
+                                                    <Button
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        handleEditComment(
+                                                          comment.id
+                                                        )
+                                                      }
+                                                      disabled={
+                                                        !editedCommentText.trim()
+                                                      }
+                                                    >
+                                                      Guardar
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                              ) : (
+                                                <div className="flex justify-between items-start">
+                                                  <div>
+                                                    <p className="text-sm text-gray-800">
+                                                      {comment.text}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                      {new Date(
+                                                        comment.date
+                                                      ).toLocaleDateString()}
+                                                    </p>
+                                                  </div>
+                                                  <div className="flex space-x-1">
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      onClick={() => {
+                                                        setEditingCommentId(
+                                                          comment.id
+                                                        );
+                                                        setEditedCommentText(
+                                                          comment.text
+                                                        );
+                                                      }}
+                                                      className="p-1 h-7 w-7"
+                                                    >
+                                                      <Edit className="h-3 w-3" />
+                                                    </Button>
+                                                    <Button
+                                                      variant="outline"
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        handleDeleteComment(
+                                                          comment.id
+                                                        )
+                                                      }
+                                                      className="text-red-600 hover:text-red-700 hover:bg-red-50 p-1 h-7 w-7"
+                                                    >
+                                                      <Trash2 className="h-3 w-3" />
+                                                    </Button>
+                                                  </div>
+                                                </div>
+                                              )}
+                                            </div>
+                                          )
+                                        )}
+                                      </div>
+                                    );
+                                  }
+                                  return (
+                                    <p className="text-sm text-gray-500 text-center py-4">
+                                      No hay comentarios registrados para este
+                                      camión.
+                                    </p>
+                                  );
+                                } catch (error) {
+                                  return (
+                                    <p className="text-sm text-gray-500 text-center py-4">
+                                      Error al cargar comentarios.
+                                    </p>
+                                  );
+                                }
                               })()}
-                              onChange={(e) => {
-                                // TODO: Implementar lógica para guardar comentarios
-                                console.log("Comentario actualizado:", e.target.value)
-                              }}
-                              placeholder="Escribe comentarios adicionales sobre este camión..."
-                              rows={6}
-                              className="w-full"
-                            />
-                          </div>
-                          <div className="flex justify-end space-x-2">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                // TODO: Implementar lógica para cancelar cambios
-                                console.log("Cancelar cambios en comentarios")
-                              }}
-                            >
-                              Cancelar
-                            </Button>
-                            <Button
-                              onClick={() => {
-                                // TODO: Implementar lógica para guardar comentarios
-                                console.log("Guardar comentarios")
-                              }}
-                            >
-                              Guardar Comentarios
-                            </Button>
-                          </div>
-                          <div className="bg-blue-50 p-3 rounded-lg">
-                            <p className="text-sm text-blue-700">
-                              <strong>Nota:</strong> Los comentarios se guardarán automáticamente y estarán disponibles
-                              en la vista principal de camiones y en los reportes exportados.
-                            </p>
                           </div>
                         </div>
                       </div>
@@ -3436,7 +4440,10 @@ export default function CamionesPage() {
                     </span>
                   </Button>
                 </div>
-                <Button variant="outline" onClick={() => setShowDetallesCamion(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDetallesCamion(false)}
+                >
                   Cerrar
                 </Button>
               </div>
@@ -3444,17 +4451,24 @@ export default function CamionesPage() {
           )}
         </DialogContent>
         {/* Diálogo de Edición de Registro de Kilometraje */}
-        <Dialog open={showEditRegistroForm} onOpenChange={setShowEditRegistroForm}>
+        <Dialog
+          open={showEditRegistroForm}
+          onOpenChange={setShowEditRegistroForm}
+        >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Editar Registro de Kilometraje</DialogTitle>
-              <DialogDescription>Modifica los datos del viaje registrado</DialogDescription>
+              <DialogDescription>
+                Modifica los datos del viaje registrado
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_kilometraje_agregado">Kilometraje Recorrido *</Label>
+                  <Label htmlFor="edit_kilometraje_agregado">
+                    Kilometraje Recorrido *
+                  </Label>
                   <Input
                     id="edit_kilometraje_agregado"
                     type="number"
@@ -3502,7 +4516,9 @@ export default function CamionesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_comentarios_viaje">Comentarios del Viaje</Label>
+                <Label htmlFor="edit_comentarios_viaje">
+                  Comentarios del Viaje
+                </Label>
                 <Textarea
                   id="edit_comentarios_viaje"
                   value={editRegistroFormData.comentarios_viaje}
@@ -3521,23 +4537,32 @@ export default function CamionesPage() {
                 <Button variant="outline" onClick={cancelarEdicionRegistro}>
                   Cancelar
                 </Button>
-                <Button onClick={guardarEdicionRegistro}>Guardar Cambios</Button>
+                <Button onClick={guardarEdicionRegistro}>
+                  Guardar Cambios
+                </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
         {/* Diálogo de Edición de Registro de Mantenimiento */}
-        <Dialog open={showEditMantenimientoForm} onOpenChange={setShowEditMantenimientoForm}>
+        <Dialog
+          open={showEditMantenimientoForm}
+          onOpenChange={setShowEditMantenimientoForm}
+        >
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Editar Registro de Mantenimiento</DialogTitle>
-              <DialogDescription>Modifica los datos del mantenimiento registrado</DialogDescription>
+              <DialogDescription>
+                Modifica los datos del mantenimiento registrado
+              </DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="edit_fecha_mantenimiento">Fecha de Mantenimiento *</Label>
+                  <Label htmlFor="edit_fecha_mantenimiento">
+                    Fecha de Mantenimiento *
+                  </Label>
                   <Input
                     id="edit_fecha_mantenimiento"
                     type="date"
@@ -3552,7 +4577,9 @@ export default function CamionesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="edit_tipo_mantenimiento">Tipo de Mantenimiento</Label>
+                  <Label htmlFor="edit_tipo_mantenimiento">
+                    Tipo de Mantenimiento
+                  </Label>
                   <Select
                     value={editMantenimientoFormData.tipo_mantenimiento}
                     onValueChange={(value) =>
@@ -3569,12 +4596,16 @@ export default function CamionesPage() {
                       <SelectItem value="preventivo">Preventivo</SelectItem>
                       <SelectItem value="correctivo">Correctivo</SelectItem>
                       <SelectItem value="revision">Revisión General</SelectItem>
-                      <SelectItem value="cambio_aceite">Cambio de Aceite</SelectItem>
+                      <SelectItem value="cambio_aceite">
+                        Cambio de Aceite
+                      </SelectItem>
                       <SelectItem value="frenos">Sistema de Frenos</SelectItem>
                       <SelectItem value="suspension">Suspensión</SelectItem>
                       <SelectItem value="motor">Motor</SelectItem>
                       <SelectItem value="transmision">Transmisión</SelectItem>
-                      <SelectItem value="electrico">Sistema Eléctrico</SelectItem>
+                      <SelectItem value="electrico">
+                        Sistema Eléctrico
+                      </SelectItem>
                       <SelectItem value="neumaticos">Neumáticos</SelectItem>
                       <SelectItem value="otro">Otro</SelectItem>
                     </SelectContent>
@@ -3583,7 +4614,9 @@ export default function CamionesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_detalles_mantenimiento">Detalles del Mantenimiento *</Label>
+                <Label htmlFor="edit_detalles_mantenimiento">
+                  Detalles del Mantenimiento *
+                </Label>
                 <Textarea
                   id="edit_detalles_mantenimiento"
                   value={editMantenimientoFormData.detalles_mantenimiento}
@@ -3599,7 +4632,9 @@ export default function CamionesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="edit_proximo_mantenimiento">Fecha del Próximo Mantenimiento</Label>
+                <Label htmlFor="edit_proximo_mantenimiento">
+                  Fecha del Próximo Mantenimiento
+                </Label>
                 <Input
                   id="edit_proximo_mantenimiento"
                   type="date"
@@ -3614,10 +4649,15 @@ export default function CamionesPage() {
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={cancelarEdicionMantenimiento}>
+                <Button
+                  variant="outline"
+                  onClick={cancelarEdicionMantenimiento}
+                >
                   Cancelar
                 </Button>
-                <Button onClick={guardarEdicionMantenimiento}>Guardar Cambios</Button>
+                <Button onClick={guardarEdicionMantenimiento}>
+                  Guardar Cambios
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -3625,11 +4665,16 @@ export default function CamionesPage() {
       </Dialog>
 
       {/* Diálogo de Registro de Mantenimiento */}
-      <Dialog open={showMantenimientoForm} onOpenChange={setShowMantenimientoForm}>
+      <Dialog
+        open={showMantenimientoForm}
+        onOpenChange={setShowMantenimientoForm}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registro de Mantenimiento</DialogTitle>
-            <DialogDescription>Registra el mantenimiento realizado y programa el próximo</DialogDescription>
+            <DialogDescription>
+              Registra el mantenimiento realizado y programa el próximo
+            </DialogDescription>
           </DialogHeader>
 
           {selectedCamionMantenimiento && (
@@ -3640,10 +4685,12 @@ export default function CamionesPage() {
                   Camión: {selectedCamionMantenimiento.numero_economico}
                 </h3>
                 <p className="text-blue-700">
-                  {selectedCamionMantenimiento.marca} {selectedCamionMantenimiento.modelo}
+                  {selectedCamionMantenimiento.marca}{" "}
+                  {selectedCamionMantenimiento.modelo}
                 </p>
                 <p className="text-blue-600">
-                  Kilometraje actual: {selectedCamionMantenimiento.kilometraje.toLocaleString()} km
+                  Kilometraje actual:{" "}
+                  {selectedCamionMantenimiento.kilometraje.toLocaleString()} km
                 </p>
               </div>
 
@@ -3651,7 +4698,9 @@ export default function CamionesPage() {
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="fecha_mantenimiento">Fecha de Mantenimiento *</Label>
+                    <Label htmlFor="fecha_mantenimiento">
+                      Fecha de Mantenimiento *
+                    </Label>
                     <Input
                       id="fecha_mantenimiento"
                       type="date"
@@ -3666,7 +4715,9 @@ export default function CamionesPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="tipo_mantenimiento">Tipo de Mantenimiento</Label>
+                    <Label htmlFor="tipo_mantenimiento">
+                      Tipo de Mantenimiento
+                    </Label>
                     <Select
                       value={mantenimientoFormData.tipo_mantenimiento}
                       onValueChange={(value) =>
@@ -3682,13 +4733,21 @@ export default function CamionesPage() {
                       <SelectContent>
                         <SelectItem value="preventivo">Preventivo</SelectItem>
                         <SelectItem value="correctivo">Correctivo</SelectItem>
-                        <SelectItem value="revision">Revisión General</SelectItem>
-                        <SelectItem value="cambio_aceite">Cambio de Aceite</SelectItem>
-                        <SelectItem value="frenos">Sistema de Frenos</SelectItem>
+                        <SelectItem value="revision">
+                          Revisión General
+                        </SelectItem>
+                        <SelectItem value="cambio_aceite">
+                          Cambio de Aceite
+                        </SelectItem>
+                        <SelectItem value="frenos">
+                          Sistema de Frenos
+                        </SelectItem>
                         <SelectItem value="suspension">Suspensión</SelectItem>
                         <SelectItem value="motor">Motor</SelectItem>
                         <SelectItem value="transmision">Transmisión</SelectItem>
-                        <SelectItem value="electrico">Sistema Eléctrico</SelectItem>
+                        <SelectItem value="electrico">
+                          Sistema Eléctrico
+                        </SelectItem>
                         <SelectItem value="neumaticos">Neumáticos</SelectItem>
                         <SelectItem value="otro">Otro</SelectItem>
                       </SelectContent>
@@ -3697,7 +4756,9 @@ export default function CamionesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="detalles_mantenimiento">Detalles del Mantenimiento *</Label>
+                  <Label htmlFor="detalles_mantenimiento">
+                    Detalles del Mantenimiento *
+                  </Label>
                   <Textarea
                     id="detalles_mantenimiento"
                     value={mantenimientoFormData.detalles_mantenimiento}
@@ -3713,7 +4774,9 @@ export default function CamionesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="proximo_mantenimiento">Fecha del Próximo Mantenimiento</Label>
+                  <Label htmlFor="proximo_mantenimiento">
+                    Fecha del Próximo Mantenimiento
+                  </Label>
                   <Input
                     id="proximo_mantenimiento"
                     type="date"
@@ -3726,29 +4789,35 @@ export default function CamionesPage() {
                     }
                   />
                   <p className="text-sm text-gray-600 bg-yellow-50 p-2 rounded border border-yellow-200">
-                    <strong>Nota:</strong> Si especificas una fecha para el próximo mantenimiento, se creará
-                    automáticamente un recordatorio que te avisará 2 semanas antes de la fecha programada. Este
-                    recordatorio aparecerá en la campanita de notificaciones del header y en la sección de
-                    recordatorios.
+                    <strong>Nota:</strong> Si especificas una fecha para el
+                    próximo mantenimiento, se creará automáticamente un
+                    recordatorio que te avisará 2 semanas antes de la fecha
+                    programada. Este recordatorio aparecerá en la campanita de
+                    notificaciones del header y en la sección de recordatorios.
                   </p>
                 </div>
               </div>
 
               <div className="flex justify-end space-x-2">
-                <Button variant="outline" onClick={() => setShowMantenimientoForm(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowMantenimientoForm(false)}
+                >
                   Cancelar
                 </Button>
-                <Button onClick={guardarMantenimiento}>Registrar Mantenimiento</Button>
+                <Button onClick={guardarMantenimiento}>
+                  Registrar Mantenimiento
+                </Button>
               </div>
             </div>
           )}
         </DialogContent>
       </Dialog>
     </MainLayout>
-  )
+  );
 }
 
 const editarCamion = (camionDetalle: Camion) => {
   // TODO: Implement actual edit logic
-  alert(`Editando camión ${camionDetalle.numero_economico}`)
-}
+  alert(`Editando camión ${camionDetalle.numero_economico}`);
+};
