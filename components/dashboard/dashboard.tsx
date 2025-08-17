@@ -1,0 +1,474 @@
+"use client"
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import {
+  Package,
+  Users,
+  Truck,
+  Container,
+  Bell,
+  AlertTriangle,
+  CheckCircle,
+  Calendar,
+  MapPin,
+  Clock,
+} from "lucide-react"
+import Link from "next/link"
+import { useState, useEffect } from "react"
+import { obtenerEmbarques, obtenerRecordatorios, obtenerOperadores, obtenerCamiones, obtenerRemolques } from "@/lib/supabase"
+import type { Embarque, Recordatorio, Operador, Camion, Remolque } from "@/lib/supabase"
+// import { Progress } from "@/components/ui/progress"
+
+export function Dashboard() {
+  const [embarquesRecientes, setEmbarquesRecientes] = useState<Embarque[]>([])
+  const [recordatoriosUrgentes, setRecordatoriosUrgentes] = useState<Recordatorio[]>([])
+  const [, setAgendaHoy] = useState<Embarque[]>([])
+  const [, setEmbarquesSinAsignar] = useState<Embarque[]>([])
+  const [vencimientos, setVencimientos] = useState<Recordatorio[]>([])
+  const [, setUtilizacion] = useState({ operadores: 0, camiones: 0, remolques: 0 })
+  const [cumples, setCumples] = useState<Array<{ id: string; nombre: string; fecha: string; dias: number }>>([])
+  const [stats, setStats] = useState({
+    embarques: { total: 0, creados: 0, asignados: 0, enTransito: 0, entregados: 0 },
+    operadores: { total: 0, activos: 0, inactivos: 0, suspendidos: 0 },
+    camiones: { total: 0, optima: 0, noOptima: 0, fueraServicio: 0 },
+    remolques: { total: 0, disponibles: 0, enUso: 0, mantenimiento: 0 },
+    recordatorios: { total: 0, pendientes: 0, vencidos: 0, completados: 0 },
+  })
+
+  useEffect(() => {
+
+    const cargarDatos = async () => {
+      try {
+        // Cargar últimos 5 embarques creados
+        const { data: embarques } = await obtenerEmbarques()
+        const embarquesOrdenados =
+          (embarques as Embarque[])
+            ?.sort((a: Embarque, b: Embarque) => new Date(b.fecha_creacion).getTime() - new Date(a.fecha_creacion).getTime())
+            ?.slice(0, 5) || []
+        setEmbarquesRecientes(embarquesOrdenados)
+
+        // Cargar recordatorios urgentes (vencidos o próximos a vencer)
+        const { data: recordatorios } = await obtenerRecordatorios()
+        const hoy = new Date()
+        const en7Dias = new Date()
+        en7Dias.setDate(hoy.getDate() + 7)
+
+        const recordatoriosUrgentes =
+          (recordatorios as Recordatorio[])
+            ?.filter((r: Recordatorio) => {
+              const fechaVencimiento = new Date(r.fecha_vencimiento)
+              return fechaVencimiento <= en7Dias && r.estado !== "completado"
+            })
+            ?.sort((a: Recordatorio, b: Recordatorio) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
+            ?.slice(0, 5) || []
+        setRecordatoriosUrgentes(recordatoriosUrgentes)
+
+        // Agenda de hoy y sin asignar
+        const sameDay = (iso?: string) => {
+          if (!iso) return false
+          const d = new Date(iso)
+          return (
+            d.getFullYear() === hoy.getFullYear() &&
+            d.getMonth() === hoy.getMonth() &&
+            d.getDate() === hoy.getDate()
+          )
+        }
+
+        const agenda = (embarques as Embarque[])
+          ?.filter((e: Embarque) => sameDay(e.fecha_recolecta) || sameDay(e.fecha_entrega))
+          ?.slice(0, 5) || []
+        setAgendaHoy(agenda)
+
+        const sinAsignar = (embarques as Embarque[])
+          ?.filter((e: Embarque) => !e.operador_id || !e.camion_id || (!e.remolque_manual && !e.remolque_id))
+          ?.slice(0, 5) || []
+        setEmbarquesSinAsignar(sinAsignar)
+
+        // Obtener operadores, camiones y remolques
+        const [{ data: operadores }, { data: camiones }, { data: remolques }] = await Promise.all([
+          obtenerOperadores(),
+          obtenerCamiones(),
+          obtenerRemolques(),
+        ])
+
+        // Calcular estadísticas
+        const ops: Operador[] = (operadores as Operador[]) || []
+        const cms: Camion[] = (camiones as Camion[]) || []
+        const rms: Remolque[] = (remolques as Remolque[]) || []
+        const statsEmbarques = {
+          total: (embarques as Embarque[])?.length || 0,
+          creados: (embarques as Embarque[])?.filter((e: Embarque) => e.estado === "creado")?.length || 0,
+          asignados: (embarques as Embarque[])?.filter((e: Embarque) => e.estado === "listo-para-asignar")?.length || 0,
+          enTransito: (embarques as Embarque[])?.filter((e: Embarque) => e.estado === "en-transito")?.length || 0,
+          entregados: (embarques as Embarque[])?.filter((e: Embarque) => e.estado === "entregado")?.length || 0,
+        }
+
+        const statsRecordatorios = {
+          total: (recordatorios as Recordatorio[])?.length || 0,
+          pendientes: (recordatorios as Recordatorio[])?.filter((r: Recordatorio) => r.estado === "pendiente")?.length || 0,
+          vencidos:
+            (recordatorios as Recordatorio[])?.filter((r: Recordatorio) => {
+              const fechaVencimiento = new Date(r.fecha_vencimiento)
+              return fechaVencimiento < hoy && r.estado !== "completado"
+            })?.length || 0,
+          completados: (recordatorios as Recordatorio[])?.filter((r: Recordatorio) => r.estado === "completado")?.length || 0,
+        }
+
+        const statsOperadores = {
+          total: ops.length || 0,
+          activos: ops.filter((o) => o.estado === "activo")?.length || 0,
+          inactivos: ops.filter((o) => o.estado === "inactivo")?.length || 0,
+          suspendidos: ops.filter((o) => o.estado === "suspendido")?.length || 0,
+        }
+
+        const statsCamiones = {
+          total: cms.length || 0,
+          optima: cms.filter((c) => c.estado === "optima")?.length || 0,
+          noOptima: cms.filter((c) => c.estado === "no-optima")?.length || 0,
+          fueraServicio: cms.filter((c) => c.estado === "fuera-servicio")?.length || 0,
+        }
+
+        const statsRemolques = {
+          total: rms.length || 0,
+          disponibles: rms.filter((r) => r.estado === "disponible")?.length || 0,
+          enUso: rms.filter((r) => r.estado === "en-uso")?.length || 0,
+          mantenimiento: rms.filter((r) => r.estado === "mantenimiento")?.length || 0,
+        }
+
+        setStats((prevStats) => ({
+          ...prevStats,
+          embarques: statsEmbarques,
+          recordatorios: statsRecordatorios,
+          operadores: statsOperadores,
+          camiones: statsCamiones,
+          remolques: statsRemolques,
+        }))
+
+        // Vencimientos (selección por tipo conocido) con semáforo
+        const tiposVenc = ["licencia", "apto", "visa", "seguro", "inspe", "verifi"]
+        const venci = (recordatorios as Recordatorio[])
+          ?.filter((r: Recordatorio) => {
+            const t = (r.tipo || r.titulo || "").toLowerCase()
+            return tiposVenc.some((k) => t.includes(k)) && r.estado !== "completado"
+          })
+          ?.sort((a: Recordatorio, b: Recordatorio) => new Date(a.fecha_vencimiento).getTime() - new Date(b.fecha_vencimiento).getTime())
+          ?.slice(0, 5) || []
+        setVencimientos(venci.length ? venci : recordatoriosUrgentes)
+
+        // Utilización de flota/operadores basada en embarques en tránsito
+        const activos = (embarques as Embarque[])?.filter((e: Embarque) => e.estado === "en-transito") || []
+        const opEnUso = new Set(activos.map((e) => e.operador_id).filter(Boolean)).size
+        const camEnUso = new Set(activos.map((e) => e.camion_id).filter(Boolean)).size
+        const remEnUso = new Set(activos.map((e) => e.remolque_id).filter(Boolean)).size
+        setUtilizacion({
+          operadores: statsOperadores.total ? Math.round((opEnUso / statsOperadores.total) * 100) : 0,
+          camiones: statsCamiones.total ? Math.round((camEnUso / statsCamiones.total) * 100) : 0,
+          remolques: statsRemolques.total ? Math.round((remEnUso / statsRemolques.total) * 100) : 0,
+        })
+
+        // Cumpleaños de operadores: calcular próxima ocurrencia y ordenar (mostrar todos, el más próximo primero)
+        const proximosCumples = ops
+          .filter((o) => !!o.fecha_nacimiento)
+          .map((o) => {
+            const fn = new Date(o.fecha_nacimiento as string)
+            const now = new Date()
+            const next = new Date(now.getFullYear(), fn.getMonth(), fn.getDate())
+            if (next < now) next.setFullYear(now.getFullYear() + 1)
+            const dias = Math.ceil((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+            return { id: o.id, nombre: `${o.nombre} ${o.apellidos || ""}`.trim(), fecha: next.toISOString(), dias }
+          })
+          .sort((a, b) => a.dias - b.dias)
+          // sin slice: mostramos todos
+        setCumples(proximosCumples)
+      } catch (error) {
+        console.error("Error cargando datos del dashboard:", error)
+      }
+    }
+
+    cargarDatos()
+  }, [])
+
+  const getEstadoBadge = (estado: string) => {
+    switch (estado) {
+      case "creado":
+        return <Badge className="bg-blue-100 text-blue-800">Creado</Badge>
+      case "asignado":
+        return <Badge className="bg-yellow-100 text-yellow-800">Asignado</Badge>
+      case "en-transito":
+        return <Badge className="bg-orange-100 text-orange-800">En Tránsito</Badge>
+      case "entregado":
+        return <Badge className="bg-green-100 text-green-800">Entregado</Badge>
+      default:
+        return <Badge variant="outline">{estado}</Badge>
+    }
+  }
+
+  const getPrioridadBadge = (prioridad: string) => {
+    switch (prioridad) {
+      case "alta":
+        return <Badge className="bg-red-100 text-red-800">Alta</Badge>
+      case "media":
+        return <Badge className="bg-yellow-100 text-yellow-800">Media</Badge>
+      case "baja":
+        return <Badge className="bg-green-100 text-green-800">Baja</Badge>
+      default:
+        return <Badge variant="outline">{prioridad}</Badge>
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Estadísticas principales */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Embarques</p>
+                <p className="text-2xl font-bold">{stats.embarques.total}</p>
+                <p className="text-xs text-gray-500">
+                  {stats.embarques.creados} creados • {stats.embarques.asignados} asignados
+                </p>
+              </div>
+              <Package className="h-8 w-8 text-blue-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Operadores</p>
+                <p className="text-2xl font-bold">{stats.operadores.total}</p>
+                <p className="text-xs text-gray-500">
+                  {stats.operadores.activos} activos • {stats.operadores.inactivos} inactivos
+                </p>
+              </div>
+              <Users className="h-8 w-8 text-green-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Camiones</p>
+                <p className="text-2xl font-bold">{stats.camiones.total}</p>
+                <p className="text-xs text-gray-500">
+                  {stats.camiones.optima} óptimos • {stats.camiones.noOptima} no óptimos
+                </p>
+              </div>
+              <Truck className="h-8 w-8 text-orange-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Remolques</p>
+                <p className="text-2xl font-bold">{stats.remolques.total}</p>
+                <p className="text-xs text-gray-500">
+                  {stats.remolques.disponibles} disponibles • {stats.remolques.enUso} en uso
+                </p>
+              </div>
+              <Container className="h-8 w-8 text-purple-600" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Recordatorios</p>
+                <p className="text-2xl font-bold">{stats.recordatorios.total}</p>
+                <p className="text-xs text-gray-500">
+                  {stats.recordatorios.pendientes} pendientes • {stats.recordatorios.vencidos} vencidos
+                </p>
+              </div>
+              <Bell className="h-8 w-8 text-red-600" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+  {/* Sección de embarques y recordatorios */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Embarques recientes */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-lg font-semibold">Embarques Recientes</CardTitle>
+            <Link href="/embarques">
+              <Button variant="outline" size="sm">
+                Ver todos
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {embarquesRecientes.map((embarque: Embarque) => (
+                <div key={embarque.id} className="flex items-center justify-between p-3 border rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <Package className="h-8 w-8 text-blue-600" />
+                    <div>
+                      <p className="font-medium">{embarque.folio}</p>
+                      <p className="text-sm text-gray-600">{embarque.cliente?.nombre || "Sin cliente"}</p>
+                      <div className="flex items-center space-x-2 text-xs text-gray-500">
+                        <MapPin className="h-3 w-3" />
+                        <span>{embarque.destino}</span>
+                        <Calendar className="h-3 w-3 ml-2" />
+                        <span>{new Date(embarque.fecha_creacion).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="text-right">{getEstadoBadge(embarque.estado)}</div>
+                </div>
+              ))}
+              {embarquesRecientes.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <Package className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>No hay embarques recientes</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recordatorios urgentes */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-lg font-semibold">Recordatorios Urgentes</CardTitle>
+            <Link href="/recordatorios">
+              <Button variant="outline" size="sm">
+                Ver todos
+              </Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {recordatoriosUrgentes.map((recordatorio: Recordatorio) => {
+                const fechaVencimiento = new Date(recordatorio.fecha_vencimiento)
+                const hoy = new Date()
+                const esVencido = fechaVencimiento < hoy
+
+                return (
+                  <div
+                    key={recordatorio.id}
+                    className={`flex items-center justify-between p-3 border rounded-lg ${
+                      esVencido ? "bg-red-50 border-red-200" : "bg-yellow-50 border-yellow-200"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-3">
+                      <AlertTriangle className={`h-8 w-8 ${esVencido ? "text-red-600" : "text-yellow-600"}`} />
+                      <div>
+                        <p className="font-medium">{recordatorio.titulo}</p>
+                        <p className="text-sm text-gray-600">
+                          {recordatorio.operador
+                            ? `${recordatorio.operador.nombre} ${recordatorio.operador.apellidos}`
+                            : "Sin operador"}
+                        </p>
+                        <div className="flex items-center space-x-2 text-xs text-gray-500">
+                          <Clock className="h-3 w-3" />
+                          <span className={esVencido ? "text-red-600 font-medium" : ""}>
+                            {esVencido ? "Vencido: " : "Vence: "}
+                            {fechaVencimiento.toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <Badge className={esVencido ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}>
+                        {esVencido ? "Vencido" : "Urgente"}
+                      </Badge>
+                    </div>
+                  </div>
+                )
+              })}
+              {recordatoriosUrgentes.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <CheckCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>No hay recordatorios urgentes</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+  {/* Sección "Agenda de hoy" y "Utilización" ocultada a solicitud */}
+
+  {/* Vencimientos con semáforo y Recordatorios personales */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Vencimientos */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-lg font-semibold">Vencimientos</CardTitle>
+            <Link href="/recordatorios">
+              <Button variant="outline" size="sm">Ver todos</Button>
+            </Link>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {vencimientos.map((r) => {
+                const fv = new Date(r.fecha_vencimiento)
+                const hoy = new Date()
+                const diff = Math.ceil((fv.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24))
+                const esVencido = diff < 0
+                const color = esVencido ? "bg-red-100 text-red-800" : diff <= 7 ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
+                return (
+                  <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div>
+                      <p className="font-medium">{r.titulo}</p>
+                      <p className="text-xs text-gray-500">Vence: {fv.toLocaleDateString()}</p>
+                    </div>
+                    <Badge className={color}>{esVencido ? "Vencido" : diff <= 7 ? `En ${diff} días` : "OK"}</Badge>
+                  </div>
+                )
+              })}
+              {vencimientos.length === 0 && (
+                <div className="text-center py-4 text-gray-500">
+                  <CheckCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
+                  <p>Sin vencimientos próximos</p>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Cumpleaños de operadores (próximos) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg font-semibold">Cumpleaños de operadores</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div>
+              <p className="font-semibold mb-2">Próximos cumpleaños</p>
+              <div className="space-y-2">
+                {cumples.map((c) => {
+                  const d = new Date(c.fecha)
+                  const color = c.dias <= 7 ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
+                  return (
+                    <div key={c.id} className="flex items-center justify-between p-2 border rounded-md">
+                      <span className="text-sm">{c.nombre}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">{d.toLocaleDateString()}</span>
+                        <Badge className={color}>{c.dias === 0 ? "Hoy" : `En ${c.dias} d`}</Badge>
+                      </div>
+                    </div>
+                  )
+                })}
+                {cumples.length === 0 && <p className="text-sm text-gray-500">Sin cumpleaños próximos</p>}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  )
+}
