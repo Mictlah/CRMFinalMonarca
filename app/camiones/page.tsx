@@ -56,6 +56,7 @@ import {
 import { useState, useEffect } from "react";
 import { supabase, type Camion, type MarcaCamion } from "@/lib/supabase";
 import { v4 as uuidv4 } from "uuid";
+import { agregarAuditLog } from "@/lib/audit";
 
 // Definir una interfaz para la estructura de los comentarios
 interface Comentario {
@@ -384,6 +385,15 @@ export default function CamionesPage() {
 
         alert("Camión actualizado exitosamente");
 
+        // Audit log: actualización de camión
+        try {
+          agregarAuditLog(
+            "ACTUALIZAR",
+            "Camiones",
+            `Actualizó camión ${editingCamion.numero_economico} (ID: ${editingCamion.id})`
+          );
+        } catch {}
+
         // Actualizar estados locales inmediatamente para reflejar cambios en el modal abierto
         setCamiones(prev => prev.map(c => c.id === editingCamion.id ? { ...c, ...camionData } as any : c));
         setCamionDetalle(prev => {
@@ -409,6 +419,15 @@ export default function CamionesPage() {
         }
 
         alert("Camión creado exitosamente");
+
+        // Audit log: creación de camión (sin ID, registramos número económico)
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Camiones",
+            `Creó camión ${newCamionData.numero_economico}`
+          );
+        } catch {}
 
   // Añadir a la lista local inmediatamente (la recarga posterior garantizará consistencia)
   setCamiones(prev => [...prev, { ...newCamionData } as any]);
@@ -749,6 +768,14 @@ export default function CamionesPage() {
       }
 
       alert("Camión eliminado exitosamente");
+      // Audit log: eliminación de camión
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Camiones",
+          `Eliminó camión ${camion.numero_economico} (ID: ${id})`
+        );
+      } catch {}
       await cargarCamiones(); // Recargar la lista
     } catch (error) {
       console.error(
@@ -790,6 +817,14 @@ export default function CamionesPage() {
             : "reactivado"
         }`
       );
+      // Audit log: cambio de estado de camión
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Camiones",
+          `Cambió estado del camión ${camion.numero_economico} (ID: ${id}) a ${nuevoEstado}`
+        );
+      } catch {}
       await cargarCamiones(); // Recargar la lista
     } catch (error) {
       console.error("Error:", error);
@@ -1044,6 +1079,15 @@ export default function CamionesPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Audit log: exportación general de camiones
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Camiones",
+        `Descargó reporte general de camiones (${camiones.length})`
+      );
+    } catch {}
   };
 
   // Obtener marcas disponibles (de la BD o por defecto)
@@ -1216,6 +1260,15 @@ export default function CamionesPage() {
       if (camionDetalle && camionDetalle.id === selectedCamionKilometraje.id) {
         await cargarHistorialKilometraje(selectedCamionKilometraje.id);
       }
+
+      // Audit log: actualización de kilometraje
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Camiones",
+          `Actualizó kilometraje de camión ${selectedCamionKilometraje.numero_economico} a ${kilometrajeActual} (+${kilometrajeAgregado})`
+        );
+      } catch {}
 
   // Mensaje de éxito silencioso (se eliminó alert visible)
     } catch (error) {
@@ -1619,6 +1672,17 @@ export default function CamionesPage() {
       limpiarFormularioMantenimiento();
       setShowMantenimientoForm(false);
 
+      // Audit log: registro de mantenimiento
+      try {
+        if (selectedCamionMantenimiento) {
+          agregarAuditLog(
+            "CREAR",
+            "Camiones",
+            `Registró mantenimiento para camión ${selectedCamionMantenimiento.numero_economico} en ${mantenimientoFormData.fecha_mantenimiento} (${mantenimientoFormData.tipo_mantenimiento || 'general'})`
+          );
+        }
+      } catch {}
+
       // Recargar historial de mantenimiento si estamos en la ventana de detalles
       if (
         camionDetalle &&
@@ -1686,6 +1750,15 @@ export default function CamionesPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Audit log: exportación de camión individual
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Camiones",
+        `Descargó reporte del camión ${camion.numero_economico} (ID: ${camion.id})`
+      );
+    } catch {}
   };
 
   // Forzar recompilación: control de estado de carga

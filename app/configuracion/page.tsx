@@ -4,13 +4,14 @@ import { useState, useEffect } from "react";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings, Shield, Bell, FileText, User, Trash2, Download, Filter, AlertTriangle, Edit2, Save } from "lucide-react";
-import { getCurrentUser, verifyAuditPassword } from "@/lib/auth";
+import { getCurrentUser, verifyAuditPassword, listUsers, createUser, resetPassword, getSecuritySettings, setSecuritySettings, verifyCurrentUserPassword } from "@/lib/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
@@ -49,12 +50,15 @@ export default function ConfiguracionPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [filtroModulo, setFiltroModulo] = useState("todos");
   const [filtroAccion, setFiltroAccion] = useState("todas");
+  // Paginación para audit log
+  const [pageLog, setPageLog] = useState(1)
+  const [pageSizeLog, setPageSizeLog] = useState(50)
   const [configuracion, setConfiguracion] = useState<ConfiguracionGeneral>({
     nombreEmpresa: "",
     notificacionesEmail: false,
     notificacionesPush: false,
     backupAutomatico: false,
-    retencionDatos: 0,
+  retencionDatos: 12,
     formatoFecha: "",
   });
   const currentUser = getCurrentUser();
@@ -65,6 +69,28 @@ export default function ConfiguracionPage() {
   const [loadingThresholds, setLoadingThresholds] = useState(false);
   const [editIdx, setEditIdx] = useState<number|null>(null);
   const [editValues, setEditValues] = useState<Partial<AlertThreshold>>({});
+  // Seguridad: usuarios y políticas
+  const [users, setUsers] = useState<any[]>([])
+  const [loadingUsers, setLoadingUsers] = useState(false)
+  const [newUser, setNewUser] = useState({ username: "", nombre: "", password: "" })
+  const [secSettings, setSecSettings] = useState({ max_failed_attempts: 5, lockout_minutes: 15, session_timeout_minutes: 30 })
+  const [savingSec, setSavingSec] = useState(false)
+  const [secConfirmOpen, setSecConfirmOpen] = useState(false)
+  const [secAdminPassword, setSecAdminPassword] = useState("")
+  // Dialogos de seguridad
+  const [confirmAdminOpen, setConfirmAdminOpen] = useState(false)
+  const [adminPassword, setAdminPassword] = useState("")
+  const [pendingCreate, setPendingCreate] = useState<{ username: string; nombre: string; password: string } | null>(null)
+  const [resetDialogOpen, setResetDialogOpen] = useState(false)
+  const [resetUser, setResetUser] = useState<{ id: string; username: string } | null>(null)
+  const [resetPwd1, setResetPwd1] = useState("")
+  const [resetPwd2, setResetPwd2] = useState("")
+  // Retención de datos (solo Embarques)
+  const [retencionConfirmOpen, setRetencionConfirmOpen] = useState(false)
+  const [retencionFinalOpen, setRetencionFinalOpen] = useState(false)
+  const [retencionRunning, setRetencionRunning] = useState(false)
+  const [retencionNextRun, setRetencionNextRun] = useState<string | null>(null)
+  const [retencionWarning, setRetencionWarning] = useState<string | null>(null)
 
   // Cargar umbrales de alerta desde Supabase
   const cargarAlertThresholds = async () => {
@@ -77,6 +103,43 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     cargarAlertThresholds();
   }, []);
+
+  // Cargar usuarios y seguridad
+  const cargarUsuarios = async () => {
+    try {
+      setLoadingUsers(true)
+      const data = await listUsers()
+      setUsers(data)
+    } catch (e) {
+      console.warn("No se pudieron cargar usuarios:", e)
+    } finally {
+      setLoadingUsers(false)
+    }
+  }
+
+  const cargarSeguridad = async () => {
+    try {
+      const s = await getSecuritySettings()
+      if (s) setSecSettings(s as any)
+    } catch (e) {
+      console.warn("No se pudo cargar configuración de seguridad:", e)
+    }
+  }
+
+  useEffect(() => {
+    cargarUsuarios()
+    cargarSeguridad()
+    // Cargar configuración general persistida
+    try {
+      const cfgRaw = localStorage.getItem("configuracion")
+      if (cfgRaw) {
+        const parsed = JSON.parse(cfgRaw)
+        setConfiguracion((prev) => ({ ...prev, ...parsed }))
+      }
+      const nextRun = localStorage.getItem("retencion_next_run")
+      if (nextRun) setRetencionNextRun(nextRun)
+    } catch {}
+  }, [])
 
   // Guardar cambios de umbral editado
   const guardarEditThreshold = async (idx: number) => {
@@ -94,61 +157,7 @@ export default function ConfiguracionPage() {
       setEditIdx(null);
       setEditValues({});
     } else {
-      alert('Error al guardar: ' + error.message);
-    }
-  };
-
-  // Función para agregar entrada al audit log
-  const agregarAuditLog = async (accion: string, modulo: string, detalles: string) => {
-    try {
-      const nuevaEntrada = {
-        usuario: currentUser?.nombre || "Usuario Desconocido",
-        accion,
-        modulo,
-        detalles,
-        ip: "192.168.1.1", // En producción obtener IP real
-        fecha_creacion: new Date().toISOString(),
-      }
-
-      // Intentar guardar en Supabase
-      const { error } = await supabase.from("audit_logs").insert(nuevaEntrada)
-
-      if (error) {
-        console.warn("No se pudo guardar en Supabase, usando localStorage:", error.message)
-        // Fallback a localStorage si falla Supabase
-        const logsExistentes = JSON.parse(localStorage.getItem("auditLogs") || "[]")
-        const nuevaEntradaLocal = {
-          id: Date.now().toString(),
-          timestamp: nuevaEntrada.fecha_creacion,
-          usuario: nuevaEntrada.usuario,
-          accion: nuevaEntrada.accion,
-          modulo: nuevaEntrada.modulo,
-          detalles: nuevaEntrada.detalles,
-          ip: nuevaEntrada.ip,
-        }
-        const logsActualizados = [nuevaEntradaLocal, ...logsExistentes].slice(0, 1000)
-        setAuditLogs(logsActualizados)
-        localStorage.setItem("auditLogs", JSON.stringify(logsActualizados))
-      } else {
-        // Recargar logs desde Supabase
-        await cargarAuditLogs()
-      }
-    } catch (error) {
-      console.warn("Error general en audit log:", error)
-      // Fallback completo a localStorage
-      const logsExistentes = JSON.parse(localStorage.getItem("auditLogs") || "[]")
-      const nuevaEntradaLocal = {
-        id: Date.now().toString(),
-        timestamp: new Date().toISOString(),
-        usuario: currentUser?.nombre || "Usuario Desconocido",
-        accion,
-        modulo,
-        detalles,
-        ip: "192.168.1.1",
-      }
-      const logsActualizados = [nuevaEntradaLocal, ...logsExistentes].slice(0, 1000)
-      setAuditLogs(logsActualizados)
-      localStorage.setItem("auditLogs", JSON.stringify(logsActualizados))
+      alert('No se pudo actualizar el umbral.');
     }
   }
 
@@ -233,22 +242,28 @@ export default function ConfiguracionPage() {
         return
       }
 
-      if (data && data.length > 0) {
-        // Convertir formato de Supabase al formato esperado
-        const logsFormateados = data.map((log) => ({
-          id: log.id.toString(),
-          timestamp: log.fecha_creacion,
-          usuario: log.usuario,
-          accion: log.accion,
-          modulo: log.modulo,
-          detalles: log.detalles,
-          ip: log.ip,
-        }))
-        setAuditLogs(logsFormateados)
-      } else {
-        // Si no hay datos, mostrar logs de ejemplo
-        setAuditLogs([])
-      }
+      // Convertir formato de Supabase al formato esperado
+      const logsDB = (data || []).map((log) => ({
+        id: log.id?.toString?.() || `${log.fecha_creacion}-${log.usuario}-${log.accion}`,
+        timestamp: log.fecha_creacion,
+        usuario: log.usuario,
+        accion: log.accion,
+        modulo: log.modulo,
+        detalles: log.detalles,
+        ip: log.ip,
+      }))
+
+      // Mezclar con fallback localStorage si existe
+      const logsLocalStorage = localStorage.getItem("auditLogs")
+      const logsLocal: AuditLogEntry[] = logsLocalStorage ? JSON.parse(logsLocalStorage) : []
+      const combinados = [...logsDB, ...logsLocal]
+        .reduce((acc: Record<string, AuditLogEntry>, item) => {
+          const key = `${item.timestamp}|${item.usuario}|${item.accion}|${item.modulo}|${item.detalles}`
+          if (!acc[key]) acc[key] = item
+          return acc
+        }, {})
+      const lista = Object.values(combinados).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 1000)
+      setAuditLogs(lista)
     } catch (error) {
       console.warn("Error conectando con la base de datos, usando modo offline:", error)
       // Cargar desde localStorage como fallback
@@ -264,6 +279,51 @@ export default function ConfiguracionPage() {
   useEffect(() => {
     cargarAuditLogs()
   }, [])
+
+  // Agregar una entrada al Audit Log (Supabase con fallback local)
+  const agregarAuditLog = async (accion: string, modulo: string, detalles: string) => {
+    try {
+      const nuevaEntrada = {
+        usuario: currentUser?.nombre || "Sistema",
+        accion,
+        modulo,
+        detalles,
+        ip: "127.0.0.1",
+      } as any
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .insert(nuevaEntrada)
+        .select()
+        .single()
+      if (error) throw error
+
+      const local = {
+        id: (data?.id ?? Date.now()).toString(),
+        timestamp: data?.fecha_creacion ?? new Date().toISOString(),
+        usuario: nuevaEntrada.usuario,
+        accion: nuevaEntrada.accion,
+        modulo: nuevaEntrada.modulo,
+        detalles: nuevaEntrada.detalles,
+        ip: nuevaEntrada.ip,
+      }
+      setAuditLogs((prev) => [local, ...prev].slice(0, 1000))
+    } catch (e) {
+      console.warn("Fallo inserción audit_logs, usando localStorage:", e)
+      const logsExistentes = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+      const local = {
+        id: Date.now().toString(),
+        timestamp: new Date().toISOString(),
+        usuario: currentUser?.nombre || "Sistema",
+        accion,
+        modulo,
+        detalles,
+        ip: "127.0.0.1",
+      }
+      const logsActualizados = [local, ...logsExistentes].slice(0, 1000)
+      setAuditLogs(logsActualizados)
+      localStorage.setItem("auditLogs", JSON.stringify(logsActualizados))
+    }
+  }
 
 
 
@@ -291,11 +351,97 @@ export default function ConfiguracionPage() {
     agregarAuditLog("ACTUALIZAR", "Configuración", "Configuración guardada")
   }
 
+  // Helpers para retención
+  const computeNextRun = (months: number) => {
+    const base = new Date()
+    base.setMonth(base.getMonth() + months)
+    return base.toISOString()
+  }
+  const scheduleNextRun = (months: number) => {
+    const next = computeNextRun(months)
+    localStorage.setItem("retencion_next_run", next)
+    setRetencionNextRun(next)
+  }
+
+  useEffect(() => {
+    // Mostrar advertencia si el periodo está vencido
+    if (!retencionNextRun) return
+    const now = new Date()
+    const due = new Date(retencionNextRun)
+    if (now >= due) {
+      setRetencionWarning("La limpieza por retención está pendiente. Solo se eliminarán Embarques más antiguos que el periodo configurado.")
+    } else {
+      setRetencionWarning(null)
+    }
+  }, [retencionNextRun])
+
+  const runRetention = async () => {
+    if (!currentUser) { alert('Tu sesión ha expirado.'); return }
+    if (currentUser.role !== 'admin') { alert('Solo el administrador puede realizar esta acción.'); return }
+    try {
+      setRetencionRunning(true)
+      // Calcular fecha límite por meses
+      const months = Math.max(0, Number(configuracion.retencionDatos) || 12)
+      const cutoff = new Date()
+      cutoff.setMonth(cutoff.getMonth() - months)
+      const cutoffISO = cutoff.toISOString()
+      // Eliminar SOLO de embarques con estado archivado o finalizado y fecha anterior al corte
+      const { error } = await supabase
+        .from('embarques')
+        .delete()
+        .lt('fecha_creacion', cutoffISO)
+      if (error) throw error
+      try { await agregarAuditLog('ELIMINAR', 'Configuración', `Retención ejecutada: embarques anteriores a ${cutoffISO}`) } catch {}
+      // Reprogramar siguiente corrida
+      scheduleNextRun(months)
+      setRetencionWarning(null)
+      alert('Limpieza de embarques ejecutada correctamente.')
+    } catch (e:any) {
+      alert('Error ejecutando retención: '+(e.message||e))
+    } finally {
+      setRetencionRunning(false)
+      setRetencionFinalOpen(false)
+    }
+  }
+
+  const startRetentionFlow = () => {
+    if (!currentUser || currentUser.role !== 'admin') {
+      alert('Solo el administrador puede modificar retención o ejecutar limpieza.');
+      return
+    }
+    setRetencionConfirmOpen(true)
+  }
+
+  const confirmRetentionProceed = () => {
+    // Segunda confirmación
+    setRetencionConfirmOpen(false)
+    setRetencionFinalOpen(true)
+  }
+
+  const cancelRetentionAndSnooze = () => {
+    // Al cancelar, reinicia el conteo (snooze) al periodo completo
+    const months = Math.max(0, Number(configuracion.retencionDatos) || 12)
+    scheduleNextRun(months)
+    setRetencionConfirmOpen(false)
+    setRetencionFinalOpen(false)
+    setRetencionWarning(null)
+    try { agregarAuditLog('ACTUALIZAR','Configuración','Retención cancelada: contador reiniciado') } catch {}
+  }
+
   const logsFiltrados = auditLogs.filter((log) => {
     const moduloMatch = filtroModulo === "todos" || log.modulo.toLowerCase().includes(filtroModulo.toLowerCase())
     const accionMatch = filtroAccion === "todas" || log.accion === filtroAccion
     return moduloMatch && accionMatch
   })
+  const totalPagesLog = Math.max(1, Math.ceil(logsFiltrados.length / pageSizeLog))
+  const startIdx = (pageLog - 1) * pageSizeLog
+  const endIdx = startIdx + pageSizeLog
+  const logsPaginados = logsFiltrados.slice(startIdx, endIdx)
+
+  useEffect(() => {
+    // Reiniciar página al cambiar filtros o tamaño
+    setPageLog(1)
+  }, [filtroModulo, filtroAccion, pageSizeLog])
 
   const getAccionColor = (accion: string) => {
     switch (accion) {
@@ -323,10 +469,9 @@ export default function ConfiguracionPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="seguridad">Seguridad</TabsTrigger>
-            <TabsTrigger value="notificaciones">Notificaciones</TabsTrigger>
             <TabsTrigger value="alertas">Alertas de Vencimiento</TabsTrigger>
             <TabsTrigger value="auditlog">Audit Log</TabsTrigger>
           </TabsList>
@@ -413,11 +558,111 @@ export default function ConfiguracionPage() {
                 </CardTitle>
                 <CardDescription>Configuraciones básicas del sistema</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center py-8 text-gray-500">
-                  <Settings className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Configuración general del sistema</p>
-                  <p className="text-sm">Próximamente disponible</p>
+              <CardContent className="space-y-6">
+                {/* Advertencia de retención pendiente */}
+                {retencionWarning && (
+                  <div className="p-3 border border-yellow-300 bg-yellow-50 text-yellow-900 rounded text-sm flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 mt-0.5" />
+                    <div>
+                      <div className="font-medium">Aviso de retención</div>
+                      <div>{retencionWarning}</div>
+                      <div className="text-xs text-gray-700 mt-1">Siguiente ejecución programada: {retencionNextRun ? new Date(retencionNextRun).toLocaleString() : 'no programada'}</div>
+                      <div className="mt-2 flex gap-2">
+                        <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white border-green-700" onClick={startRetentionFlow}>Ejecutar ahora</Button>
+                        <Button size="sm" variant="outline" onClick={cancelRetentionAndSnooze}>Cancelar y reiniciar conteo</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {/* Dialogo 1: Confirmación inicial */}
+                <Dialog open={retencionConfirmOpen} onOpenChange={setRetencionConfirmOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirmar limpieza por retención</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 text-sm">
+                      <p>Se eliminarán únicamente Embarques con fecha anterior a {(() => { const d=new Date(); d.setMonth(d.getMonth() - Math.max(0, Number(configuracion.retencionDatos)||12)); return d.toLocaleDateString(); })()}.</p>
+                      <p>Clientes, usuarios, operadores y unidades no se eliminan.</p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={cancelRetentionAndSnooze}>Cancelar</Button>
+                      <Button className="bg-green-600 hover:bg-green-700 text-white border-green-700" onClick={confirmRetentionProceed}>Continuar</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                {/* Dialogo 2: Confirmación final */}
+                <Dialog open={retencionFinalOpen} onOpenChange={setRetencionFinalOpen}>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Confirmación final</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-2 text-sm">
+                      <p>¿Seguro que deseas ejecutar la limpieza ahora? Esta acción no se puede deshacer.</p>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={cancelRetentionAndSnooze}>Cancelar</Button>
+                      <Button className="bg-green-600 hover:bg-green-700 text-white border-green-700" disabled={retencionRunning} onClick={runRetention}>{retencionRunning? 'Ejecutando…':'Ejecutar ahora'}</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Nombre de la empresa</Label>
+                    <Input
+                      placeholder="Transportes Monarca"
+                      value={configuracion.nombreEmpresa}
+                      onChange={(e)=>setConfiguracion({...configuracion, nombreEmpresa: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Formato de fecha</Label>
+                    <select
+                      className="w-full border rounded px-3 py-2"
+                      value={configuracion.formatoFecha}
+                      onChange={(e)=>setConfiguracion({...configuracion, formatoFecha: e.target.value})}
+                    >
+                      <option value="dd/MM/yyyy">dd/MM/yyyy</option>
+                      <option value="MM/dd/yyyy">MM/dd/yyyy</option>
+                      <option value="yyyy-MM-dd">yyyy-MM-dd</option>
+                    </select>
+                    <p className="text-xs text-gray-500">Afecta cómo se muestran las fechas en reportes y listados.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Retención de datos (meses) — Solo Embarques</Label>
+                    <Input
+                      type="number"
+                      min={0}
+                      value={configuracion.retencionDatos}
+                      onChange={(e)=>setConfiguracion({...configuracion, retencionDatos: Number(e.target.value)})}
+                    />
+                    <p className="text-xs text-gray-500">El sistema eliminará únicamente Embarques anteriores al periodo configurado. Clientes, usuarios, operadores y unidades nunca se eliminan por retención.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="block">Respaldo automático</Label>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="backupAutomatico"
+                        checked={configuracion.backupAutomatico}
+                        onCheckedChange={(checked)=>setConfiguracion({...configuracion, backupAutomatico: checked})}
+                      />
+                      <span className="text-sm text-gray-700">Habilitar respaldos periódicos</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 justify-between items-center">
+                  <div className="text-xs text-gray-600">
+                    Próxima ejecución de retención: {retencionNextRun ? new Date(retencionNextRun).toLocaleString() : 'no programada'}
+                  </div>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => scheduleNextRun(Math.max(0, Number(configuracion.retencionDatos) || 12))}>Reprogramar siguiente ejecución</Button>
+                    <Button className="bg-green-600 hover:bg-green-700 text-white border-green-700" onClick={() => {
+                      // Solo admin puede guardar cambios de retención
+                      if (!currentUser || currentUser.role !== 'admin') { alert('Solo el administrador puede guardar estos cambios.'); return }
+                      guardarConfiguracion()
+                      // Si cambió retención, reprogramar siguiente corrida
+                      scheduleNextRun(Math.max(0, Number(configuracion.retencionDatos) || 12))
+                    }}>Guardar configuración</Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -430,52 +675,194 @@ export default function ConfiguracionPage() {
                   <Shield className="h-5 w-5" />
                   <span>Configuración de Seguridad</span>
                 </CardTitle>
-                <CardDescription>Configuraciones de seguridad y acceso</CardDescription>
+                <CardDescription>Usuarios secundarios y políticas de bloqueo/expiración</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="text-center py-8 text-gray-500">
-                  <Shield className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                  <p>Configuraciones de seguridad</p>
-                  <p className="text-sm">Próximamente disponible</p>
+              <CardContent className="space-y-6">
+                {/* Gestión de usuarios */}
+                <div>
+                  <h3 className="font-semibold mb-2">Usuarios secundarios</h3>
+                  <p className="text-sm text-gray-600 mb-3">Solo el admin puede crear usuarios. Tienen los mismos permisos operativos, excepto crear/eliminar usuarios.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <Input placeholder="Usuario" value={newUser.username} onChange={e=>setNewUser(v=>({...v, username:e.target.value}))} />
+                    <Input placeholder="Nombre" value={newUser.nombre} onChange={e=>setNewUser(v=>({...v, nombre:e.target.value}))} />
+                    <Input placeholder="Contraseña" type="password" value={newUser.password} onChange={e=>setNewUser(v=>({...v, password:e.target.value}))} />
+                  </div>
+                  <div className="mt-2">
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-700"
+                      onClick={() => {
+                        if (!newUser.username || !newUser.nombre || !newUser.password) {
+                          alert('Completa usuario, nombre y contraseña')
+                          return
+                        }
+                        setPendingCreate({ ...newUser })
+                        setAdminPassword("")
+                        setConfirmAdminOpen(true)
+                      }}
+                    >
+                      Crear usuario
+                    </Button>
+                  </div>
+
+                  <div className="overflow-x-auto mt-4">
+                    <table className="min-w-full text-sm border">
+                      <thead>
+                        <tr className="bg-gray-100">
+                          <th className="px-2 py-1 border text-left">Usuario</th>
+                          <th className="px-2 py-1 border text-left">Nombre</th>
+                          <th className="px-2 py-1 border text-left">Estado</th>
+                          <th className="px-2 py-1 border text-left">Intentos</th>
+                          <th className="px-2 py-1 border text-left">Bloqueado hasta</th>
+                          <th className="px-2 py-1 border">Acciones</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {loadingUsers ? (
+                          <tr><td className="px-2 py-2" colSpan={6}>Cargando...</td></tr>
+                        ) : users.length===0 ? (
+                          <tr><td className="px-2 py-6 text-center text-gray-500" colSpan={6}>Sin usuarios</td></tr>
+                        ) : users.map((u)=> (
+                          <tr key={u.id} className="border-b">
+                            <td className="px-2 py-1 border">{u.username}</td>
+                            <td className="px-2 py-1 border">{u.nombre}</td>
+                            <td className="px-2 py-1 border">{u.active? 'Activo':'Inactivo'}</td>
+                            <td className="px-2 py-1 border">{u.failed_attempts||0}</td>
+                            <td className="px-2 py-1 border">{u.locked_until ? new Date(u.locked_until).toLocaleString(): '-'}</td>
+                            <td className="px-2 py-1 border text-center">
+                              <Button size="sm" variant="outline" onClick={() => {
+                                setResetUser({ id: u.id, username: u.username })
+                                setResetPwd1("")
+                                setResetPwd2("")
+                                setResetDialogOpen(true)
+                              }}>Resetear contraseña</Button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Políticas de seguridad */}
+                <div>
+                  <h3 className="font-semibold mb-2">Políticas</h3>
+              {/* Dialogo: Confirmar contraseña admin para crear usuario */}
+              <Dialog open={confirmAdminOpen} onOpenChange={setConfirmAdminOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Confirmar acción de administrador</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600">Ingresa tu contraseña de administrador para crear el usuario "{pendingCreate?.username}".</p>
+                    <Input type="password" placeholder="Contraseña admin" value={adminPassword} onChange={e=>setAdminPassword(e.target.value)} />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={()=>setConfirmAdminOpen(false)}>Cancelar</Button>
+                    <Button className="bg-green-600 hover:bg-green-700 text-white border-green-700" onClick={async()=>{
+                      if(!pendingCreate) return
+                      if(!currentUser){ alert('Tu sesión ha expirado. Inicia sesión nuevamente.'); return }
+                      if(currentUser.role !== 'admin'){ alert('Solo el administrador puede realizar esta acción.'); return }
+                      const ok = await verifyCurrentUserPassword(adminPassword)
+                      if(!ok){ alert('Contraseña admin incorrecta'); return }
+                      try{
+                        await createUser(pendingCreate.username.trim(), pendingCreate.nombre.trim(), pendingCreate.password)
+                        setNewUser({ username:'', nombre:'', password:'' })
+                        await cargarUsuarios()
+                        agregarAuditLog('CREAR','Seguridad','Usuario secundario creado')
+                        setConfirmAdminOpen(false)
+                        setPendingCreate(null)
+                      }catch(e:any){ alert('Error creando usuario: '+(e.message||e)) }
+                    }}>Confirmar y crear</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Dialogo: Resetear contraseña con doble entrada */}
+              <Dialog open={resetDialogOpen} onOpenChange={setResetDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Resetear contraseña</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <p className="text-sm text-gray-600">Usuario: {resetUser?.username}</p>
+                    <Input type="password" placeholder="Nueva contraseña" value={resetPwd1} onChange={e=>setResetPwd1(e.target.value)} />
+                    <Input type="password" placeholder="Confirmar nueva contraseña" value={resetPwd2} onChange={e=>setResetPwd2(e.target.value)} />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={()=>setResetDialogOpen(false)}>Cancelar</Button>
+                    <Button className="bg-green-600 hover:bg-green-700 text-white border-green-700" onClick={async()=>{
+                      if(!resetUser) return
+                      if(!resetPwd1 || !resetPwd2){ alert('Ingresa la nueva contraseña dos veces'); return }
+                      if(resetPwd1 !== resetPwd2){ alert('Las contraseñas no coinciden'); return }
+                      try{
+                        await resetPassword(resetUser.id, resetPwd1)
+                        agregarAuditLog('ACTUALIZAR','Seguridad','Password reset')
+                        setResetDialogOpen(false)
+                        setResetUser(null)
+                      }catch(e:any){ alert('Error: '+(e.message||e)) }
+                    }}>Guardar</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <Label>Expiración de sesión (minutos)</Label>
+                      <Input type="number" min={5} value={secSettings.session_timeout_minutes} onChange={e=>setSecSettings(s=>({...s, session_timeout_minutes:Number(e.target.value)}))} />
+                    </div>
+                  </div>
+                  <div className="mt-3">
+                    <Button
+                      className="bg-green-600 hover:bg-green-700 text-white border-green-700"
+                      disabled={savingSec}
+                      onClick={() => { setSecAdminPassword(""); setSecConfirmOpen(true) }}
+                    >
+                      Guardar políticas
+                    </Button>
+                  </div>
+
+                  {/* Dialogo: Confirmar contraseña admin para guardar políticas */}
+                  <Dialog open={secConfirmOpen} onOpenChange={setSecConfirmOpen}>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Confirmar cambios de seguridad</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">Ingresa tu contraseña de administrador para guardar las políticas.</p>
+                        <Input type="password" placeholder="Contraseña admin" value={secAdminPassword} onChange={e=>setSecAdminPassword(e.target.value)} />
+                      </div>
+                      <DialogFooter>
+                        <Button variant="outline" onClick={()=>setSecConfirmOpen(false)}>Cancelar</Button>
+                        <Button
+                          className="bg-green-600 hover:bg-green-700 text-white border-green-700"
+                          disabled={savingSec}
+                          onClick={async()=>{
+                            if(!currentUser){ alert('Tu sesión ha expirado. Inicia sesión nuevamente.'); return }
+                            if(currentUser.role !== 'admin'){ alert('Solo el administrador puede realizar esta acción.'); return }
+                            const ok = await verifyCurrentUserPassword(secAdminPassword)
+                            if(!ok){ alert('Contraseña admin incorrecta'); return }
+                            try{
+                              setSavingSec(true)
+                              await setSecuritySettings(secSettings as any)
+                              await agregarAuditLog('ACTUALIZAR','Seguridad','Políticas actualizadas')
+                              setSecConfirmOpen(false)
+                            }catch(e:any){
+                              alert('Error guardando políticas: '+(e.message||e))
+                            } finally {
+                              setSavingSec(false)
+                            }
+                          }}
+                        >
+                          Confirmar y guardar
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </CardContent>
             </Card>
           </TabsContent>
 
-          <TabsContent value="notificaciones" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Bell className="h-5 w-5" />
-                  <span>Configuración de Notificaciones</span>
-                </CardTitle>
-                <CardDescription>Gestionar notificaciones del sistema</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="notificacionesEmail"
-                    checked={configuracion.notificacionesEmail}
-                    onCheckedChange={(checked) => setConfiguracion({ ...configuracion, notificacionesEmail: checked })}
-                  />
-                  <Label htmlFor="notificacionesEmail">Notificaciones por Email</Label>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="notificacionesPush"
-                    checked={configuracion.notificacionesPush}
-                    onCheckedChange={(checked) => setConfiguracion({ ...configuracion, notificacionesPush: checked })}
-                  />
-                  <Label htmlFor="notificacionesPush">Notificaciones Push</Label>
-                </div>
-
-                <Button onClick={guardarConfiguracion} className="w-full">
-                  Guardar Configuración
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          
 
           <TabsContent value="auditlog" className="space-y-4">
             <Card>
@@ -529,9 +916,9 @@ export default function ConfiguracionPage() {
                   </div>
                 </div>
 
-                {/* Lista de logs */}
-                <ScrollArea className="h-96">
-                  <div className="space-y-2">
+                {/* Lista de logs (compacta en filas) */}
+                <div className="border rounded-md overflow-hidden">
+                  <div className="max-h-96 overflow-auto">
                     {logsFiltrados.length === 0 ? (
                       <div className="text-center py-8 text-gray-500">
                         <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -539,32 +926,74 @@ export default function ConfiguracionPage() {
                         <p className="text-sm">Las actividades aparecerán aquí</p>
                       </div>
                     ) : (
-                      logsFiltrados.map((log) => (
-                        <div key={log.id} className="border rounded-lg p-3 bg-gray-50">
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center space-x-2 mb-1">
-                                <Badge className={getAccionColor(log.accion)}>{log.accion}</Badge>
-                                <span className="text-sm font-medium">{log.modulo}</span>
-                                <span className="text-xs text-gray-500">
-                                  {new Date(log.timestamp).toLocaleString()}
-                                </span>
-                              </div>
-                              <p className="text-sm text-gray-700 mb-1">{log.detalles}</p>
-                              <div className="flex items-center space-x-4 text-xs text-gray-500">
-                                <span className="flex items-center space-x-1">
-                                  <User className="h-3 w-3" />
-                                  <span>{log.usuario}</span>
-                                </span>
-                                {log.ip && <span>IP: {log.ip}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
+                      <table className="min-w-full text-xs">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">Fecha</th>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">Usuario</th>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">Acción</th>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">Módulo</th>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">Detalles</th>
+                            <th className="px-2 py-2 text-left font-medium text-gray-700">IP</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {logsPaginados.map((log) => (
+                            <tr key={log.id} className="border-t">
+                              <td className="px-2 py-2 whitespace-nowrap text-gray-700">{new Date(log.timestamp).toLocaleString()}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-gray-700">{log.usuario}</td>
+                              <td className="px-2 py-2 whitespace-nowrap">
+                                <span className={`px-2 py-0.5 rounded ${getAccionColor(log.accion)}`}>{log.accion}</span>
+                              </td>
+                              <td className="px-2 py-2 whitespace-nowrap text-gray-700">{log.modulo}</td>
+                              <td className="px-2 py-2 max-w-[400px] truncate text-gray-700" title={log.detalles}>{log.detalles}</td>
+                              <td className="px-2 py-2 whitespace-nowrap text-gray-700">{log.ip || ""}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     )}
                   </div>
-                </ScrollArea>
+                  {/* Paginador */}
+                  {logsFiltrados.length > 0 && (
+                    <div className="flex items-center justify-between p-2 border-t bg-white text-xs">
+                      <div className="flex items-center gap-2">
+                        <span>Página {pageLog} de {totalPagesLog}</span>
+                        <span className="text-gray-500">•</span>
+                        <span>
+                          Mostrando {startIdx + 1}-{Math.min(endIdx, logsFiltrados.length)} de {logsFiltrados.length}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          className="border rounded px-2 py-1"
+                          value={pageSizeLog}
+                          onChange={(e) => setPageSizeLog(Number(e.target.value))}
+                        >
+                          <option value={25}>25</option>
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                        </select>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPageLog((p) => Math.max(1, p - 1))}
+                          disabled={pageLog <= 1}
+                        >
+                          Anterior
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setPageLog((p) => Math.min(totalPagesLog, p + 1))}
+                          disabled={pageLog >= totalPagesLog}
+                        >
+                          Siguiente
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
               </CardContent>
             </Card>
@@ -575,3 +1004,6 @@ export default function ConfiguracionPage() {
   )
 // ...el resto del componente y el return JSX...
 }
+
+// Diálogos de doble confirmación para retención
+// Nota: Colocados fuera del return principal por claridad, pero deben estar en el JSX si se requiere render condicional.

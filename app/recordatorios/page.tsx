@@ -58,6 +58,7 @@ import {
   type Operador,
   type Camion,
 } from "@/lib/supabase";
+import { agregarAuditLog } from "@/lib/audit";
 
 export default function RecordatoriosPage() {
   const [showForm, setShowForm] = useState(false);
@@ -205,6 +206,14 @@ export default function RecordatoriosPage() {
           alert("Error al actualizar recordatorio");
           return;
         }
+        // Audit: actualización de recordatorio
+        try {
+          agregarAuditLog(
+            "ACTUALIZAR",
+            "Recordatorios",
+            `Actualizó recordatorio ${editingRecordatorio.id} - "${formData.titulo}" (vence: ${formData.fecha_vencimiento})`
+          );
+        } catch {}
       } else {
         // Crear nuevo recordatorio
         const { error } = await supabase
@@ -216,6 +225,22 @@ export default function RecordatoriosPage() {
           alert("Error al crear recordatorio");
           return;
         }
+        // Audit: creación de recordatorio
+        try {
+          const op = formData.operador_id
+            ? operadores.find((o) => o.id === formData.operador_id)
+            : undefined;
+          const cam = formData.camion_id
+            ? camiones.find((c) => c.id === formData.camion_id)
+            : undefined;
+          const partes: string[] = [
+            `"${formData.titulo}"`,
+            `vence: ${formData.fecha_vencimiento}`,
+          ];
+          if (op) partes.push(`operador: ${op.nombre} ${op.apellidos}`);
+          if (cam) partes.push(`camión: ${cam.numero_economico}`);
+          agregarAuditLog("CREAR", "Recordatorios", `Creó recordatorio ${partes.join(", ")}`);
+        } catch {}
       }
 
       alert(
@@ -251,6 +276,7 @@ export default function RecordatoriosPage() {
 
   const eliminarRecordatorio = async (id: string) => {
     try {
+      const rec = recordatorios.find((r) => r.id === id);
       const { error } = await supabase
         .from("recordatorios")
         .delete()
@@ -263,6 +289,14 @@ export default function RecordatoriosPage() {
       }
 
       alert("Recordatorio eliminado exitosamente");
+      // Audit: eliminación de recordatorio
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Recordatorios",
+          `Eliminó recordatorio ${id}${rec?.titulo ? ` - "${rec.titulo}"` : ""}`
+        );
+      } catch {}
       await cargarDatos(); // Recargar la lista
     } catch (error) {
       console.error("Error:", error);
@@ -272,6 +306,7 @@ export default function RecordatoriosPage() {
 
   const marcarComoCompletado = async (id: string) => {
     try {
+      const rec = recordatorios.find((r) => r.id === id);
       const { error } = await supabase
         .from("recordatorios")
         .update({
@@ -286,6 +321,14 @@ export default function RecordatoriosPage() {
         return;
       }
 
+      // Audit: marcado como completado
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Recordatorios",
+          `Marcó como completado el recordatorio ${id}${rec?.titulo ? ` - "${rec.titulo}"` : ""}`
+        );
+      } catch {}
       await cargarDatos(); // Recargar la lista
     } catch (error) {
       console.error("Error:", error);
@@ -410,6 +453,13 @@ export default function RecordatoriosPage() {
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Recordatorios");
     XLSX.writeFile(workbook, `recordatorios_${new Date().toISOString().split('T')[0]}.xlsx`);
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Recordatorios",
+        `Exportó ${recordatorios.length} recordatorios a Excel`
+      );
+    } catch {}
   };
 
   if (loading) {

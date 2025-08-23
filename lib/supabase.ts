@@ -496,69 +496,62 @@ export const crearRecordatoriosCumpleanos = async (
   }
 };
 
-// Función para obtener notificaciones (corregida)
+// Función para obtener notificaciones: total de recordatorios pendientes (sin filtrar por fecha)
 export const obtenerNotificaciones = async () => {
   try {
-    const hoy = new Date();
-    const enUnMes = new Date();
-    enUnMes.setMonth(enUnMes.getMonth() + 1);
-
-    // Formatear fechas para la consulta
-    const fechaHoy = hoy.toISOString().split("T")[0];
-    const fechaUnMes = enUnMes.toISOString().split("T")[0];
-
-    // Obtener recordatorios próximos a vencer (sin joins problemáticos)
-    const { data: recordatorios, error: errorRecordatorios } = await supabase
+    // Contar todos los recordatorios con estado pendiente (incluye vencidos y próximos)
+    const { count, error: countError } = await supabase
       .from("recordatorios")
-      .select("*")
-      .eq("estado", "pendiente")
-      .gte("fecha_vencimiento", fechaHoy)
-      .lte("fecha_vencimiento", fechaUnMes)
-      .order("fecha_vencimiento", { ascending: true });
+      .select("*", { count: "exact", head: true })
+      .eq("estado", "pendiente");
 
-    if (errorRecordatorios) {
-      console.error("Error obteniendo recordatorios:", errorRecordatorios);
+    if (countError) {
+      console.error("Error contando recordatorios:", countError);
       return { recordatorios: [], total: 0 };
     }
 
-    // Obtener información adicional por separado si es necesario
-    const recordatoriosConInfo = await Promise.all(
-      (recordatorios || []).map(async (recordatorio) => {
-        let operador = null;
-        let camion = null;
+    // Opcional: obtener un pequeño listado para vistas futuras (no usado por el header)
+    const { data: lista, error: listError } = await supabase
+      .from("recordatorios")
+      .select("*")
+      .eq("estado", "pendiente")
+      .order("fecha_vencimiento", { ascending: true })
+      .limit(10);
 
-        // Obtener operador si existe
+    if (listError) {
+      // Si falla la lista, al menos devolvemos el total
+      return { recordatorios: [], total: count || 0 };
+    }
+
+    // Enriquecer de forma ligera cuando existan relaciones
+    const recordatoriosConInfo = await Promise.all(
+      (lista || []).map(async (recordatorio) => {
+        let operador = null as any;
+        let camion = null as any;
+
         if (recordatorio.operador_id) {
           const { data: operadorData } = await supabase
             .from("operadores")
             .select("id, nombre, apellidos")
             .eq("id", recordatorio.operador_id)
             .single();
-          operador = operadorData;
+          operador = operadorData || null;
         }
 
-        // Obtener camión si existe
         if (recordatorio.camion_id) {
           const { data: camionData } = await supabase
             .from("camiones")
             .select("id, numero_economico")
             .eq("id", recordatorio.camion_id)
             .single();
-          camion = camionData;
+          camion = camionData || null;
         }
 
-        return {
-          ...recordatorio,
-          operador,
-          camion,
-        };
+        return { ...recordatorio, operador, camion };
       })
     );
 
-    return {
-      recordatorios: recordatoriosConInfo,
-      total: recordatoriosConInfo.length,
-    };
+    return { recordatorios: recordatoriosConInfo, total: count || 0 };
   } catch (error) {
     console.error("Error en obtenerNotificaciones:", error);
     return { recordatorios: [], total: 0 };

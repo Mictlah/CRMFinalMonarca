@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import type React from "react"
 import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -8,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { Camera, Upload, X, Check, User, Truck, Package, FileText } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { subirFotoEmbarque } from "@/lib/blob"
+import { agregarAuditLog } from "@/lib/audit"
 
 export default function SubirFotosPage() {
   const searchParams = useSearchParams()
@@ -15,17 +17,18 @@ export default function SubirFotosPage() {
   const [operador, setOperador] = useState("")
   const [tractor, setTractor] = useState("")
   const [contenedor, setContenedor] = useState("")
-  const [fotos, setFotos] = useState([])
+  type LocalFoto = { id: number; file: File; preview: string | ArrayBuffer | null; nombre: string; tamaño: string }
+  const [fotos, setFotos] = useState<LocalFoto[]>([])
   const [subiendo, setSubiendo] = useState(false)
   const [completado, setCompletado] = useState(false)
   const [embarqueId, setEmbarqueId] = useState("")
 
   useEffect(() => {
     // Leer parámetros de la URL
-    const folioParam = searchParams.get("folio") || ""
-    const operadorParam = searchParams.get("op") || ""
-    const tractorParam = searchParams.get("tractor") || ""
-    const contenedorParam = searchParams.get("contenedor") || ""
+  const folioParam = searchParams?.get("folio") || ""
+  const operadorParam = searchParams?.get("op") || ""
+  const tractorParam = searchParams?.get("tractor") || ""
+  const contenedorParam = searchParams?.get("contenedor") || ""
 
     setFolio(folioParam)
     setOperador(operadorParam)
@@ -55,8 +58,9 @@ export default function SubirFotosPage() {
     }
   }
 
-  const handleFileSelect = (event) => {
-    const files = Array.from(event.target.files)
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const input = event.target as HTMLInputElement
+    const files = Array.from(input.files || [])
     const maxFotos = 10
 
     if (fotos.length + files.length > maxFotos) {
@@ -65,28 +69,29 @@ export default function SubirFotosPage() {
     }
 
     files.forEach((file) => {
-      if (file.type.startsWith("image/")) {
+      const f = file as File
+      if (f.type.startsWith("image/")) {
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = (e: ProgressEvent<FileReader>) => {
           const nuevaFoto = {
             id: Date.now() + Math.random(),
-            file: file,
-            preview: e.target.result,
-            nombre: file.name,
-            tamaño: (file.size / 1024 / 1024).toFixed(2) + " MB",
+            file: f,
+            preview: e.target?.result || null,
+            nombre: f.name,
+            tamaño: (f.size / 1024 / 1024).toFixed(2) + " MB",
           }
           setFotos((prev) => [...prev, nuevaFoto])
         }
-        reader.readAsDataURL(file)
+        reader.readAsDataURL(f)
       }
     })
 
     // Limpiar el input
-    event.target.value = ""
+    if (input) input.value = ""
   }
 
-  const eliminarFoto = (id) => {
-    setFotos((prev) => prev.filter((foto) => foto.id !== id))
+  const eliminarFoto = (id: number) => {
+    setFotos((prev: LocalFoto[]) => prev.filter((foto) => foto.id !== id))
   }
 
   const subirFotos = async () => {
@@ -106,7 +111,7 @@ export default function SubirFotosPage() {
       const fotosSubidas = []
 
       // Subir cada foto a Vercel Blob
-      for (const foto of fotos) {
+  for (const foto of fotos) {
         try {
           // Subir a Vercel Blob
           const { url, pathname } = await subirFotoEmbarque(foto.file, folio, operador)
@@ -138,6 +143,13 @@ export default function SubirFotosPage() {
 
       if (fotosSubidas.length > 0) {
         setCompletado(true)
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Subir Fotos",
+            `Subió ${fotosSubidas.length} foto(s) para embarque ${folio} por ${operador || 'N/A'}`
+          )
+        } catch {}
       } else {
         alert("No se pudieron subir las fotos. Intenta nuevamente.")
       }
@@ -271,7 +283,7 @@ export default function SubirFotosPage() {
                     {fotos.map((foto) => (
                       <div key={foto.id} className="relative">
                         <img
-                          src={foto.preview || "/placeholder.svg"}
+                          src={(typeof foto.preview === 'string' ? foto.preview : undefined) || "/placeholder.svg"}
                           alt={foto.nombre}
                           className="w-full h-24 object-cover rounded-lg border"
                         />

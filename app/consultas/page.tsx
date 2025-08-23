@@ -4,18 +4,12 @@ import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import {
-  Download,
-  Users,
-  Truck,
-  Container,
-  Package,
-  TrendingUp,
-  AlertTriangle,
-} from "lucide-react"
+import { Printer, Users, Truck, Container, Package, TrendingUp, AlertTriangle } from "lucide-react"
 import { useState, useEffect } from "react"
 // Corregir importación para usar la instancia supabase existente
 import { supabase } from "@/lib/supabase"
+import { agregarAuditLog } from "@/lib/audit"
+// No export; se cambia por impresión
 
 export default function ConsultasPage() {
   const [fechaInicio, setFechaInicio] = useState("")
@@ -262,30 +256,11 @@ export default function ConsultasPage() {
     }
   }
 
-  const descargarReporteCompleto = () => {
-    const reporteCompleto = {
-      fecha_reporte: new Date().toISOString().split("T")[0],
-      periodo: `${new Date().getFullYear()} (Año actual)`,
-      estadisticas_generales: estadisticasGenerales,
-      top_clientes: topClientes,
-      camiones_mas_usados: camionesUsados,
-      operadores_stats: operadoresStats,
-      tipos_servicio_populares: tiposServicio,
-      motivos_contingencia: motivosContingencia,
-  embarques_por_estado: embarquesPorEstado,
-  clientes_menos_asignados: clientesMenosAsignados,
+  const imprimirReporte = () => {
+    if (typeof window !== "undefined") {
+  agregarAuditLog("EXPORTAR", "Consultas", "Impresión de estadísticas/reportes")
+      window.print()
     }
-
-    const jsonContent = JSON.stringify(reporteCompleto, null, 2)
-    const blob = new Blob([jsonContent], { type: "application/json" })
-    const link = document.createElement("a")
-    const url = URL.createObjectURL(blob)
-    link.setAttribute("href", url)
-    link.setAttribute("download", `reporte_estadisticas_${new Date().toISOString().split("T")[0]}.json`)
-    link.style.visibility = "hidden"
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
   }
 
   const getEstadoBadge = (estado: string) => {
@@ -327,9 +302,9 @@ export default function ConsultasPage() {
             <h1 className="text-3xl font-bold text-gray-900">Estadísticas y Reportes</h1>
             <p className="text-gray-600 mt-2">Análisis detallado del rendimiento operativo</p>
           </div>
-          <Button onClick={descargarReporteCompleto}>
-            <Download className="h-4 w-4 mr-2" />
-            Descargar Reporte
+          <Button onClick={imprimirReporte} className="bg-green-600 hover:bg-green-700 text-white border-green-700 print:hidden">
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimir
           </Button>
         </div>
 

@@ -54,6 +54,7 @@ import {
   guardarContactosCliente,
   type ContactoCliente,
 } from "@/lib/supabase";
+import { agregarAuditLog } from "@/lib/audit";
 
 interface FormaFacturacion {
   id: string;
@@ -418,6 +419,15 @@ export default function ClientesPage() {
           return;
         }
 
+        // Audit log: actualización de cliente
+        try {
+          agregarAuditLog(
+            "ACTUALIZAR",
+            "Clientes",
+            `Actualizó cliente ${clienteData.nombre} (ID: ${editingClient.id})`
+          );
+        } catch {}
+
         // Guardar contactos en la nueva tabla
         const contactosGuardados = await guardarContactosCliente(
           editingClient.id,
@@ -444,6 +454,15 @@ export default function ClientesPage() {
           alert("Error al crear cliente");
           return;
         }
+
+        // Audit log: creación de cliente
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Clientes",
+            `Creó cliente ${clienteData.nombre} (ID: ${nuevoCliente.id})`
+          );
+        } catch {}
 
         // Guardar contactos en la nueva tabla
         const contactosGuardados = await guardarContactosCliente(
@@ -637,6 +656,15 @@ export default function ClientesPage() {
         alert(
           "Cliente marcado como eliminado. No se puede eliminar completamente porque tiene embarques asociados."
         );
+
+        // Audit log: marcado como eliminado (soft delete)
+        try {
+          agregarAuditLog(
+            "ELIMINAR",
+            "Clientes",
+            `Marcó cliente (ID: ${id}) como eliminado por tener embarques asociados`
+          );
+        } catch {}
       } else {
         const { error: errorDelete } = await supabase
           .from("clientes")
@@ -650,6 +678,15 @@ export default function ClientesPage() {
         }
 
         alert("Cliente eliminado exitosamente");
+
+        // Audit log: eliminación definitiva
+        try {
+          agregarAuditLog(
+            "ELIMINAR",
+            "Clientes",
+            `Eliminó cliente definitivamente (ID: ${id})`
+          );
+        } catch {}
       }
 
       await cargarClientes();
@@ -676,6 +713,15 @@ export default function ClientesPage() {
         alert("Error al cambiar estado del cliente");
         return;
       }
+
+      // Audit log: cambio de estado
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Clientes",
+          `Cambió estado del cliente (ID: ${id}) a ${nuevoEstado}`
+        );
+      } catch {}
 
       await cargarClientes();
     } catch (error) {
@@ -796,6 +842,15 @@ export default function ClientesPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // Audit log: exportación de clientes
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Clientes",
+        `Descargó reporte general de clientes (${clientes.length})`
+      );
+    } catch {}
   };
 
   const verDetallesCliente = async (cliente: Cliente) => {

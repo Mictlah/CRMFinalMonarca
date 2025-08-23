@@ -1,4 +1,5 @@
 import { getCurrentUser } from "./auth"
+import { supabase } from "./supabase"
 
 export interface AuditLogEntry {
   id: string
@@ -14,28 +15,43 @@ export interface AuditLogEntry {
 export const agregarAuditLog = (accion: AuditLogEntry["accion"], modulo: string, detalles: string) => {
   try {
     const currentUser = getCurrentUser()
-    if (!currentUser) return // No registrar si no hay usuario
 
-    const nuevaEntrada: AuditLogEntry = {
-      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date().toISOString(),
-      usuario: currentUser.nombre,
-      accion,
-      modulo,
-      detalles,
-      ip: "192.168.1.1", // En producción obtener IP real
-    }
+    const fechaISO = new Date().toISOString()
+    const usuario = currentUser?.nombre || "Usuario Desconocido"
+    const ip = "192.168.1.1" // TODO: en producción obtener IP real del request
 
-    // Obtener logs existentes
-    const logsExistentes = JSON.parse(localStorage.getItem("auditLogs") || "[]")
-
-    // Mantener solo las últimas 500 entradas para optimizar memoria
-    const logsActualizados = [nuevaEntrada, ...logsExistentes].slice(0, 500)
-
-    // Guardar de forma asíncrona para no bloquear la UI
-    setTimeout(() => {
-      localStorage.setItem("auditLogs", JSON.stringify(logsActualizados))
-    }, 0)
+    // Intento asíncrono de guardar en Supabase (no bloquea la UI)
+    ;(async () => {
+      try {
+        const { error } = await supabase.from("audit_logs").insert({
+          usuario,
+          accion,
+          modulo,
+          detalles,
+          ip,
+          fecha_creacion: fechaISO,
+        })
+        if (error) throw error
+      } catch (err) {
+        // Fallback a localStorage si Supabase falla o no existe la tabla/política
+        const nuevaEntradaLocal: AuditLogEntry = {
+          id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          timestamp: fechaISO,
+          usuario,
+          accion,
+          modulo,
+          detalles,
+          ip,
+        }
+        try {
+          const logsExistentes = JSON.parse(localStorage.getItem("auditLogs") || "[]")
+          const logsActualizados = [nuevaEntradaLocal, ...logsExistentes].slice(0, 500)
+          localStorage.setItem("auditLogs", JSON.stringify(logsActualizados))
+        } catch (lsErr) {
+          console.error("Error guardando audit log en localStorage:", lsErr)
+        }
+      }
+    })()
   } catch (error) {
     console.error("Error al registrar audit log:", error)
   }

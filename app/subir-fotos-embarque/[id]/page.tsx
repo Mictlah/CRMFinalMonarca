@@ -47,11 +47,12 @@ import {
   obtenerConfirmacionOperador,
 } from "@/lib/supabase"
 import { subirFotoEmbarque, eliminarFotoEmbarque } from "@/lib/blob"
+import { agregarAuditLog } from "@/lib/audit"
 
 export default function SubirFotosEmbarquePage() {
   const params = useParams()
   const router = useRouter()
-  const embarqueId = params.id as string
+  const embarqueId = (params as any)?.id as string
 
   const [embarque, setEmbarque] = useState<Embarque | null>(null)
   const [fotos, setFotos] = useState<FotoEmbarque[]>([])
@@ -248,6 +249,13 @@ export default function SubirFotosEmbarquePage() {
         setSuccessMessage(`${archivosSubidos} archivo(s) subido(s) exitosamente.`)
         setOpenSuccessDialog(true)
         setSelectedFiles([])
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Subir Fotos Embarque",
+            `Subió ${archivosSubidos} archivo(s) para embarque ${embarque.folio} por ${operadorNombre}`
+          )
+        } catch {}
       }
     } catch (error) {
       console.error("Error en subida:", error)
@@ -291,6 +299,13 @@ export default function SubirFotosEmbarquePage() {
       setSuccessType("delete")
       setSuccessMessage("Foto eliminada exitosamente.")
       setOpenSuccessDialog(true)
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Subir Fotos Embarque",
+          `Eliminó archivo ${foto.nombre_archivo} del embarque ${embarque?.folio}`
+        )
+      } catch {}
     } catch (error) {
       console.error("❌ Error eliminando foto:", error)
       setError("Error al eliminar la foto")

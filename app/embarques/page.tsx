@@ -708,6 +708,13 @@ export default function EmbarquesPage() {
       }
 
       alert("Embarque eliminado exitosamente");
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Embarques",
+          `Eliminó embarque ${embarque.folio}`
+        );
+      } catch {}
       await loadEmbarques();
     } catch (error) {
       console.error("Error:", error);
@@ -882,6 +889,13 @@ export default function EmbarquesPage() {
       }
 
       await loadEmbarques();
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Embarques",
+          `Cambió estado de ${embarque.folio} de ${embarque.estado} a ${nuevoEstado}`
+        );
+      } catch {}
     } catch (error) {
       console.error("Error:", error);
       alert("Error al actualizar el estado");
@@ -1127,6 +1141,13 @@ export default function EmbarquesPage() {
       printWindow.document.close();
       printWindow.print();
     }
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Embarques",
+        `Imprimió formulario ${(embarqueEditando ? formData.folio : proximoFolio) || "(sin folio)"}`
+      );
+    } catch {}
   };
 
   const imprimirDetalle = () => {
@@ -1265,6 +1286,13 @@ export default function EmbarquesPage() {
       printWindow.document.close();
       printWindow.print();
     }
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Embarques",
+        `Imprimió detalle del embarque ${embarqueDetalle.folio}`
+      );
+    } catch {}
   };
 
   // Paginación para la lista principal de embarques (similar a Gestión de Operadores)
@@ -1522,6 +1550,13 @@ export default function EmbarquesPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Embarques (Archivados)",
+        `Exportó ${embarquesArchivadosFiltrados.length} embarques archivados a CSV`
+      );
+    } catch {}
   };
 
   // Helper: construir texto de camión y remolque
@@ -1621,6 +1656,13 @@ export default function EmbarquesPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Embarques",
+        `Exportó ${activos.length} embarques activos a CSV`
+      );
+    } catch {}
   };
 
   // Exportar un solo registro (detalle actual) a Excel (CSV)
@@ -1706,6 +1748,13 @@ export default function EmbarquesPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Embarques",
+        `Exportó detalle del embarque ${e.folio} a CSV`
+      );
+    } catch {}
   };
 
   const handleSort = (key: typeof archivosSortKey) => {

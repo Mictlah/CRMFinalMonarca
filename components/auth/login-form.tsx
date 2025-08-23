@@ -11,7 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Eye, EyeOff, Mail, Lock } from "lucide-react"
 import { login } from "@/lib/auth"
 
-export function LoginForm() {
+export function LoginForm({ onOpenPrivacy, onOpenTerms }: { onOpenPrivacy?: () => void; onOpenTerms?: () => void }) {
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -129,12 +129,12 @@ export function LoginForm() {
       </Button>
 
       <div className="text-center text-sm text-gray-600 mt-6">
-        Al iniciar sesión, aceptas nuestros{" "}
-        <a href="#" className="text-amber-600 hover:text-amber-700 font-medium">
+  Al iniciar sesión, aceptas nuestros{" "}
+  <a href="#" onClick={(e)=>{e.preventDefault(); onOpenTerms?.();}} className="text-amber-600 hover:text-amber-700 font-medium">
           Términos de Servicio
         </a>{" "}
         y{" "}
-        <a href="#" className="text-amber-600 hover:text-amber-700 font-medium">
+  <a href="#" onClick={(e)=>{e.preventDefault(); onOpenPrivacy?.();}} className="text-amber-600 hover:text-amber-700 font-medium">
           Política de Privacidad
         </a>
       </div>

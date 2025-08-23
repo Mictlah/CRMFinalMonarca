@@ -57,6 +57,7 @@ import { exportOperadoresToExcel, exportOperadorDetalleToExcel } from "./excel-e
 import { useState, useEffect, useRef } from "react";
 import { supabase, type Operador } from "@/lib/supabase";
 import { subirDocumentoOperador, eliminarDocumentoOperador } from "@/lib/blob";
+import { agregarAuditLog } from "@/lib/audit";
 
 interface DocumentoOperador {
   id: string;
@@ -905,6 +906,15 @@ export default function OperadoresPage() {
           return;
         }
 
+        // Audit log: actualización de operador
+        try {
+          agregarAuditLog(
+            "ACTUALIZAR",
+            "Operadores",
+            `Actualizó operador (ID: ${editingId}) ${dataToSave.nombre} ${dataToSave.apellidos}`
+          );
+        } catch {}
+
         // Subir archivos si hay nuevos
         if (fotoOperador || documentosBasicos.length > 0) {
           try {
@@ -977,6 +987,15 @@ export default function OperadoresPage() {
 
         const newOperador = insertResult?.data;
         console.log('[DEBUG] Operador creado:', newOperador);
+
+        // Audit log: creación de operador
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Operadores",
+            `Creó operador ${payload.nombre} ${payload.apellidos} (ID: ${newOperador.id})`
+          );
+        } catch {}
 
         // Subir archivos para el nuevo operador
         if (fotoOperador || documentosBasicos.length > 0) {
@@ -1200,6 +1219,14 @@ export default function OperadoresPage() {
       }
 
       setSuccess("Operador eliminado exitosamente");
+      // Audit log: eliminación de operador
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Operadores",
+          `Eliminó operador (ID: ${id})`
+        );
+      } catch {}
       await cargarDatos();
     } catch (error) {
       console.warn("Error al eliminar operador (excepción):", String(error));
@@ -1400,7 +1427,19 @@ export default function OperadoresPage() {
             <Button
               type="button"
               variant="outline"
-              onClick={() => exportOperadoresToExcel(operadores)}
+              onClick={() => {
+                try {
+                  exportOperadoresToExcel(operadores);
+                } finally {
+                  try {
+                    agregarAuditLog(
+                      "EXPORTAR",
+                      "Operadores",
+                      `Descargó reporte general de operadores (${operadores.length})`
+                    );
+                  } catch {}
+                }
+              }}
               className="flex items-center"
             >
               <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -1790,6 +1829,14 @@ export default function OperadoresPage() {
                                 ? "Operador activado correctamente"
                                 : "Operador desactivado correctamente"
                             );
+                            // Audit log: cambio de estado
+                            try {
+                              agregarAuditLog(
+                                "ACTUALIZAR",
+                                "Operadores",
+                                `Cambió estado del operador (ID: ${operador.id}) a ${nuevoEstado}`
+                              );
+                            } catch {}
                             await cargarDatos();
                           }}
                         >

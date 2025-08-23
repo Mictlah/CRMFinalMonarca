@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase, type Remolque, type MarcaRemolque } from "@/lib/supabase";
+import { agregarAuditLog } from "@/lib/audit";
 
 export default function RemolquesPage() {
   // --- Estados y lógica para gestión de marcas de remolques ---
@@ -119,6 +120,15 @@ export default function RemolquesPage() {
     link.click();
     document.body.removeChild(link);
     window.URL.revokeObjectURL(url);
+
+    // Audit log: exportación general de remolques
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Remolques",
+        `Descargó reporte general de remolques (${remolques.length})`
+      );
+    } catch {}
   };
   const [showForm, setShowForm] = useState(false);
   // Mantener modal de detalles abierto al editar
@@ -409,6 +419,14 @@ export default function RemolquesPage() {
           return;
         }
         remolqueId = editingRemolque.id;
+        // Audit log: actualización de remolque
+        try {
+          agregarAuditLog(
+            "ACTUALIZAR",
+            "Remolques",
+            `Actualizó remolque ${remolqueData.numero_economico} (ID: ${editingRemolque.id})`
+          );
+        } catch {}
       } else {
         // Crear nuevo remolque
         const insertData = { ...remolqueData, fecha_registro: new Date().toISOString() };
@@ -425,6 +443,14 @@ export default function RemolquesPage() {
           return;
         }
         remolqueId = data.id;
+        // Audit log: creación de remolque
+        try {
+          agregarAuditLog(
+            "CREAR",
+            "Remolques",
+            `Creó remolque ${insertData.numero_economico} (ID: ${remolqueId})`
+          );
+        } catch {}
       }
 
       // Crear recordatorios para vencimientos
@@ -630,6 +656,15 @@ export default function RemolquesPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+
+    // Audit log: exportación individual de remolque
+    try {
+      agregarAuditLog(
+        "EXPORTAR",
+        "Remolques",
+        `Descargó reporte del remolque ${remolque.numero_economico} (ID: ${remolque.id})`
+      );
+    } catch {}
   };
 
   const eliminarRemolque = async (id: string) => {
@@ -701,6 +736,14 @@ export default function RemolquesPage() {
       }
 
       alert("Remolque eliminado exitosamente");
+      // Audit log: eliminación de remolque
+      try {
+        agregarAuditLog(
+          "ELIMINAR",
+          "Remolques",
+          `Eliminó remolque ${remolque.numero_economico} (ID: ${id})`
+        );
+      } catch {}
       await cargarDatos();
     } catch (error) {
       console.error("Error:", error);
@@ -743,6 +786,14 @@ export default function RemolquesPage() {
       alert(
         `Remolque ${nuevoEstado ? "activado" : "desactivado"} exitosamente`
       );
+      // Audit log: cambio de estado de remolque
+      try {
+        agregarAuditLog(
+          "ACTUALIZAR",
+          "Remolques",
+          `Cambió estado del remolque (ID: ${id}) a ${nuevoEstado ? 'activo' : 'inactivo'}`
+        );
+      } catch {}
       await cargarDatos();
     } catch (error) {
       console.error("Error:", error);
