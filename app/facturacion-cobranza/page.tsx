@@ -1345,55 +1345,7 @@ export default function FacturacionCobranzaPage() {
     observacionesFacturacion: "",
   });
 
-  // Generador aleatorio para Captura de Facturación
-  const [facturasRandomCount, setFacturasRandomCount] = useState<number>(4);
-  const formatDate = (d: Date) => d.toISOString().slice(0, 10);
-  const randInt = (min: number, max: number) =>
-    Math.floor(Math.random() * (max - min + 1)) + min;
-  const randAlphaNum = (len: number) =>
-    Array.from({ length: len })
-      .map(() => "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)])
-      .join("");
-  const generarFacturacionAleatoria = (count?: number) => {
-    const n = Math.min(4, Math.max(1, count ?? facturasRandomCount));
-    const hoy = new Date();
-    const baseFolio = embarqueFacturacion?.folio || "FAC";
-
-    const nuevo = { ...facturacionData } as typeof facturacionData;
-
-    for (let i = 1; i <= 4; i++) {
-      if (i <= n) {
-        const envioOffset = randInt(3, 45); // días atrás
-        const pagoDelay = randInt(0, 20); // días después del envío
-        const envio = new Date(hoy);
-        envio.setDate(hoy.getDate() - envioOffset);
-        const pago = new Date(envio);
-        pago.setDate(envio.getDate() + pagoDelay);
-        if (pago > hoy) pago.setTime(hoy.getTime());
-
-        (nuevo as any)[`numeroFactura${i}`] = `${baseFolio}-${hoy.getFullYear()}-${i}${randInt(
-          1000,
-          9999
-        )}`;
-        (nuevo as any)[`fechaEnvioCliente${i}`] = formatDate(envio);
-        (nuevo as any)[`fechaPagoCliente${i}`] = formatDate(pago);
-        (nuevo as any)[`referenciaPago${i}`] = `REF-${randAlphaNum(6)}`;
-      } else {
-        // Limpiar campos fuera del rango seleccionado
-        (nuevo as any)[`numeroFactura${i}`] = "";
-        (nuevo as any)[`fechaEnvioCliente${i}`] = "";
-        (nuevo as any)[`fechaPagoCliente${i}`] = "";
-        (nuevo as any)[`referenciaPago${i}`] = "";
-      }
-    }
-
-    const obsBase = `Generado automáticamente (${new Date().toLocaleDateString("es-MX")})`;
-    nuevo.observacionesFacturacion = nuevo.observacionesFacturacion?.trim()
-      ? `${nuevo.observacionesFacturacion}\n${obsBase}`
-      : obsBase;
-
-    setFacturacionData(nuevo);
-  };
+  // Controles de generación aleatoria removidos por requerimiento (sin auto-generar facturas)
 
   const [activeDetailTab, setActiveDetailTab] = useState("general");
 
@@ -7629,29 +7581,7 @@ export default function FacturacionCobranzaPage() {
               </DialogDescription>
             </DialogHeader>
 
-            {/* Controles de generación aleatoria */}
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2">
-                <Label className="text-xs">Cantidad</Label>
-                <Select
-                  value={String(facturasRandomCount)}
-                  onValueChange={(v) => setFacturasRandomCount(Number(v))}
-                >
-                  <SelectTrigger className="w-[90px] h-8">
-                    <SelectValue placeholder="Cantidad" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">1</SelectItem>
-                    <SelectItem value="2">2</SelectItem>
-                    <SelectItem value="3">3</SelectItem>
-                    <SelectItem value="4">4</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button type="button" variant="outline" onClick={() => generarFacturacionAleatoria(facturasRandomCount)}>
-                Generar aleatorio
-              </Button>
-            </div>
+            {/* Controles de generación aleatoria removidos */}
 
             <div className="space-y-3">
               <div className="hidden md:grid md:grid-cols-4 gap-2 text-xs text-gray-600">
