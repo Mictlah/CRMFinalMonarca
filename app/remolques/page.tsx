@@ -235,34 +235,7 @@ export default function RemolquesPage() {
     setEditingRemolque(null);
   };
 
-  // Rellena el formulario con datos de ejemplo (solo para agilizar captura)
-  const rellenarFormularioDemo = () => {
-    const hoy = new Date();
-    const a7 = new Date(hoy);
-    a7.setDate(a7.getDate() + 30);
-    const a60 = new Date(hoy);
-    a60.setDate(a60.getDate() + 60);
-    const fmt = (d: Date) => d.toISOString().split("T")[0];
-
-    const marcaDemo = (marcas && marcas.length > 0 ? (marcas[0].nombre || "") : "Great Dane");
-
-    setFormData({
-      numeroEconomico: "R001",
-      tipo: "caja-seca",
-      marca: marcaDemo,
-      modelo: "Dry Van 53",
-      año: String(new Date().getFullYear() - 3),
-      numeroSerie: "1GRAA062XDW123456",
-      capacidad: "25",
-      placas: "ABC-1234",
-      fechaUltimaInspeccion: fmt(hoy),
-      proximaInspeccion: fmt(a7),
-      polizaSeguro: "SEG-REM-2025-0001",
-      vigenciaSeguro: fmt(a60),
-      estado: "disponible",
-      comentarios: "Remolque en excelentes condiciones. Equipo listo para operación.",
-    });
-  };
+  
 
   const crearRecordatoriosVencimientos = async (
     remolqueId: string,
@@ -1046,13 +1019,7 @@ export default function RemolquesPage() {
                     Completa la información del remolque
                   </DialogDescription>
                 </DialogHeader>
-                {!editingRemolque && (
-                  <div className="flex justify-end -mt-2">
-                    <Button variant="outline" size="sm" onClick={rellenarFormularioDemo}>
-                      Rellenar formulario
-                    </Button>
-                  </div>
-                )}
+                
 
                 <Tabs defaultValue="general" className="w-full">
                   <TabsList className={`grid w-full ${editingRemolque ? "grid-cols-5" : "grid-cols-4"}`}>
