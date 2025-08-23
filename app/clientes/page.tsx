@@ -155,60 +155,7 @@ export default function ClientesPage() {
     cargarClientes();
   }, []);
 
-  // Auto Llenar (demo) para Nuevo Cliente
-  const generarDatosFalsosCliente = () => {
-    // Generar RFC aleatorio válido en longitud (13)
-    const letras = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const numeros = "0123456789";
-    const rand = (chars: string, len: number) =>
-      Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
-    const rfcDemo = `${rand(letras, 4)}${rand(numeros, 6)}${rand(letras + numeros, 3)}`;
-
-    setFormData({
-      nombre_comercial: "Cliente Demo Express",
-      rfc: rfcDemo.slice(0, 13).toUpperCase(),
-      direccion: "Av. Siempre Viva 123, Col. Centro, CDMX, C.P. 06000",
-      correo_contacto: "contacto@clientedemo.com",
-      telefono: "55-1234-5678",
-      forma_facturacion: "Electrónica",
-      divisa_pago: "MXN",
-      empresa_facturadora: "JOSE_FERNANDO_CABARJO",
-    });
-
-    // Crear contactos de ejemplo (máx 2)
-    const ahora = new Date().toISOString();
-    setContactos([
-      {
-        id: `temp-${Date.now()}`,
-        cliente_id: "",
-        nombre: "Juan Pérez",
-        telefono: "55-1111-2222",
-        email: "juan.perez@clientedemo.com",
-        puesto: "Compras",
-        notas: "Contacto principal para órdenes y seguimiento.",
-        es_principal: true,
-        activo: true,
-        fecha_creacion: ahora,
-        updated_at: ahora,
-      },
-      {
-        id: `temp-${Date.now() + 1}`,
-        cliente_id: "",
-        nombre: "María López",
-        telefono: "55-3333-4444",
-        email: "maria.lopez@clientedemo.com",
-        puesto: "Pagos",
-        notas: "Contacto alterno para facturación y cobranza.",
-        es_principal: false,
-        activo: true,
-        fecha_creacion: ahora,
-        updated_at: ahora,
-      },
-    ]);
-
-    // Llevar al tab General por claridad
-    setActiveTab("general");
-  };
+  
 
   const limpiarFormulario = () => {
     setFormData({
@@ -929,20 +876,7 @@ export default function ClientesPage() {
                   </DialogDescription>
                 </DialogHeader>
 
-                {/* Barra de acciones del formulario */}
-                {!editingClient && (
-                  <div className="flex justify-end -mt-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={generarDatosFalsosCliente}
-                      className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                    >
-                      Auto Llenar
-                    </Button>
-                  </div>
-                )}
+                
 
                 <div className="w-full flex flex-col flex-1 overflow-hidden">
                   <div className="border-b border-gray-200">
