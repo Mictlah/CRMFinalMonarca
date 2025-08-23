@@ -126,6 +126,13 @@ export default function EmbarquesPage() {
   // remolque_sello_fiscal removido (no se usa)
   });
 
+  // Validaciones para "Nuevo Embarque"
+  const isClienteSelected = !!formData.cliente_id && formData.cliente_id !== "none";
+  const isRemolqueValid = formData.remolque_manual
+    ? (formData.remolque_numero_economico.trim() !== "" || formData.remolque_placa.trim() !== "")
+    : (!!formData.remolque_id && formData.remolque_id !== "none");
+  const isNuevoEmbarqueValid = isClienteSelected && isRemolqueValid;
+
   // Cargar datos iniciales
   useEffect(() => {
     loadData();
@@ -532,6 +539,16 @@ export default function EmbarquesPage() {
         "Por favor completa los campos obligatorios (dirección de recolecta y dirección de entrega)"
       );
       return;
+    }
+
+    // Validación específica para creación: requiere Cliente y Remolque (o captura manual)
+    if (!embarqueEditando) {
+      if (!isClienteSelected || !isRemolqueValid) {
+        alert(
+          "Para crear un embarque debes seleccionar un cliente y un remolque o capturarlo manualmente."
+        );
+        return;
+      }
     }
 
     // Validación para remolque manual: capturar al menos número económico o placa
@@ -1314,7 +1331,7 @@ export default function EmbarquesPage() {
   const [archivosSortKey, setArchivosSortKey] = useState<
     "folio" | "cliente" | "load" | "estatus" | "tipo" | "fecha"
   >("fecha");
-  const [archivosSortDir, setArchivosSortDir] = useState<"asc" | "desc">("asc");
+  const [archivosSortDir, setArchivosSortDir] = useState<"asc" | "desc">("desc");
   const embarquesArchivados = embarques.filter(
     (embarque) => embarque.estado === "archivado"
   )
@@ -1416,7 +1433,9 @@ export default function EmbarquesPage() {
       case "tipo":
         return e.tipo_servicio_id ? getServiceDisplayName(e.tipo_servicio_id) : "";
       case "fecha": {
-        const d = e.fecha_creacion ? new Date(e.fecha_creacion) : new Date(0);
+        const d = e.fecha_archivado
+          ? new Date(e.fecha_archivado)
+          : (e.fecha_creacion ? new Date(e.fecha_creacion) : new Date(0));
         return d.getTime();
       }
       default:
@@ -2053,11 +2072,11 @@ export default function EmbarquesPage() {
                 <thead>
                   <tr className="bg-purple-50">
                     <th className="px-3 py-2 text-left font-semibold whitespace-nowrap w-40 md:w-48 cursor-pointer select-none" onClick={() => handleSort("folio")}>Folio{sortIndicator("folio")}</th>
-                    <th className="px-3 py-2 text-left font-semibold w-56 md:w-80 cursor-pointer select-none" onClick={() => handleSort("cliente")}>
+                    <th className="px-3 py-2 text-left font-semibold w-44 md:w-64 cursor-pointer select-none" onClick={() => handleSort("cliente")}>
                       Cliente{sortIndicator("cliente")}
                     </th>
-                    <th className="px-3 py-2 text-left font-semibold w-16 md:w-20 cursor-pointer select-none" onClick={() => handleSort("load")}>Load{sortIndicator("load")}</th>
-                    <th className="px-3 py-2 text-left font-semibold w-16 md:w-20 cursor-pointer select-none" onClick={() => handleSort("estatus")}>Estatus{sortIndicator("estatus")}</th>
+                    <th className="px-3 py-2 text-center font-semibold w-14 md:w-16 cursor-pointer select-none" onClick={() => handleSort("load")}>Load{sortIndicator("load")}</th>
+                    <th className="px-3 py-2 text-center font-semibold w-16 md:w-20 cursor-pointer select-none" onClick={() => handleSort("estatus")}>Estatus{sortIndicator("estatus")}</th>
                     <th className="px-3 py-2 text-left font-semibold w-48 cursor-pointer select-none" onClick={() => handleSort("tipo")}>
                       Tipo de Servicio{sortIndicator("tipo")}
                     </th>
@@ -2086,10 +2105,10 @@ export default function EmbarquesPage() {
                         <td className="px-3 py-2 font-mono whitespace-nowrap w-40 md:w-48">
                           {embarque.folio}
                         </td>
-                        <td className="px-3 py-2 w-56 md:w-80 truncate">
+                        <td className="px-3 py-2 w-44 md:w-64 truncate">
                           {embarque.cliente?.nombre || ""}
                         </td>
-                        <td className="px-3 py-2 w-16 md:w-20 truncate">
+                        <td className="px-3 py-2 w-14 md:w-16 truncate text-center font-mono">
                           {embarque.load_number || ""}
                         </td>
                         <td className="px-3 py-2 w-16 md:w-20 text-center">
@@ -2402,8 +2421,9 @@ export default function EmbarquesPage() {
                 <div className="flex justify-between items-start">
                   <div>
                     <div className="flex items-center">
-                      <CardTitle className="text-lg flex items-center gap-2">
-                        <span className="font-mono">
+                      <CardTitle className="text-lg">
+                        <span className="inline-flex items-center text-blue-600">
+                          <Package className="h-5 w-5 text-blue-600 mr-1" />
                           Folio: {embarque.folio}
                         </span>
                         {embarque.estado === "contingencia" && (
@@ -2468,6 +2488,9 @@ export default function EmbarquesPage() {
                         <Badge className="bg-green-100 text-green-800">
                           Listo para Asignar
                         </Badge>
+                      )}
+                      {embarque.estado === "cancelado" && (
+                        <Badge className="bg-red-100 text-red-800">Cancelado</Badge>
                       )}
 
                       {/* Botón Enviar Link oculto por requerimiento */}
@@ -2590,6 +2613,14 @@ export default function EmbarquesPage() {
                             <p className="text-xs text-gray-500">
                               {getServiceDisplayName(embarque.tipo_servicio_id)}
                             </p>
+                          </div>
+                        </div>
+                      )}
+                      {getRemolqueTexto(embarque) && (
+                        <div className="flex items-center space-x-2">
+                          <div>
+                            <p className="font-medium">Remolque</p>
+                            <p className="text-xs text-gray-500">{getRemolqueTexto(embarque)}</p>
                           </div>
                         </div>
                       )}
@@ -2999,17 +3030,22 @@ export default function EmbarquesPage() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="none">Sin contacto</SelectItem>
-                              {contactos.map((contacto) => (
-                                <SelectItem
-                                  key={contacto.id}
-                                  value={contacto.id}
-                                >
-                                  {contacto.nombre}{" "}
-                                  {contacto.puesto
-                                    ? `(${contacto.puesto})`
-                                    : ""}
-                                </SelectItem>
-                              ))}
+                              {contactos.map((contacto) => {
+                                const nombreCompleto = `${contacto.nombre || ""} ${(
+                                  contacto as any
+                                ).apellidos || ""}`
+                                  .replace(/\s+/g, " ")
+                                  .trim();
+                                const telefono = (contacto as any).telefono || "";
+                                const label = telefono
+                                  ? `${nombreCompleto} - ${telefono}`
+                                  : nombreCompleto;
+                                return (
+                                  <SelectItem key={contacto.id} value={contacto.id}>
+                                    {label}
+                                  </SelectItem>
+                                );
+                              })}
                             </SelectContent>
                           </Select>
                         </div>
@@ -3404,7 +3440,7 @@ export default function EmbarquesPage() {
           </Button>
           <Button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || (!embarqueEditando && !isNuevoEmbarqueValid)}
             className="bg-green-600 hover:bg-green-700 text-white"
           >
             {saving ? (

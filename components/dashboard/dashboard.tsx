@@ -28,7 +28,7 @@ export function Dashboard() {
   const [, setEmbarquesSinAsignar] = useState<Embarque[]>([])
   const [vencimientos, setVencimientos] = useState<Recordatorio[]>([])
   const [, setUtilizacion] = useState({ operadores: 0, camiones: 0, remolques: 0 })
-  const [cumples, setCumples] = useState<Array<{ id: string; nombre: string; fecha: string; dias: number }>>([])
+  const [cumples, setCumples] = useState<Array<{ id: string; nombre: string; fecha: string; dias: number; nacimiento?: string }>>([])
   const [stats, setStats] = useState({
     embarques: { total: 0, creados: 0, asignados: 0, enTransito: 0, entregados: 0 },
     operadores: { total: 0, activos: 0, inactivos: 0, suspendidos: 0 },
@@ -169,7 +169,7 @@ export function Dashboard() {
         })
 
         // Cumpleaños de operadores: calcular próxima ocurrencia y ordenar (mostrar todos, el más próximo primero)
-        const proximosCumples = ops
+    const proximosCumples = ops
           .filter((o) => !!o.fecha_nacimiento)
           .map((o) => {
             const fn = new Date(o.fecha_nacimiento as string)
@@ -177,10 +177,10 @@ export function Dashboard() {
             const next = new Date(now.getFullYear(), fn.getMonth(), fn.getDate())
             if (next < now) next.setFullYear(now.getFullYear() + 1)
             const dias = Math.ceil((next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-            return { id: o.id, nombre: `${o.nombre} ${o.apellidos || ""}`.trim(), fecha: next.toISOString(), dias }
+      return { id: o.id, nombre: `${o.nombre} ${o.apellidos || ""}`.trim(), fecha: next.toISOString(), dias, nacimiento: o.fecha_nacimiento || undefined }
           })
           .sort((a, b) => a.dias - b.dias)
-          // sin slice: mostramos todos
+          .slice(0, 5)
         setCumples(proximosCumples)
       } catch (error) {
         console.error("Error cargando datos del dashboard:", error)
@@ -454,10 +454,10 @@ export function Dashboard() {
                   const d = new Date(c.fecha)
                   const color = c.dias <= 7 ? "bg-yellow-100 text-yellow-800" : "bg-green-100 text-green-800"
                   return (
-                    <div key={c.id} className="flex items-center justify-between p-2 border rounded-md">
-                      <span className="text-sm">{c.nombre}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-gray-500">{d.toLocaleDateString()}</span>
+                    <div key={c.id} className="p-2 border rounded-md">
+                      <div className="text-sm text-gray-900 truncate">{c.nombre}</div>
+                      <div className="mt-1 text-xs text-gray-600 flex items-center justify-between">
+                        <span>Nacimiento: {c.nacimiento ? new Date(c.nacimiento).toLocaleDateString() : "N/D"}</span>
                         <Badge className={color}>{c.dias === 0 ? "Hoy" : `En ${c.dias} d`}</Badge>
                       </div>
                     </div>

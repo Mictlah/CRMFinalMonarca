@@ -1588,13 +1588,14 @@ export default function OperadoresPage() {
                         const diff =
                           (cumple.getTime() - hoy.getTime()) /
                           (1000 * 60 * 60 * 24);
-                        return diff >= 0 && diff <= 30;
+                        return diff >= 0 && diff <= 14; // próximas 2 semanas
                       }).length
                     }
                   </p>
                 </div>
                 <Users className="h-8 w-8 text-purple-600" />
               </div>
+              {/* Solo conteo en próximas 2 semanas; sin lista detallada */}
             </CardContent>
           </Card>
         </div>

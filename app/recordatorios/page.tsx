@@ -850,7 +850,12 @@ export default function RecordatoriosPage() {
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => marcarComoCompletado(recordatorio.id)}>Confirmar</AlertDialogAction>
+                                  <AlertDialogAction
+                                    className="bg-green-600 hover:bg-green-700 text-white"
+                                    onClick={() => marcarComoCompletado(recordatorio.id)}
+                                  >
+                                    Confirmar
+                                  </AlertDialogAction>
                                 </AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
@@ -878,7 +883,12 @@ export default function RecordatoriosPage() {
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction onClick={() => eliminarRecordatorio(recordatorio.id)}>Eliminar</AlertDialogAction>
+                                <AlertDialogAction
+                                  className="bg-red-600 hover:bg-red-700 text-white"
+                                  onClick={() => eliminarRecordatorio(recordatorio.id)}
+                                >
+                                  Eliminar
+                                </AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>

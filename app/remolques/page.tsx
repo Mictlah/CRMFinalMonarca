@@ -225,6 +225,35 @@ export default function RemolquesPage() {
     setEditingRemolque(null);
   };
 
+  // Rellena el formulario con datos de ejemplo (solo para agilizar captura)
+  const rellenarFormularioDemo = () => {
+    const hoy = new Date();
+    const a7 = new Date(hoy);
+    a7.setDate(a7.getDate() + 30);
+    const a60 = new Date(hoy);
+    a60.setDate(a60.getDate() + 60);
+    const fmt = (d: Date) => d.toISOString().split("T")[0];
+
+    const marcaDemo = (marcas && marcas.length > 0 ? (marcas[0].nombre || "") : "Great Dane");
+
+    setFormData({
+      numeroEconomico: "R001",
+      tipo: "caja-seca",
+      marca: marcaDemo,
+      modelo: "Dry Van 53",
+      año: String(new Date().getFullYear() - 3),
+      numeroSerie: "1GRAA062XDW123456",
+      capacidad: "25",
+      placas: "ABC-1234",
+      fechaUltimaInspeccion: fmt(hoy),
+      proximaInspeccion: fmt(a7),
+      polizaSeguro: "SEG-REM-2025-0001",
+      vigenciaSeguro: fmt(a60),
+      estado: "disponible",
+      comentarios: "Remolque en excelentes condiciones. Equipo listo para operación.",
+    });
+  };
+
   const crearRecordatoriosVencimientos = async (
     remolqueId: string,
     numeroEconomico: string,
@@ -966,15 +995,24 @@ export default function RemolquesPage() {
                     Completa la información del remolque
                   </DialogDescription>
                 </DialogHeader>
+                {!editingRemolque && (
+                  <div className="flex justify-end -mt-2">
+                    <Button variant="outline" size="sm" onClick={rellenarFormularioDemo}>
+                      Rellenar formulario
+                    </Button>
+                  </div>
+                )}
 
                 <Tabs defaultValue="general" className="w-full">
-                  <TabsList className="grid w-full grid-cols-5">
+                  <TabsList className={`grid w-full ${editingRemolque ? "grid-cols-5" : "grid-cols-4"}`}>
                     <TabsTrigger value="general">
                       Información General
                     </TabsTrigger>
                     <TabsTrigger value="info-tecnica">Info Técnica</TabsTrigger>
                     <TabsTrigger value="seguros">Inspecciones & Seguros</TabsTrigger>
-                    <TabsTrigger value="mantenimiento">Mantenimiento</TabsTrigger>
+                    {editingRemolque && (
+                      <TabsTrigger value="mantenimiento">Mantenimiento</TabsTrigger>
+                    )}
                     <TabsTrigger value="comentarios">Comentarios</TabsTrigger>
                   </TabsList>
 
@@ -1168,12 +1206,14 @@ export default function RemolquesPage() {
                       <h3 className="text-lg font-medium">
                         Inspecciones y Seguro
                       </h3>
-                  <TabsContent value="mantenimiento">
-                    <div className="space-y-2 py-4">
-                      <h3 className="text-lg font-medium">Mantenimiento</h3>
-                      <p className="text-xs text-gray-500">El historial de mantenimiento se gestiona después de crear el remolque desde el modal de detalles.</p>
-                    </div>
-                  </TabsContent>
+                      {editingRemolque && (
+                        <TabsContent value="mantenimiento">
+                          <div className="space-y-2 py-4">
+                            <h3 className="text-lg font-medium">Mantenimiento</h3>
+                            <p className="text-xs text-gray-500">El historial de mantenimiento se gestiona después de crear el remolque desde el modal de detalles.</p>
+                          </div>
+                        </TabsContent>
+                      )}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="fechaUltimaInspeccion">
@@ -1557,70 +1597,22 @@ export default function RemolquesPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  {remolque.placas && (
-                    <div>
-                      <p className="font-medium">Placas</p>
-                      <p className="text-gray-600">{remolque.placas}</p>
-                    </div>
-                  )}
-                  {remolque.numero_serie && (
-                    <div>
-                      <p className="font-medium">Número de Serie</p>
-                      <p className="text-gray-600">{remolque.numero_serie}</p>
-                    </div>
-                  )}
-                  {remolque.fecha_ultima_inspeccion && (
-                    <div>
-                      <p className="font-medium">Última Inspección</p>
-                      <p className="text-gray-600">
-                        {new Date(
-                          remolque.fecha_ultima_inspeccion
-                        ).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {remolque.proxima_inspeccion && (
-                    <div>
-                      <p className="font-medium">Próxima Inspección</p>
-                      <p className="text-gray-600">
-                        {new Date(
-                          remolque.proxima_inspeccion
-                        ).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                  {remolque.poliza_seguro && (
-                    <div>
-                      <p className="font-medium">Póliza de Seguro</p>
-                      <p className="text-gray-600">{remolque.poliza_seguro}</p>
-                    </div>
-                  )}
-                  {remolque.vigencia_seguro && (
-                    <div>
-                      <p className="font-medium">Vigencia Seguro</p>
-                      <p className="text-gray-600">
-                        {new Date(
-                          remolque.vigencia_seguro
-                        ).toLocaleDateString()}
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Alertas de fechas próximas - usando el mismo estilo que tractocamiones */}
+                {/* Alertas de fechas próximas - ahora arriba, entre encabezado (tipo/año) y datos (placas/serie) */}
                 {(() => {
-                  const alertas = [];
+                  const alertas = [] as Array<{
+                    tipo: "inspeccion" | "seguro";
+                    dias: number;
+                    vencido: boolean;
+                    fecha: string;
+                    mensaje: string;
+                  }>;
                   const hoy = new Date();
 
                   // Verificar inspección próxima (7 días)
                   if (remolque.proxima_inspeccion) {
-                    const fechaInspeccion = new Date(
-                      remolque.proxima_inspeccion
-                    );
+                    const fechaInspeccion = new Date(remolque.proxima_inspeccion);
                     const diasRestantes = Math.ceil(
-                      (fechaInspeccion.getTime() - hoy.getTime()) /
-                        (1000 * 60 * 60 * 24)
+                      (fechaInspeccion.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
                     );
 
                     if (diasRestantes <= 7 && diasRestantes >= 0) {
@@ -1637,9 +1629,7 @@ export default function RemolquesPage() {
                         dias: Math.abs(diasRestantes),
                         vencido: true,
                         fecha: fechaInspeccion.toLocaleDateString(),
-                        mensaje: `Inspección vencida hace ${Math.abs(
-                          diasRestantes
-                        )} días`,
+                        mensaje: `Inspección vencida hace ${Math.abs(diasRestantes)} días`,
                       });
                     }
                   }
@@ -1648,8 +1638,7 @@ export default function RemolquesPage() {
                   if (remolque.vigencia_seguro) {
                     const fechaVencimiento = new Date(remolque.vigencia_seguro);
                     const diasRestantes = Math.ceil(
-                      (fechaVencimiento.getTime() - hoy.getTime()) /
-                        (1000 * 60 * 60 * 24)
+                      (fechaVencimiento.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)
                     );
 
                     if (diasRestantes <= 15 && diasRestantes >= 0) {
@@ -1666,9 +1655,7 @@ export default function RemolquesPage() {
                         dias: Math.abs(diasRestantes),
                         vencido: true,
                         fecha: fechaVencimiento.toLocaleDateString(),
-                        mensaje: `Seguro vencido hace ${Math.abs(
-                          diasRestantes
-                        )} días`,
+                        mensaje: `Seguro vencido hace ${Math.abs(diasRestantes)} días`,
                       });
                     }
                   }
@@ -1687,20 +1674,15 @@ export default function RemolquesPage() {
                           <div className="flex items-start space-x-2">
                             <AlertTriangle
                               className={`h-4 w-4 mt-0.5 ${
-                                alerta.vencido
-                                  ? "text-red-600"
-                                  : "text-yellow-600"
+                                alerta.vencido ? "text-red-600" : "text-yellow-600"
                               }`}
                             />
                             <div>
                               <p className="text-sm font-medium">
-                                {alerta.tipo === "seguro"
-                                  ? "🛡️ Seguro"
-                                  : "🔍 Inspección"}
+                                {alerta.tipo === "seguro" ? "🛡️ Seguro" : "🔍 Inspección"}
                               </p>
                               <p className="text-xs">
-                                {alerta.vencido ? "Vencido el" : "Vence el"}:{" "}
-                                {alerta.fecha}
+                                {alerta.vencido ? "Vencido el" : "Vence el"}: {alerta.fecha}
                               </p>
                             </div>
                           </div>
@@ -1723,6 +1705,51 @@ export default function RemolquesPage() {
                   ) : null;
                 })()}
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  {remolque.placas && (
+                    <div>
+                      <p className="font-medium">Placas</p>
+                      <p className="text-gray-600">{remolque.placas}</p>
+                    </div>
+                  )}
+                  {remolque.numero_serie && (
+                    <div>
+                      <p className="font-medium">Número de Serie</p>
+                      <p className="text-gray-600">{remolque.numero_serie}</p>
+                    </div>
+                  )}
+                  {remolque.fecha_ultima_inspeccion && (
+                    <div>
+                      <p className="font-medium">Última Inspección</p>
+                      <p className="text-gray-600">
+                        {new Date(remolque.fecha_ultima_inspeccion).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                  {remolque.proxima_inspeccion && (
+                    <div>
+                      <p className="font-medium">Próxima Inspección</p>
+                      <p className="text-gray-600">
+                        {new Date(remolque.proxima_inspeccion).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                  {remolque.poliza_seguro && (
+                    <div>
+                      <p className="font-medium">Póliza de Seguro</p>
+                      <p className="text-gray-600">{remolque.poliza_seguro}</p>
+                    </div>
+                  )}
+                  {remolque.vigencia_seguro && (
+                    <div>
+                      <p className="font-medium">Vigencia Seguro</p>
+                      <p className="text-gray-600">
+                        {new Date(remolque.vigencia_seguro).toLocaleDateString()}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
                 {remolque.comentarios && (
                   <div className="bg-gray-50 p-3 rounded-lg">
                     <p className="text-sm">
@@ -1732,8 +1759,7 @@ export default function RemolquesPage() {
                 )}
 
                 <div className="text-xs text-gray-400">
-                  Registrado:{" "}
-                  {new Date(remolque.fecha_registro).toLocaleDateString()}
+                  Registrado: {new Date(remolque.fecha_registro).toLocaleDateString()}
                 </div>
               </CardContent>
             </Card>

@@ -39,13 +39,17 @@ import {
   MapPin,
   Coins,
   Eye,
+  HelpCircle,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import * as XLSX from "xlsx";
 import {
   supabase,
   obtenerEmbarquesModificadosIds,
   obtenerTiposServicio,
   TipoServicio,
+  obtenerFotosEmbarque,
+  type FotoEmbarque,
 } from "@/lib/supabase";
 import {
   Select,
@@ -250,30 +254,6 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
 
   return (
     <div className="space-y-4">
-      <Card className="border-gray-200">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg text-gray-800">
-              Resumen de Modificaciones
-            </CardTitle>
-            <Badge
-              variant="outline"
-              className="bg-gray-50 text-gray-700 border-gray-300"
-            >
-              {modificaciones.length} modificación
-              {modificaciones.length > 1 ? "es" : ""}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-gray-600">
-            Este embarque ha sido modificado por situaciones de emergencia o
-            contingencia. A continuación se muestra el historial detallado de
-            cada modificación realizada.
-          </p>
-        </CardContent>
-      </Card>
-
       {modificaciones.map((mod, index) => (
         <Card key={mod.id || index} className="border-gray-200">
           <CardHeader className="pb-3">
@@ -284,11 +264,11 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
                     {modificaciones.length - index}
                   </span>
                 </div>
-                <div>
+                <div className="flex items-center gap-3">
                   <CardTitle className="text-base text-gray-800">
                     Modificación #{modificaciones.length - index}
                   </CardTitle>
-                  <p className="text-sm text-gray-500">
+                  <span className="text-sm text-gray-500 whitespace-nowrap">
                     {new Date(mod.fecha_modificacion).toLocaleDateString(
                       "es-MX",
                       {
@@ -299,7 +279,7 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
                         minute: "2-digit",
                       }
                     )}
-                  </p>
+                  </span>
                 </div>
               </div>
               <Badge
@@ -326,10 +306,6 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
               {/* Cambio de Operador */}
               {(mod.operador_original_nombre || mod.operador_nuevo_nombre) && (
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center">
-                    <Users className="h-4 w-4 mr-2 text-gray-600" />
-                    Cambio de Operador
-                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
@@ -366,10 +342,6 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
               {/* Cambio de Tractocamión */}
               {(mod.camion_original_numero || mod.camion_nuevo_numero) && (
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center">
-                    <Truck className="h-4 w-4 mr-2 text-gray-600" />
-                    Cambio de Tractocamión
-                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
@@ -394,10 +366,6 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
               {/* Cambio de Remolque */}
               {(mod.remolque_original_numero || mod.remolque_nuevo_numero) && (
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center">
-                    <Package className="h-4 w-4 mr-2 text-gray-600" />
-                    Cambio de Remolque
-                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
@@ -422,10 +390,6 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
               {/* Cambio de Precio de Flete */}
               {(mod.precio_flete_original || mod.precio_flete_nuevo) && (
                 <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-semibold text-gray-800 mb-3 flex items-center">
-                    <DollarSign className="h-4 w-4 mr-2 text-gray-600" />
-                    Cambio de Precio de Flete
-                  </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <p className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1">
@@ -433,7 +397,7 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
                       </p>
                       <p className="text-lg font-bold text-gray-800 bg-gray-100 p-2 rounded border">
                         {mod.precio_flete_original
-                          ? `$${mod.precio_flete_original.toLocaleString()} ${
+                          ? `$${mod.precio_flete_original.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${
                               mod.moneda_flete_original || "MXN"
                             }`
                           : "No especificado"}
@@ -445,7 +409,7 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
                       </p>
                       <p className="text-lg font-bold text-gray-800 bg-gray-100 p-2 rounded border-2 border-gray-400">
                         {mod.precio_flete_nuevo
-                          ? `$${mod.precio_flete_nuevo.toLocaleString()} ${
+                          ? `$${mod.precio_flete_nuevo.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${
                               mod.moneda_flete_nueva || "MXN"
                             }`
                           : "No especificado"}
@@ -453,9 +417,9 @@ const ModificacionesHistory = ({ embarqueId }: { embarqueId: string }) => {
                     </div>
                   </div>
                   {mod.flete_en_falso && (
-                    <div className="mt-3 bg-gray-100 border border-gray-300 rounded p-2">
-                      <p className="text-sm text-gray-800 font-medium flex items-center">
-                        <AlertTriangle className="h-4 w-4 mr-2 text-gray-600" />
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded p-2" role="alert" aria-live="polite">
+                      <p className="text-sm text-red-800 font-semibold flex items-center">
+                        <AlertTriangle className="h-4 w-4 mr-2 text-red-600" />
                         Marcado como flete en falso
                       </p>
                     </div>
@@ -542,6 +506,8 @@ export default function FacturacionCobranzaPage() {
     useState(10);
   const [currentPageAnalisisDetalle, setCurrentPageAnalisisDetalle] =
     useState(1);
+  // Ayuda modal para Casos de Contingencia
+  const [showContingenciaInfo, setShowContingenciaInfo] = useState(false);
   const [operadoresContingencia, setOperadoresContingencia] = useState<{
     [key: string]: { original: number; reemplazo: number };
   }>({});
@@ -549,6 +515,17 @@ export default function FacturacionCobranzaPage() {
     [key: string]: { original: any; reemplazo: any };
   }>({});
   const [loadingAnalisis, setLoadingAnalisis] = useState(false);
+  const [analisisError, setAnalisisError] = useState<string | null>(null);
+
+  // Operadores únicos basados en el resultado del análisis (incluye original y reemplazo)
+  const operadoresUnicosAnalisis = useMemo(() => {
+    const nombres = new Set<string>();
+    (analisisData?.embarquesFiltradosAnalisis || []).forEach((e: any) => {
+      const nombre = e?.operadorAsignado?.nombre || "";
+      if (nombre) nombres.add(nombre);
+    });
+    return Array.from(nombres).sort((a, b) => a.localeCompare(b));
+  }, [analisisData?.embarquesFiltradosAnalisis]);
 
   const [showPagosOperadoresModal, setShowPagosOperadoresModal] =
     useState(false);
@@ -606,33 +583,68 @@ export default function FacturacionCobranzaPage() {
     setFechaFinAnalisis(fin.toISOString().slice(0, 10));
   };
 
+  // UX: Prefijar rango de fechas cuando se abre el modal para habilitar el botón sin pasos extra
+  useEffect(() => {
+    if (showAnalisisOperadoresModal) {
+      if (!fechaInicioAnalisis || !fechaFinAnalisis) {
+        setPeriodoActual(periodoAnalisis || "mes");
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAnalisisOperadoresModal]);
+
   const generarAnalisisOperadores = async () => {
+    // Validación: exigir rango de fechas para evitar consultas demasiado amplias
+    if (!fechaInicioAnalisis || !fechaFinAnalisis) {
+      setAnalisisError("Selecciona un rango de fechas (Desde y Hasta) o elige un periodo.");
+      return;
+    }
+    if (new Date(fechaInicioAnalisis) > new Date(fechaFinAnalisis)) {
+      setAnalisisError("La fecha 'Desde' no puede ser mayor que 'Hasta'.");
+      return;
+    }
+    setAnalisisError(null);
     setLoadingAnalisis(true);
     try {
-      const fechaInicio = fechaInicioAnalisis
-        ? new Date(fechaInicioAnalisis)
-        : new Date("2024-01-01");
-      const fechaFin = fechaFinAnalisis
-        ? new Date(fechaFinAnalisis)
-        : new Date();
+      const fechaInicio = new Date(fechaInicioAnalisis);
+      const fechaFin = new Date(fechaFinAnalisis);
       fechaFin.setHours(23, 59, 59, 999);
 
-      const embarquesFiltrados = embarquesAsignados.filter((embarque) => {
+      const embarquesFiltrados = embarquesAnaliticos.filter((embarque: any) => {
         const fechaEmbarque = new Date(embarque.fecha_creacion!);
         const coincideFecha =
           fechaEmbarque >= fechaInicio && fechaEmbarque <= fechaFin;
-        const coincideOperador =
-          filtroAnalisisOperador === "todos" ||
-          embarque.operadorAsignado?.nombre === filtroAnalisisOperador;
         return (
-          coincideFecha &&
-          coincideOperador &&
-          embarque.estado_facturacion !== "archivado"
+          coincideFecha && embarque.estado_facturacion !== "archivado"
         );
       });
 
+      // Traer últimas modificaciones por embarque para conocer operador original y de reemplazo
+      const idsAnalisis = embarquesFiltrados.map((e: any) => e.id);
+      let latestModsMap: Record<string, any> = {};
+      if (idsAnalisis.length) {
+        try {
+          const { data: modsData, error: modsError } = await supabase
+            .from("embarque_modificaciones")
+            .select(
+              "embarque_id, operador_original_id, operador_original_nombre, operador_nuevo_id, operador_nuevo_nombre, razon, fecha_modificacion"
+            )
+            .in("embarque_id", idsAnalisis)
+            .order("fecha_modificacion", { ascending: false });
+          if (!modsError && modsData) {
+            for (const m of modsData) {
+              if (!latestModsMap[m.embarque_id]) latestModsMap[m.embarque_id] = m;
+            }
+          } else if (modsError) {
+            console.error("Error cargando modificaciones para análisis:", modsError);
+          }
+        } catch (e) {
+          console.error("Excepción cargando modificaciones para análisis:", e);
+        }
+      }
+
       // Construir lista para análisis: duplicar en contingencia (original y reemplazo) y NO calcular pago automático en esos casos
-      const embarquesParaAnalisis = embarquesFiltrados.flatMap((embarque) => {
+      let embarquesParaAnalisis = embarquesFiltrados.flatMap((embarque) => {
         const tipoServicio = tiposServicio.find(
           (t) => t.id === embarque.tipo_servicio_id
         );
@@ -642,6 +654,16 @@ export default function FacturacionCobranzaPage() {
           // Usar la fecha de creación como fecha de referencia en el análisis
           fechaAsignacion: embarque.fecha_creacion,
         };
+        // Enriquecer con datos de modificación (operador original y reemplazo)
+        const mod = latestModsMap[embarque.id];
+        if (mod) {
+          base.modificadoPorEmergencia = true;
+          base.operadorOriginalId = mod.operador_original_id;
+          base.operadorOriginalNombre = mod.operador_original_nombre;
+          base.operadorReemplazoId = mod.operador_nuevo_id;
+          base.operadorReemplazoNombre = mod.operador_nuevo_nombre;
+          base.motivoModificacion = mod.razon;
+        }
         const esContingencia =
           embarque.modificadoPorEmergencia ||
           embarquesModificadosIds.includes(embarque.id);
@@ -649,7 +671,7 @@ export default function FacturacionCobranzaPage() {
         if (esContingencia) {
           const duplicados: any[] = [];
           const nombreOriginal =
-            embarque.operadorOriginalNombre ||
+            base.operadorOriginalNombre ||
             embarque.operadorAsignado?.nombre;
           if (nombreOriginal) {
             duplicados.push({
@@ -663,13 +685,13 @@ export default function FacturacionCobranzaPage() {
               rolContingencia: "original",
             });
           }
-          if (embarque.operadorReemplazoNombre) {
+          if (base.operadorReemplazoNombre) {
             duplicados.push({
               ...base,
               modificadoPorEmergencia: true,
               operadorAsignado: {
                 ...embarque.operadorAsignado,
-                nombre: embarque.operadorReemplazoNombre,
+                nombre: base.operadorReemplazoNombre,
               },
               pagoOperador: 0,
               rolContingencia: "reemplazo",
@@ -688,6 +710,13 @@ export default function FacturacionCobranzaPage() {
           },
         ];
       });
+
+      // Filtro por operador después de duplicar por contingencia
+      if (filtroAnalisisOperador !== "todos") {
+        embarquesParaAnalisis = (embarquesParaAnalisis as any[]).filter(
+          (e: any) => (e.operadorAsignado?.nombre || "") === filtroAnalisisOperador
+        );
+      }
 
       const operadoresMap: Map<string, any[]> = new Map();
       for (const embarque of embarquesParaAnalisis as any[]) {
@@ -724,7 +753,7 @@ export default function FacturacionCobranzaPage() {
           };
         }
       );
-      const resumenGeneral = {
+  const resumenGeneral = {
         totalPagos: (embarquesParaAnalisis as any[]).reduce(
           (sum: number, e: any) => {
             if (e.modificadoPorEmergencia) {
@@ -768,18 +797,63 @@ export default function FacturacionCobranzaPage() {
   };
 
   const exportarAnalisisExcel = () => {
-    let csv = "Operador,Folio,Cliente,Fecha,Tipo Servicio,Pago Operador\n";
-    analisisData.embarquesFiltradosAnalisis.forEach((e: any) => {
+    // Exportar exactamente como la tabla "Detalle" (sin la columna Acciones)
+    // Columnas: Folio, Operador, Cliente, Fecha, Tipo Servicio, Pago Operador, Contingencia
+    const escape = (val: any) => {
+      const s = String(val ?? "");
+      // Escapar comillas dobles para CSV
+      return `"${s.replace(/"/g, '""')}"`;
+    };
+
+    let csv = [
+      "Folio",
+      "Operador",
+      "Cliente",
+      "Load",
+      "Carta Porte",
+  "Tractocamión",
+  "Remolque",
+      "Fecha",
+      "Tipo Servicio",
+      "Pago Operador",
+      "Contingencia",
+    ].map(escape).join(",") + "\n";
+
+    const lista: any[] = analisisData.embarquesFiltradosAnalisis || [];
+    lista.forEach((e: any) => {
+      const fechaFmt = e.fechaAsignacion
+        ? new Date(e.fechaAsignacion).toLocaleDateString("es-MX")
+        : "";
       const pago = e.modificadoPorEmergencia
-        ? e.rolContingencia === "original"
-          ? operadoresContingencia[e.id]?.original || 0
-          : operadoresContingencia[e.id]?.reemplazo || 0
+        ? (e.rolContingencia === "original"
+            ? (operadoresContingencia as any)[e.id]?.original || 0
+            : (operadoresContingencia as any)[e.id]?.reemplazo || 0)
         : e.pagoOperador || 0;
-      csv += `${e.operadorAsignado?.nombre || ""},${e.folio},${
-        e.clienteNombre
-      },${e.fechaAsignacion},${e.tipoServicioNombre},${pago}\n`;
+      const pagoFmt = `$${Number(pago).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      const contingenciaTxt = (() => {
+        if (!e.modificadoPorEmergencia) return "No";
+        const folio = e.folio || "";
+        const folioShort = folio.includes("-") ? folio.split("-").slice(1).join("-") : folio;
+        return folioShort ? `Sí / ${folioShort}` : "Sí";
+      })();
+
+      const row = [
+        e.folio || "",
+        e.operadorAsignado?.nombre || "",
+        e.clienteNombre || "",
+        (e as any).load_number || (e as any).numeroLoad || "",
+        (e as any).carta_porte || "",
+  (e as any).camionAsignado?.numeroEconomico || (e as any).camion?.numero_economico || "",
+  (e as any).remolque?.numero_economico || (e as any).remolque_numero_economico || (e as any).remolque_placa || "",
+        fechaFmt,
+        e.tipoServicioNombre || "",
+        pagoFmt,
+        contingenciaTxt,
+      ].map(escape).join(",");
+      csv += row + "\n";
     });
-    const blob = new Blob([csv], { type: "text/csv" });
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -794,18 +868,232 @@ export default function FacturacionCobranzaPage() {
   >([]);
   const [loadingArchivados, setLoadingArchivados] = useState(false);
 
+  // UI/UX: filtros, orden y paginación para modal de Archivados (diseño alineado a Crear Embarques)
+  const [archivadosSearch, setArchivadosSearch] = useState("");
+  const [archivadosPeriodo, setArchivadosPeriodo] = useState<
+    "todo" | "mes_actual" | "mes_anterior" | "ultimos_3" | "ultimos_6" | "este_anio"
+  >("todo");
+  const [archivadosSortBy, setArchivadosSortBy] = useState<
+    "folio" | "cliente" | "load" | "valor" | "fechaPago"
+  >("folio");
+  const [archivadosSortDir, setArchivadosSortDir] = useState<"asc" | "desc">(
+    "desc"
+  );
+  const [archivadosPage, setArchivadosPage] = useState(1);
+  const [archivadosPageSize, setArchivadosPageSize] = useState(25);
+
+  const sortIndicatorArchivados = (field:
+    | "folio"
+    | "cliente"
+    | "load"
+    | "valor"
+    | "fechaPago"
+  ) => {
+    if (archivadosSortBy !== field) return null;
+    return archivadosSortDir === "asc" ? " ▲" : " ▼";
+  };
+
+  const toggleSortArchivados = (
+    field: "folio" | "cliente" | "load" | "valor" | "fechaPago"
+  ) => {
+    setArchivadosPage(1);
+    if (archivadosSortBy === field) {
+      setArchivadosSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setArchivadosSortBy(field);
+  // Por defecto: fechaPago y folio en descendente; los demás asc
+  setArchivadosSortDir(field === "fechaPago" || field === "folio" ? "desc" : "asc");
+    }
+  };
+
+  // Reset de página ante cambios de filtros
+  useEffect(() => {
+    setArchivadosPage(1);
+  }, [archivadosSearch, archivadosPeriodo, archivadosPageSize]);
+
+  // Helper: validar si una fecha cae dentro del periodo seleccionado
+  const fechaDentroPeriodoArchivados = (fechaIso?: string | null) => {
+    if (!fechaIso) return false;
+    const fecha = new Date(fechaIso);
+    const ahora = new Date();
+    const anioActual = ahora.getFullYear();
+    const mesActual = ahora.getMonth();
+    switch (archivadosPeriodo) {
+      case "todo":
+        return true;
+      case "mes_actual":
+        return (
+          fecha.getFullYear() === anioActual && fecha.getMonth() === mesActual
+        );
+      case "mes_anterior": {
+        const mesAnterior = new Date(anioActual, mesActual - 1, 1);
+        return (
+          fecha.getFullYear() === mesAnterior.getFullYear() &&
+          fecha.getMonth() === mesAnterior.getMonth()
+        );
+      }
+      case "ultimos_3": {
+        const limite = new Date();
+        limite.setMonth(limite.getMonth() - 3);
+        return fecha >= limite;
+      }
+      case "ultimos_6": {
+        const limite = new Date();
+        limite.setMonth(limite.getMonth() - 6);
+        return fecha >= limite;
+      }
+      case "este_anio":
+        return fecha.getFullYear() === anioActual;
+      default:
+        return true;
+    }
+  };
+
+  const archivadosFilteredSorted = useMemo(() => {
+    const term = (archivadosSearch || "").toLowerCase();
+    const filtered = (embarquesArchivados || []).filter((e) => {
+      if (!e) return false;
+      const folio = String(e.folio || "").toLowerCase();
+      const cliente = String(e.clienteNombre || "").toLowerCase();
+      const load = String((e as any).load_number || e.numeroLoad || "").toLowerCase();
+      const matchesTerm = folio.includes(term) || cliente.includes(term) || load.includes(term);
+      // Para Facturación/Cobranza, filtramos por periodo usando preferentemente la fecha de pago de factura
+      const fechaRef = (e as any).fecha_pago || (e as any).fecha_archivado || (e as any).fechaArchivado || (e as any).updated_at || (e as any).fecha_creacion;
+      const matchesPeriodo = fechaDentroPeriodoArchivados(fechaRef);
+      return matchesTerm && matchesPeriodo;
+    });
+
+    const getValor = (e: any) => {
+      const raw =
+        typeof e?.precioFlete === "number"
+          ? e.precioFlete
+          : typeof e?.precio_flete === "string"
+          ? Number(e.precio_flete)
+          : typeof e?.precio_flete === "number"
+          ? e.precio_flete
+          : 0;
+      return Number.isFinite(raw) ? raw : 0;
+    };
+
+    const sorted = filtered.sort((a, b) => {
+      let va: any = 0;
+      let vb: any = 0;
+      switch (archivadosSortBy) {
+        case "folio":
+          // Comparación numérica de folio (extrae dígitos, e.g., "E-00123" -> 123)
+          const folioNum = (x: any) => {
+            const s = String(x?.folio ?? "");
+            const digits = s.replace(/[^0-9]/g, "");
+            if (digits.length > 0) return parseInt(digits, 10);
+            // Si no hay dígitos, colocarlo al final con el valor más bajo
+            return Number.MIN_SAFE_INTEGER;
+          };
+          va = folioNum(a);
+          vb = folioNum(b);
+          break;
+        case "cliente":
+          va = String(a.clienteNombre || "");
+          vb = String(b.clienteNombre || "");
+          break;
+        case "load":
+          va = String((a as any).load_number || a.numeroLoad || "");
+          vb = String((b as any).load_number || b.numeroLoad || "");
+          break;
+        case "valor":
+          va = getValor(a);
+          vb = getValor(b);
+          break;
+        case "fechaPago":
+          va = a.fecha_pago ? new Date(a.fecha_pago).getTime() : 0;
+          vb = b.fecha_pago ? new Date(b.fecha_pago).getTime() : 0;
+          break;
+      }
+      if (va < vb) return archivadosSortDir === "asc" ? -1 : 1;
+      if (va > vb) return archivadosSortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return sorted;
+  }, [embarquesArchivados, archivadosSearch, archivadosSortBy, archivadosSortDir, archivadosPeriodo]);
+
+  const totalArchivados = archivadosFilteredSorted.length;
+  const totalArchivadosPaginas = Math.max(
+    1,
+    Math.ceil(totalArchivados / archivadosPageSize)
+  );
+  const clampedPage = Math.min(archivadosPage, totalArchivadosPaginas);
+  const startIdx = (clampedPage - 1) * archivadosPageSize;
+  const endIdx = Math.min(totalArchivados, startIdx + archivadosPageSize);
+  const paginatedArchivados = archivadosFilteredSorted.slice(startIdx, endIdx);
+
+  // Elegibilidad de eliminación: habilitado si cumple 1 año o es el más antiguo
+  const masViejoArchivadoId = useMemo(() => {
+    if (!embarquesArchivados || embarquesArchivados.length === 0) return null;
+    let minId: string | null = null;
+    let minTime = Number.POSITIVE_INFINITY;
+    for (const e of embarquesArchivados) {
+      const fechaStr =
+        (e as any).fecha_archivado || e.fechaArchivado || e.fecha_creacion || e.updated_at;
+      const t = fechaStr ? new Date(fechaStr).getTime() : Number.POSITIVE_INFINITY;
+      if (t < minTime) {
+        minTime = t;
+        minId = e.id;
+      }
+    }
+    return minId;
+  }, [embarquesArchivados]);
+
+  const puedeEliminarArchivadoFC = (e: EmbarqueAsignado) => {
+    const fechaStr = (e as any).fecha_archivado || e.fechaArchivado || e.fecha_creacion || e.updated_at;
+    if (!fechaStr) return false;
+    const t = new Date(fechaStr).getTime();
+    if (!isFinite(t)) return false;
+    const unAnioMs = 365 * 24 * 60 * 60 * 1000;
+    const ageMs = Date.now() - t;
+    return ageMs >= unAnioMs || e.id === masViejoArchivadoId;
+  };
+
+  const eliminarArchivadoDefinitivoFC = async (e: EmbarqueAsignado) => {
+    if (!puedeEliminarArchivadoFC(e)) return;
+    const ok = confirm(
+      `¿Eliminar definitivamente el embarque folio ${e.folio}?\nEsta acción no se puede deshacer.`
+    );
+    if (!ok) return;
+    try {
+      const { error } = await supabase.from("embarques").delete().eq("id", e.id);
+      if (error) {
+        alert("Error al eliminar en Supabase: " + (error.message || ""));
+        return;
+      }
+      setEmbarquesArchivados((prev) => (prev || []).filter((x) => x.id !== e.id));
+      // Audit log
+      try {
+        const { agregarAuditLog } = await import("../../lib/audit");
+        agregarAuditLog(
+          "ELIMINAR",
+          "Facturación/Cobranza",
+          `Eliminación definitiva de embarque archivado folio ${e.folio}`
+        );
+      } catch {}
+      alert("Registro eliminado definitivamente.");
+    } catch (err) {
+      console.error(err);
+      alert("Error inesperado al eliminar el registro.");
+    }
+  };
+
   useEffect(() => {
     if (!showArchivadosModal) return;
     setLoadingArchivados(true);
     const cargarArchivados = async () => {
       try {
-        const { data, error } = await supabase
+  const { data, error } = await supabase
           .from("embarques")
           .select(
             `*,
        cliente:clientes(*),
        operador:operadores(*),
-       camion:camiones(*)`
+       camion:camiones(*),
+       remolque:remolques(*)`
           )
           .eq("estado_facturacion", "archivado")
           .order("fecha_archivado", { ascending: false });
@@ -919,8 +1207,16 @@ export default function FacturacionCobranzaPage() {
         const paraModal: EmbarqueAsignado = {
           ...embarque,
           estado_facturacion: "archivado",
-          precioFlete: embarque.precioFlete || embarque.precio_flete,
-          fecha_pago: embarque.fecha_pago,
+          // Normalizar campos utilizados por el listado de Archivados
+          clienteNombre: (embarque as any).clienteNombre || (embarque as any).cliente?.nombre || "Cliente no especificado",
+          precioFlete: (typeof (embarque as any).precioFlete === "number"
+            ? (embarque as any).precioFlete
+            : typeof (embarque as any).precio_flete === "string"
+            ? Number((embarque as any).precio_flete)
+            : (embarque as any).precio_flete) as any,
+          fecha_pago: (embarque as any).fecha_pago || (embarque as any).fechaPago || null,
+          fecha_archivado: (embarque as any).fecha_archivado || fechaArchivado,
+          updated_at: fechaArchivado,
           load_number: (embarque as any).load_number || embarque.numeroLoad,
         } as any;
         return [paraModal, ...(prev || [])];
@@ -935,7 +1231,6 @@ export default function FacturacionCobranzaPage() {
         `Archivo de embarque folio ${embarque.folio} por usuario ${usuarioArchivo}`
       );
     } catch {}
-    alert("Embarque archivado exitosamente en Supabase.");
   }
   const [embarquesAsignados, setEmbarquesAsignados] = useState<
     EmbarqueAsignado[]
@@ -964,6 +1259,14 @@ export default function FacturacionCobranzaPage() {
 
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [clientes, setClientes] = useState<any[]>([]);
+  // Ordenar clientes alfabéticamente para dropdowns (acentos/uppercase-insensitive)
+  const clientesOrdenadosPorNombre = useMemo(
+    () =>
+      [...(clientes || [])]
+        .filter((c) => c && typeof c.nombre === "string")
+        .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" })),
+    [clientes]
+  );
   const [creditLimits, setCreditLimits] = useState<{
     [key: string]: { usd: number; mxn: number };
   }>({});
@@ -992,6 +1295,23 @@ export default function FacturacionCobranzaPage() {
   const [tiposServicio, setTiposServicio] = useState<TipoServicio[]>([]);
   // Modal para crear nuevo tipo de servicio
   const [showCrearTipoModal, setShowCrearTipoModal] = useState(false);
+  const [showTiposInfo, setShowTiposInfo] = useState(false);
+  const [itemsPerPageTipos, setItemsPerPageTipos] = useState(5);
+  const [currentPageTipos, setCurrentPageTipos] = useState(1);
+  const totalPagesTipos = useMemo(
+    () => Math.max(1, Math.ceil((tiposServicio?.length || 0) / itemsPerPageTipos)),
+    [tiposServicio, itemsPerPageTipos]
+  );
+  const paginatedTipos = useMemo(() => {
+    const start = (currentPageTipos - 1) * itemsPerPageTipos;
+    return (tiposServicio || []).slice(start, start + itemsPerPageTipos);
+  }, [tiposServicio, currentPageTipos, itemsPerPageTipos]);
+  useEffect(() => {
+    // Si cambia el total de páginas y la actual queda fuera de rango, ajusta
+    if (currentPageTipos > totalPagesTipos) {
+      setCurrentPageTipos(totalPagesTipos);
+    }
+  }, [totalPagesTipos]);
   const [nuevoTipo, setNuevoTipo] = useState({
     nombre: "",
     descripcion: "",
@@ -1004,6 +1324,7 @@ export default function FacturacionCobranzaPage() {
   const [showFacturacionModal, setShowFacturacionModal] = useState(false);
   const [embarqueFacturacion, setEmbarqueFacturacion] =
     useState<EmbarqueAsignado | null>(null);
+  const [savingFacturacion, setSavingFacturacion] = useState(false);
   const [facturacionData, setFacturacionData] = useState({
     numeroFactura1: "",
     numeroFactura2: "",
@@ -1024,7 +1345,76 @@ export default function FacturacionCobranzaPage() {
     observacionesFacturacion: "",
   });
 
+  // Generador aleatorio para Captura de Facturación
+  const [facturasRandomCount, setFacturasRandomCount] = useState<number>(4);
+  const formatDate = (d: Date) => d.toISOString().slice(0, 10);
+  const randInt = (min: number, max: number) =>
+    Math.floor(Math.random() * (max - min + 1)) + min;
+  const randAlphaNum = (len: number) =>
+    Array.from({ length: len })
+      .map(() => "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"[Math.floor(Math.random() * 36)])
+      .join("");
+  const generarFacturacionAleatoria = (count?: number) => {
+    const n = Math.min(4, Math.max(1, count ?? facturasRandomCount));
+    const hoy = new Date();
+    const baseFolio = embarqueFacturacion?.folio || "FAC";
+
+    const nuevo = { ...facturacionData } as typeof facturacionData;
+
+    for (let i = 1; i <= 4; i++) {
+      if (i <= n) {
+        const envioOffset = randInt(3, 45); // días atrás
+        const pagoDelay = randInt(0, 20); // días después del envío
+        const envio = new Date(hoy);
+        envio.setDate(hoy.getDate() - envioOffset);
+        const pago = new Date(envio);
+        pago.setDate(envio.getDate() + pagoDelay);
+        if (pago > hoy) pago.setTime(hoy.getTime());
+
+        (nuevo as any)[`numeroFactura${i}`] = `${baseFolio}-${hoy.getFullYear()}-${i}${randInt(
+          1000,
+          9999
+        )}`;
+        (nuevo as any)[`fechaEnvioCliente${i}`] = formatDate(envio);
+        (nuevo as any)[`fechaPagoCliente${i}`] = formatDate(pago);
+        (nuevo as any)[`referenciaPago${i}`] = `REF-${randAlphaNum(6)}`;
+      } else {
+        // Limpiar campos fuera del rango seleccionado
+        (nuevo as any)[`numeroFactura${i}`] = "";
+        (nuevo as any)[`fechaEnvioCliente${i}`] = "";
+        (nuevo as any)[`fechaPagoCliente${i}`] = "";
+        (nuevo as any)[`referenciaPago${i}`] = "";
+      }
+    }
+
+    const obsBase = `Generado automáticamente (${new Date().toLocaleDateString("es-MX")})`;
+    nuevo.observacionesFacturacion = nuevo.observacionesFacturacion?.trim()
+      ? `${nuevo.observacionesFacturacion}\n${obsBase}`
+      : obsBase;
+
+    setFacturacionData(nuevo);
+  };
+
   const [activeDetailTab, setActiveDetailTab] = useState("general");
+
+  // Fotos (Detalle)
+  const [fotosDetalle, setFotosDetalle] = useState<FotoEmbarque[]>([]);
+  const [loadingFotosDetalle, setLoadingFotosDetalle] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const cargarFotosDetalle = useCallback(async (embarqueId: string) => {
+    if (!embarqueId) return;
+    setLoadingFotosDetalle(true);
+    try {
+      const fotos = await obtenerFotosEmbarque(embarqueId);
+      if (mounted.current) setFotosDetalle(fotos || []);
+    } catch (e) {
+      console.error("Error cargando fotos (detalle):", e);
+      if (mounted.current) setFotosDetalle([]);
+    } finally {
+      if (mounted.current) setLoadingFotosDetalle(false);
+    }
+  }, []);
 
   // Helper: obtener cliente por id para pestaña Datos del Cliente
   const getClienteById = useCallback(
@@ -1068,7 +1458,7 @@ export default function FacturacionCobranzaPage() {
 
     // Resumen facturación
     const monto = (anyDet.cantidad_final_facturada ?? anyDet.precio_flete ?? 0) as number;
-    push("Valor Facturado", `${monto.toLocaleString()} ${anyDet.moneda_flete || "MXN"}`);
+  push("Valor Facturado", `${monto.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${anyDet.moneda_flete || "MXN"}`);
     push("Estado Facturación", anyDet.estado_facturacion || "pendiente_facturacion");
     push("Pagado", anyDet.pagado ? "Sí" : "No");
     push("Fecha Pago", anyDet.fecha_pago ? new Date(anyDet.fecha_pago).toLocaleDateString() : "");
@@ -1176,6 +1566,80 @@ export default function FacturacionCobranzaPage() {
     };
   }, [currentYear]);
 
+  // Dataset para Análisis: incluir embarques ASIGNADOS y FINALIZADOS, excluyendo archivados en facturación
+  const [embarquesAnaliticos, setEmbarquesAnaliticos] = useState<EmbarqueAsignado[]>([]);
+  useEffect(() => {
+    let active = true;
+    const cargarEmbarquesAnaliticos = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("embarques")
+          .select(
+            `
+      *,
+      cliente:clientes(*),
+      operador:operadores(*),
+      camion:camiones(*),
+      remolque:remolques(*)
+    `
+          )
+          .or("estado.ilike.finalizado%,estado.ilike.asignado%")
+          .or("estado_facturacion.is.null,estado_facturacion.neq.archivado")
+          .order("fecha_creacion", { ascending: false });
+
+        if (error) {
+          console.error("Error cargando embarques analíticos:", error?.message || error);
+          if (active) setEmbarquesAnaliticos([]);
+          return;
+        }
+
+        const embarquesFormateados: EmbarqueAsignado[] = (data || []).map(
+          (embarque) => ({
+            ...embarque,
+            precioFlete:
+              typeof (embarque as any).precio_flete === "string"
+                ? Number((embarque as any).precio_flete)
+                : typeof (embarque as any).precio_flete === "number"
+                ? (embarque as any).precio_flete
+                : undefined,
+            clienteNombre:
+              embarque.cliente?.nombre || "Cliente no especificado",
+            fechaAsignacion: embarque.fecha_creacion,
+            operadorAsignado: embarque.operador
+              ? {
+                  id: embarque.operador.id,
+                  nombre: `${embarque.operador.nombre} ${
+                    embarque.operador.apellidos || ""
+                  }`.trim(),
+                }
+              : { id: "", nombre: "Sin asignar" },
+            camionAsignado: embarque.camion
+              ? {
+                  id: embarque.camion.id,
+                  marca: embarque.camion.marca,
+                  modelo: embarque.camion.modelo,
+                  numeroEconomico: embarque.camion.numero_economico,
+                }
+              : {
+                  id: "",
+                  marca: "Sin asignar",
+                  modelo: "",
+                  numeroEconomico: "",
+                },
+          })
+        );
+        if (active) setEmbarquesAnaliticos(embarquesFormateados);
+      } catch (e: any) {
+        console.error("Excepción cargando embarques analíticos:", e?.message || e);
+        if (active) setEmbarquesAnaliticos([]);
+      }
+    };
+    cargarEmbarquesAnaliticos();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   useEffect(() => {
     mounted.current = true;
     const cargarEmbarquesFacturados = async () => {
@@ -1192,10 +1656,8 @@ export default function FacturacionCobranzaPage() {
       remolque:remolques(*)
     `
           )
-          // Mostrar únicamente embarques finalizados (tolerante a mayúsculas/espacios) y que no estén archivados en facturación
-          .ilike("estado", "finalizado%")
-          // Incluir registros con estado_facturacion NULL o distinto de 'archivado'
-          .or("estado_facturacion.is.null,estado_facturacion.neq.archivado")
+          // Incluir embarques finalizados, archivados o en tránsito (a nivel operativo), sin excluir archivados de facturación
+          .or("estado.ilike.finalizado%,estado.ilike.archivado%,estado.ilike.transito%,estado.ilike.en%20transito%")
           .order("fecha_creacion", { ascending: false });
 
         if (error) {
@@ -1396,31 +1858,34 @@ export default function FacturacionCobranzaPage() {
 
   const operadoresUnicos = Array.from(
     new Set(
-      (embarquesAsignados || [])
-        .map((embarque) => embarque?.operadorAsignado?.nombre)
+      (embarquesAnaliticos || [])
+        .filter((e: any) => e?.estado_facturacion !== "archivado")
+        .flatMap((e: any) => [
+          e?.operadorAsignado?.nombre,
+          (e as any)?.operadorOriginalNombre,
+          (e as any)?.operadorReemplazoNombre,
+        ])
         .filter(Boolean) as string[]
     )
   )
     .map((nombre) => {
-      const operador = (embarquesAsignados || []).find(
-        (e) => e?.operadorAsignado?.nombre === nombre
-      )?.operadorAsignado;
-      return operador;
+      const fuente = (embarquesAnaliticos || []).find(
+        (e: any) =>
+          e?.operadorAsignado?.nombre === nombre ||
+          (e as any)?.operadorOriginalNombre === nombre ||
+          (e as any)?.operadorReemplazoNombre === nombre
+      );
+      return fuente?.operadorAsignado?.nombre === nombre
+        ? fuente.operadorAsignado
+        : { id: "", nombre };
     })
-    .filter(
-      (
-        op
-      ): op is {
-        id: string;
-        nombre: string;
-      } => Boolean(op)
-    );
+    .filter((op): op is { id: string; nombre: string } => Boolean(op?.nombre));
 
   const embarquesFiltrados = (embarquesAsignados || []).filter((embarque) => {
     if (!embarque) return false;
-    // Mostrar solo embarques finalizados; tolerante a mayúsculas/espacios. Sólo se ocultan si están archivados en facturación
+    // Mostrar embarques finalizados o archivados (operativo). Sólo se ocultan si están archivados en facturación
     const estadoNorm = String(embarque.estado || "").trim().toLowerCase();
-    if (estadoNorm !== "finalizado") return false;
+    if (!(estadoNorm.startsWith("finalizado") || estadoNorm.startsWith("archivado"))) return false;
     if (embarque.estado_facturacion === "archivado") return false;
 
     const currentSearchTerm = searchTerm || "";
@@ -1674,6 +2139,171 @@ export default function FacturacionCobranzaPage() {
     }
   };
 
+  const eliminarTipoServicio = async (tipo: TipoServicio) => {
+    const confirmado = confirm(
+      `¿Eliminar el tipo de servicio "${tipo.nombre}"?\nEsta acción no se puede deshacer.`
+    );
+    if (!confirmado) return;
+
+    try {
+      // Verificar uso en embarques activos (no archivados). Considera null como activo.
+      const { count: countActivos, error: countError } = await supabase
+        .from("embarques")
+        .select("id", { count: "exact", head: true })
+        .eq("tipo_servicio_id", tipo.id)
+        .or("estado_facturacion.is.null,estado_facturacion.neq.archivado");
+
+      if (countError) {
+        console.error("Error verificando uso de tipo de servicio:", countError);
+        alert(
+          "No se pudo verificar el uso del tipo de servicio: " +
+            (countError.message || "")
+        );
+        return;
+      }
+
+      if ((countActivos || 0) > 0) {
+        alert(
+          `No se puede eliminar. Este tipo de servicio está en uso por ${countActivos} embarque(s) activos (no archivados).`
+        );
+        return;
+      }
+
+      // Contar referencias totales (incluye archivados)
+      const { count: countTotal, error: countAllError } = await supabase
+        .from("embarques")
+        .select("id", { count: "exact", head: true })
+        .eq("tipo_servicio_id", tipo.id);
+      if (countAllError) {
+        console.error("Error verificando referencias históricas:", countAllError);
+      }
+
+      if ((countTotal || 0) > 0) {
+        // Si hay referencias históricas, la eliminación puede fallar por restricción FK. Ofrecer desactivar.
+        const desactivar = confirm(
+          `Este tipo de servicio está referenciado por ${countTotal} embarque(s) histórico(s).\n` +
+            "Para mantener la integridad de datos, se recomienda desactivarlo en lugar de eliminarlo.\n" +
+            "¿Deseas desactivarlo para ocultarlo de nuevas selecciones?"
+        );
+        if (!desactivar) return;
+        const { error: inactError } = await supabase
+          .from("tipos_servicio")
+          .update({ activo: false, updated_at: new Date().toISOString() })
+          .eq("id", tipo.id);
+        if (inactError) {
+          console.error("Error desactivando tipo de servicio:", inactError);
+          alert(
+            "No se pudo desactivar el tipo de servicio: " +
+              (inactError.message || "")
+          );
+          return;
+        }
+        if (mounted.current) {
+          setTiposServicio((prev) =>
+            prev.map((t) => (t.id === tipo.id ? { ...t, activo: false } : t))
+          );
+        }
+        alert("Tipo de servicio desactivado.");
+        return;
+      }
+
+      // Sin referencias: proceder con eliminación (segunda confirmación)
+      const confirmadoFinal = confirm(
+        `Confirmación final: ¿Eliminar definitivamente el tipo de servicio "${tipo.nombre}"?\nEsta acción no se puede deshacer.`
+      );
+      if (!confirmadoFinal) return;
+
+      const { error: delError } = await supabase
+        .from("tipos_servicio")
+        .delete()
+        .eq("id", tipo.id);
+      if (delError) {
+        console.error("Error eliminando tipo de servicio:", delError);
+        alert(
+          "Error al eliminar el tipo de servicio (puede estar protegido por integridad de datos)." 
+        );
+        return;
+      }
+
+      if (mounted.current) {
+        setTiposServicio((prev) => prev.filter((t) => t.id !== tipo.id));
+      }
+
+      try {
+        const { agregarAuditLog } = await import("../../lib/audit");
+        agregarAuditLog(
+          "ELIMINAR",
+          "Facturación/Cobranza",
+          `Se eliminó el tipo de servicio ${tipo.nombre} (${tipo.id})`
+        );
+      } catch (e) {
+        // Audit es opcional; no bloquear por esto
+        console.warn("No se pudo registrar auditoría de eliminación de tipo:", e);
+      }
+    } catch (e) {
+      console.error("Error inesperado al eliminar tipo de servicio:", e);
+      alert("Error inesperado al eliminar el tipo de servicio.");
+    }
+  };
+
+  const exportarTiposServicioExcel = () => {
+    try {
+      // Fecha y hora actuales
+      const now = new Date();
+      const fecha = now.toLocaleDateString("es-MX", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      });
+      const hora = now.toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+
+      // Construir filas: encabezado informativo + encabezados de tabla + datos
+      const headerInfo = [[`Exportado: ${fecha} ${hora}`]];
+      const headers = [
+        [
+          "Tipo",
+          "Descripción",
+          "Categoría",
+          "Subcategoría",
+          "Pago Operador (MXN)",
+        ],
+      ];
+
+      const rows = (tiposServicio || []).map((t) => [
+        t.nombre || "",
+        t.descripcion || "",
+        t.categoria || "General",
+        t.subcategoria || "",
+        typeof t.precio_base === "number" ? t.precio_base : Number(t.precio_base || 0),
+      ]);
+
+      const data = [...headerInfo, [], ...headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(data);
+      // Ajustar ancho de columnas básico
+      ws["!cols"] = [
+        { wch: 36 },
+        { wch: 50 },
+        { wch: 22 },
+        { wch: 22 },
+        { wch: 20 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "TiposServicio");
+      const fileName = `tipos_servicio_${now
+        .toISOString()
+        .replace(/[:.]/g, "-")}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    } catch (e) {
+      console.error("Error exportando tipos de servicio:", e);
+      alert("No se pudo exportar el archivo Excel.");
+    }
+  };
+
   const editarEmbarque = (embarque: EmbarqueAsignado) => {
     setEmbarqueEditando(embarque);
     setFormData({
@@ -1823,6 +2453,14 @@ export default function FacturacionCobranzaPage() {
     if (!embarqueFacturacion) return;
 
     try {
+      // Validación: Observaciones obligatoria
+      const obs = (facturacionData.observacionesFacturacion || "").trim();
+      if (!obs) {
+        alert("Las Observaciones son obligatorias para guardar la captura de facturación.");
+        return;
+      }
+
+      setSavingFacturacion(true);
       // Tomar el primer valor no vacío para columnas legadas
       const firstEnvio =
         (facturacionData.fechaEnvioCliente1 ||
@@ -1868,7 +2506,7 @@ export default function FacturacionCobranzaPage() {
           fecha_pago: firstPago,
           referencia_pago: firstRef,
           observaciones_facturacion:
-            facturacionData.observacionesFacturacion || null,
+            obs || null,
           updated_at: new Date().toISOString(),
         })
         .eq("id", embarqueFacturacion.id);
@@ -1908,8 +2546,7 @@ export default function FacturacionCobranzaPage() {
               fechaEnvioCliente: firstEnvio || undefined as any,
               fechaPago: firstPago || undefined as any,
               referenciaPago: firstRef || undefined as any,
-              observacionesFacturacion:
-                facturacionData.observacionesFacturacion,
+              observacionesFacturacion: obs,
             }
           : embarque
       );
@@ -1920,6 +2557,37 @@ export default function FacturacionCobranzaPage() {
           "embarquesAsignados",
           JSON.stringify(embarquesActualizados)
         );
+
+        // Si el detalle abierto corresponde al embarque editado, sincronizarlo también
+        if (embarqueDetalle && embarqueDetalle.id === embarqueFacturacion.id) {
+          setEmbarqueDetalle({
+            ...embarqueDetalle,
+            foliosFactura: {
+              folio1: facturacionData.numeroFactura1,
+              folio2: facturacionData.numeroFactura2,
+              folio3: facturacionData.numeroFactura3,
+              folio4: facturacionData.numeroFactura4,
+            },
+            // Nuevos campos por factura
+            fecha_envio_cliente_1: facturacionData.fechaEnvioCliente1 || undefined,
+            fecha_envio_cliente_2: facturacionData.fechaEnvioCliente2 || undefined,
+            fecha_envio_cliente_3: facturacionData.fechaEnvioCliente3 || undefined,
+            fecha_envio_cliente_4: facturacionData.fechaEnvioCliente4 || undefined,
+            fecha_pago_1: facturacionData.fechaPagoCliente1 || undefined,
+            fecha_pago_2: facturacionData.fechaPagoCliente2 || undefined,
+            fecha_pago_3: facturacionData.fechaPagoCliente3 || undefined,
+            fecha_pago_4: facturacionData.fechaPagoCliente4 || undefined,
+            referencia_pago_1: facturacionData.referenciaPago1 || undefined,
+            referencia_pago_2: facturacionData.referenciaPago2 || undefined,
+            referencia_pago_3: facturacionData.referenciaPago3 || undefined,
+            referencia_pago_4: facturacionData.referenciaPago4 || undefined,
+            // Legados para compatibilidad en renderizados que aún lean los antiguos
+            fecha_envio_cliente: firstEnvio || undefined,
+            fecha_pago: firstPago || undefined,
+            referencia_pago: firstRef || undefined,
+            observacionesFacturacion: obs,
+          } as any);
+        }
 
         alert("¡Registro de facturación guardado exitosamente en Supabase!");
 
@@ -1953,11 +2621,18 @@ export default function FacturacionCobranzaPage() {
         msg = (error as any).message;
       }
       alert("Error al guardar los datos de facturación.\n\n" + msg);
+    } finally {
+      setSavingFacturacion(false);
     }
   };
 
   const exportCreditDataToExcel = () => {
-    let csv =
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const timestampHuman = now.toLocaleString("es-MX", { dateStyle: "short", timeStyle: "short" });
+    const timestampFile = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+
+    let csv = `Gestión de Crédito de Clientes - Descargado: ${timestampHuman}\n` +
       "Cliente,Límite USD,Adeudado USD,Límite MXN,Adeudado MXN,Estado Crédito\n";
     filteredClients.forEach((cliente) => {
       const clienteEmbarquesUSD = embarquesFiltrados.filter(
@@ -1972,11 +2647,11 @@ export default function FacturacionCobranzaPage() {
       );
 
       const totalPendienteUSD = clienteEmbarquesUSD.reduce(
-        (sum, e) => sum + (e.montoFacturado || 0),
+        (sum, e) => sum + (e.montoFacturado ?? (e as any)?.precioFlete ?? 0),
         0
       );
       const totalPendienteMXN = clienteEmbarquesMXN.reduce(
-        (sum, e) => sum + (e.montoFacturado || 0),
+        (sum, e) => sum + (e.montoFacturado ?? (e as any)?.precioFlete ?? 0),
         0
       );
 
@@ -1993,7 +2668,7 @@ export default function FacturacionCobranzaPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "credito_clientes.csv";
+  a.download = `credito_clientes_${timestampFile}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -2033,6 +2708,7 @@ export default function FacturacionCobranzaPage() {
 
   const verDetallesEmbarque = (embarque: EmbarqueAsignado) => {
     setEmbarqueDetalle(embarque);
+  setActiveDetailTab("general");
 
     setFacturacionFormData({
       folio1: embarque.numero_factura_1 || "",
@@ -2043,7 +2719,8 @@ export default function FacturacionCobranzaPage() {
         embarque.cantidad_final_facturada || embarque.precioFlete || 0,
       observacionesFacturacion: embarque.observacionesFacturacion || "",
     });
-
+  // Cargar fotos del embarque para la pestaña Fotos
+  if (embarque?.id) cargarFotosDetalle(embarque.id);
     setShowDetailModal(true);
   };
 
@@ -2147,6 +2824,7 @@ export default function FacturacionCobranzaPage() {
     hasta: null,
   });
   const [controlClientesRango, setControlClientesRango] = useState<string>("mes_actual");
+  const [controlClientesGenerado, setControlClientesGenerado] = useState(false);
 
   const setRangoControlClientes = (value: string) => {
     setControlClientesRango(value);
@@ -2175,6 +2853,7 @@ export default function FacturacionCobranzaPage() {
   useEffect(() => {
     if (showControlClientesModal) {
       setRangoControlClientes(controlClientesRango || "mes_actual");
+  setControlClientesGenerado(false);
     }
   }, [showControlClientesModal]);
 
@@ -2182,6 +2861,10 @@ export default function FacturacionCobranzaPage() {
   type ControlClientesSortColumn = "folio" | "load" | "tipo" | "fecha" | "monto" | "estado";
   const [controlClientesSortBy, setControlClientesSortBy] = useState<ControlClientesSortColumn>("fecha");
   const [controlClientesSortDir, setControlClientesSortDir] = useState<"asc" | "desc">("desc");
+  const [itemsPerPageControl, setItemsPerPageControl] = useState<number>(10);
+  const [currentPageControlActivos, setCurrentPageControlActivos] = useState<number>(1);
+  const [currentPageControlArchivados, setCurrentPageControlArchivados] = useState<number>(1);
+  const [controlClientesEstadoFiltro, setControlClientesEstadoFiltro] = useState<string>("todos");
 
   const toggleControlClientesSort = (col: ControlClientesSortColumn) => {
     setControlClientesSortBy((prev) => {
@@ -2263,6 +2946,102 @@ export default function FacturacionCobranzaPage() {
     if (va > vb) return 1 * dir;
     return 0;
   };
+
+  // Helper: date range filter for Control Clientes
+  const controlClientesInRange = useCallback(
+    (e: any) => {
+      const fechaStr = e.fechaAsignacion || e.fecha_creacion || e.updated_at;
+      if (!fechaStr) return true;
+      const parseYMD = (s: string) => {
+        const [y, m, d] = s.split("-").map((n) => Number(n));
+        return new Date(y, (m || 1) - 1, d || 1);
+      };
+      const dayStart = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayEnd = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+
+      const d = new Date(fechaStr);
+      const dKey = dayStart(d).getTime();
+      const desdeKey = controlClientesPeriodo.desde ? dayStart(parseYMD(controlClientesPeriodo.desde)).getTime() : null;
+      const hastaKey = controlClientesPeriodo.hasta ? dayEnd(parseYMD(controlClientesPeriodo.hasta)).getTime() : null;
+
+      if (desdeKey !== null && dKey < desdeKey) return false;
+      if (hastaKey !== null && dKey > hastaKey) return false;
+      return true;
+    },
+    [controlClientesPeriodo.desde, controlClientesPeriodo.hasta]
+  );
+
+  // Filtered/sorted lists per tab
+  const controlClientesFiltradosActivos = useMemo(() => {
+    if (!controlClientesGenerado) return [] as any[];
+    const base = (embarquesAsignados || [])
+      // Excluir cancelados
+      .filter((e: any) => {
+        const estadoNorm = String(e?.estado || "").toLowerCase();
+        // Incluir cualquier estado excepto cancelados (permite finalizado, archivado, tránsito, etc.)
+        return !(/cancel/.test(estadoNorm));
+      })
+      // Debe tener operador y precio asignados
+      .filter((e: any) => {
+        const tieneOperador = Boolean(e?.operadorAsignado?.id || e?.operadorAsignado?.nombre);
+        const precio = (e as any).montoFacturado ?? (e as any).precioFlete ?? (e as any).precio_flete;
+        const tienePrecio = typeof precio === "number" ? precio > 0 : Number(precio) > 0;
+        return tieneOperador && tienePrecio;
+      })
+      // Filtro por cliente si aplica
+      .filter((e) => (controlClienteSeleccionado ? e.cliente_id === controlClienteSeleccionado : true))
+      // Rango de fechas
+      .filter(controlClientesInRange)
+      // Filtro por estado unificado
+      .filter((e) => {
+        if (controlClientesEstadoFiltro === "todos") return true;
+        if (controlClientesEstadoFiltro === "archivado") return e.estado_facturacion === "archivado";
+        if (controlClientesEstadoFiltro === "pendiente_facturacion") return (e.estado_facturacion || "pendiente_facturacion") === "pendiente_facturacion";
+        if (controlClientesEstadoFiltro === "pagado") return (e.estado_facturacion || "").toLowerCase().includes("pagado");
+        if (controlClientesEstadoFiltro === "facturado") return (e.estado_facturacion || "").toLowerCase().includes("facturado");
+        if (controlClientesEstadoFiltro === "transito") return (String(e.estado || "").toLowerCase()).includes("transit");
+        return true;
+      });
+    // sort on a shallow copy to avoid mutating state elsewhere
+    return [...base].sort(compareControlClientes);
+  }, [
+    embarquesAsignados,
+    controlClienteSeleccionado,
+    controlClientesInRange,
+    controlClientesGenerado,
+    controlClientesSortBy,
+    controlClientesSortDir,
+    tiposServicio,
+  controlClientesEstadoFiltro,
+  ]);
+
+  // Total pages
+  const totalPagesControlActivos = Math.max(
+    1,
+    Math.ceil((controlClientesFiltradosActivos.length || 0) / (itemsPerPageControl || 1))
+  );
+
+  // Paginated slices
+  const paginatedControlActivos = useMemo(() => {
+    const start = (currentPageControlActivos - 1) * itemsPerPageControl;
+    return controlClientesFiltradosActivos.slice(start, start + itemsPerPageControl);
+  }, [controlClientesFiltradosActivos, currentPageControlActivos, itemsPerPageControl]);
+
+
+  // Reset pages when filters/sorts change
+  useEffect(() => {
+    setCurrentPageControlActivos(1);
+    setCurrentPageControlArchivados(1);
+  }, [
+    controlClienteSeleccionado,
+    controlClientesPeriodo.desde,
+    controlClientesPeriodo.hasta,
+    controlClientesSortBy,
+    controlClientesSortDir,
+    itemsPerPageControl,
+    controlClientesGenerado,
+  controlClientesEstadoFiltro,
+  ]);
 
   const handlePeriodoClientesChange = (value: string) => {
     setFiltroPeriodoClientes(value);
@@ -2557,34 +3336,52 @@ export default function FacturacionCobranzaPage() {
     finMesActual.setHours(23, 59, 59, 999);
 
     embarquesOperadorFiltrados.forEach((embarque) => {
-      const operadorId = embarque.operadorAsignado?.id || "unknown";
-      const operadorNombre = embarque.operadorAsignado?.nombre || "Sin asignar";
-      const pago = embarque.modificadoPorEmergencia
-        ? (operadoresContingencia[embarque.id]?.original || 0) +
-          (operadoresContingencia[embarque.id]?.reemplazo || 0)
-        : embarque.pagoOperador || 0;
-
-      if (!desgloseMap.has(operadorId)) {
-        desgloseMap.set(operadorId, {
-          operador: { id: operadorId, nombre: operadorNombre },
-          totalPagos: 0,
-          totalPagosMesActual: 0,
-          cantidadEmbarques: 0,
-          embarquesContingencia: 0,
-        });
-      }
-      const data = desgloseMap.get(operadorId)!;
-      data.totalPagos += pago;
-      data.cantidadEmbarques++;
-      if (embarque.modificadoPorEmergencia) {
-        data.embarquesContingencia++;
-      }
-
       const fechaEmbarque = new Date(embarque.fechaAsignacion!);
-      if (fechaEmbarque >= inicioMesActual && fechaEmbarque <= finMesActual) {
-        data.totalPagosMesActual += pago;
+
+      // Construir entradas por operador. En contingencia, separar Original y Reemplazo como operadores distintos.
+      const entradas: Array<{ id: string; nombre: string; pago: number; esContingencia: boolean }>
+        = [];
+
+      if (embarque.modificadoPorEmergencia) {
+        const montoOrig = (operadoresContingencia[embarque.id]?.original || 0);
+        const montoReemp = (operadoresContingencia[embarque.id]?.reemplazo || 0);
+
+        const nombreOriginal = embarque.operadorOriginalNombre || embarque.operadorAsignado?.nombre || "Sin asignar";
+        const idOriginal = embarque.operadorOriginalId || embarque.operadorAsignado?.id || `nombre:${nombreOriginal}`;
+        entradas.push({ id: idOriginal, nombre: nombreOriginal, pago: montoOrig, esContingencia: true });
+
+        if (embarque.operadorReemplazoNombre) {
+          const nombreReemplazo = embarque.operadorReemplazoNombre;
+          const idReemplazo = embarque.operadorReemplazoId || `nombre:${nombreReemplazo}`;
+          entradas.push({ id: idReemplazo, nombre: nombreReemplazo, pago: montoReemp, esContingencia: true });
+        }
+      } else {
+        const id = embarque.operadorAsignado?.id || "unknown";
+        const nombre = embarque.operadorAsignado?.nombre || "Sin asignar";
+        const pago = embarque.pagoOperador || 0;
+        entradas.push({ id, nombre, pago, esContingencia: false });
       }
+
+      entradas.forEach((ent) => {
+        if (!desgloseMap.has(ent.id)) {
+          desgloseMap.set(ent.id, {
+            operador: { id: ent.id, nombre: ent.nombre },
+            totalPagos: 0,
+            totalPagosMesActual: 0,
+            cantidadEmbarques: 0,
+            embarquesContingencia: 0,
+          });
+        }
+        const data = desgloseMap.get(ent.id)!;
+        data.totalPagos += ent.pago;
+        data.cantidadEmbarques += 1; // contar un embarque por operador involucrado
+        if (ent.esContingencia) data.embarquesContingencia += 1;
+        if (fechaEmbarque >= inicioMesActual && fechaEmbarque <= finMesActual) {
+          data.totalPagosMesActual += ent.pago;
+        }
+      });
     });
+
     return Array.from(desgloseMap.values());
   }, [embarquesOperadorFiltrados, operadoresContingencia]);
 
@@ -2838,12 +3635,12 @@ export default function FacturacionCobranzaPage() {
     tipo_servicio:tipos_servicio(nombre, precio_base)
   `
   )
-  .neq("estado", "archivado")
-  .neq("estado_facturacion", "archivado");
+  // Incluir finalizados y archivados (operativo); excluir sólo archivados en facturación
+  .or("estado.ilike.finalizado%,estado.ilike.archivado%")
+  .or("estado_facturacion.is.null,estado_facturacion.neq.archivado");
 
-      if (filtroPagosOperadorId && filtroPagosOperadorId !== "todos") {
-        query = query.eq("operador_id", filtroPagosOperadorId);
-      }
+  // Nota: no filtramos por operador en el query; filtramos en cliente para considerar
+  // operadores originales y de reemplazo además del asignado actual.
 
       if (fechaInicioPagos) {
         query = query.gte("fecha_creacion", fechaInicioPagos);
@@ -2863,91 +3660,116 @@ export default function FacturacionCobranzaPage() {
         return;
       }
 
-      const embarquesFormateados: EmbarqueAsignado[] = await Promise.all(
-        (data || []).map(async (embarque: any) => {
-          const formattedEmbarque: EmbarqueAsignado = {
-            ...embarque,
-            clienteNombre:
-              embarque.cliente?.nombre || "Cliente no especificado", // Corrected field name
-            operadorAsignado: embarque.operador
-              ? {
-                  id: embarque.operador.id,
-                  nombre: `${embarque.operador.nombre} ${
-                    embarque.operador.apellidos || ""
-                  }`.trim(),
-                }
-              : { id: "", nombre: "Sin asignar" },
-            tipoServicioNombre:
-              embarque.tipo_servicio?.nombre || "Sin especificar",
-            pagoOperador: embarque.tipo_servicio?.precio_base || 0,
-            fechaAsignacion: embarque.fecha_creacion,
-            modificadoPorEmergencia: embarquesModificadosIds.includes(
-              embarque.id
-            ),
-          };
+      const ids = (data || []).map((e: any) => e.id);
 
-          if (formattedEmbarque.modificadoPorEmergencia) {
-            const { data: modData, error: modError } = await supabase
-              .from("embarque_modificaciones")
-              .select(
-                "operador_original_id, operador_original_nombre, operador_nuevo_id, operador_nuevo_nombre, razon"
-              )
-              .eq("embarque_id", embarque.id)
-              .order("fecha_modificacion", { ascending: false })
-              .limit(1)
-              .single();
-
-            if (modError && modError.code !== "PGRST116") {
-              console.error("Error fetching modification details:", modError);
-            } else if (modData) {
-              formattedEmbarque.operadorOriginalId =
-                modData.operador_original_id;
-              formattedEmbarque.operadorOriginalNombre =
-                modData.operador_original_nombre;
-              formattedEmbarque.operadorReemplazoId = modData.operador_nuevo_id;
-              formattedEmbarque.operadorReemplazoNombre =
-                modData.operador_nuevo_nombre;
-              formattedEmbarque.motivoModificacion = modData.razon;
-            }
-
-            const {
-              data: contingencyPaymentData,
-              error: contingencyPaymentError,
-            } = await supabase
-              .from("operador_pagos_contingencia")
-              .select("monto_original, monto_reemplazo")
-              .eq("embarque_id", embarque.id)
-              .single();
-
-            if (
-              contingencyPaymentError &&
-              contingencyPaymentError.code !== "PGRST116"
-            ) {
-              console.error(
-                "Error fetching contingency payment:",
-                contingencyPaymentError
-              );
-            } else if (contingencyPaymentData) {
-              formattedEmbarque.montoOriginalContingencia =
-                contingencyPaymentData.monto_original;
-              formattedEmbarque.montoReemplazoContingencia =
-                contingencyPaymentData.monto_reemplazo;
-            } else {
-              formattedEmbarque.pagoOperador = formattedEmbarque.pagoOperador;
-              formattedEmbarque.montoOriginalContingencia =
-                formattedEmbarque.pagoOperador;
-              formattedEmbarque.montoReemplazoContingencia = 0;
-            }
+      // Cargar modificaciones en lote para obtener operador original y reemplazo
+      let latestModsMap: Record<string, any> = {};
+      try {
+        const { data: modsData, error: modsError } = await supabase
+          .from("embarque_modificaciones")
+          .select(
+            "embarque_id, operador_original_id, operador_original_nombre, operador_nuevo_id, operador_nuevo_nombre, razon, fecha_modificacion"
+          )
+          .in("embarque_id", ids)
+          .order("fecha_modificacion", { ascending: false });
+        if (!modsError && modsData) {
+          for (const m of modsData) {
+            if (!latestModsMap[m.embarque_id]) latestModsMap[m.embarque_id] = m;
           }
-          return formattedEmbarque;
-        })
-      );
+        } else if (modsError) {
+          console.error("Error batch fetching modifications:", modsError);
+        }
+      } catch (e) {
+        console.error("Excepción batch mods:", e);
+      }
+
+      // Cargar pagos de contingencia en lote
+      let pagosMap: Record<string, { monto_original: number; monto_reemplazo: number }> = {};
+      try {
+        const { data: pagosData, error: pagosError } = await supabase
+          .from("operador_pagos_contingencia")
+          .select("embarque_id, monto_original, monto_reemplazo")
+          .in("embarque_id", ids);
+        if (!pagosError && pagosData) {
+          for (const p of pagosData) pagosMap[p.embarque_id] = { monto_original: p.monto_original, monto_reemplazo: p.monto_reemplazo };
+        } else if (pagosError) {
+          console.error("Error batch fetching contingency payments:", pagosError);
+        }
+      } catch (e) {
+        console.error("Excepción batch pagos:", e);
+      }
+
+      const embarquesFormateados: EmbarqueAsignado[] = (data || []).map((embarque: any) => {
+        const formattedEmbarque: EmbarqueAsignado = {
+          ...embarque,
+          clienteNombre: embarque.cliente?.nombre || "Cliente no especificado",
+          operadorAsignado: embarque.operador
+            ? {
+                id: embarque.operador.id,
+                nombre: `${embarque.operador.nombre} ${
+                  embarque.operador.apellidos || ""
+                }`.trim(),
+              }
+            : { id: "", nombre: "Sin asignar" },
+          tipoServicioNombre: embarque.tipo_servicio?.nombre || "Sin especificar",
+          pagoOperador: embarque.tipo_servicio?.precio_base || 0,
+          fechaAsignacion: embarque.fecha_creacion,
+          modificadoPorEmergencia: embarquesModificadosIds.includes(embarque.id),
+        };
+
+        const mod = latestModsMap[embarque.id];
+        if (mod) {
+          formattedEmbarque.modificadoPorEmergencia = true;
+          formattedEmbarque.operadorOriginalId = mod.operador_original_id;
+          formattedEmbarque.operadorOriginalNombre = mod.operador_original_nombre;
+          formattedEmbarque.operadorReemplazoId = mod.operador_nuevo_id;
+          formattedEmbarque.operadorReemplazoNombre = mod.operador_nuevo_nombre;
+          formattedEmbarque.motivoModificacion = mod.razon;
+        }
+
+        const pagos = pagosMap[embarque.id];
+        if (formattedEmbarque.modificadoPorEmergencia) {
+          if (pagos) {
+            formattedEmbarque.montoOriginalContingencia = pagos.monto_original || 0;
+            formattedEmbarque.montoReemplazoContingencia = pagos.monto_reemplazo || 0;
+          } else {
+            // Por defecto, asignar todo al original y 0 al reemplazo
+            formattedEmbarque.montoOriginalContingencia = formattedEmbarque.pagoOperador;
+            formattedEmbarque.montoReemplazoContingencia = 0;
+          }
+        }
+
+        return formattedEmbarque;
+      });
+
+      // Filtro por operador (cliente) que contempla asignado, original y reemplazo
+      let embarquesFiltradosLocal = embarquesFormateados;
+      if (filtroPagosOperadorId && filtroPagosOperadorId !== "todos") {
+        if (String(filtroPagosOperadorId).startsWith("nombre:")) {
+          const nombreSel = String(filtroPagosOperadorId).slice(7);
+          embarquesFiltradosLocal = embarquesFormateados.filter((e) =>
+            [
+              e.operadorAsignado?.nombre,
+              e.operadorOriginalNombre,
+              e.operadorReemplazoNombre,
+            ].some((n) => (n || "") === nombreSel)
+          );
+        } else {
+          embarquesFiltradosLocal = embarquesFormateados.filter((e) =>
+            [
+              e.operadorAsignado?.id,
+              e.operadorOriginalId,
+              e.operadorReemplazoId,
+            ].some((id) => (id || "") === filtroPagosOperadorId)
+          );
+        }
+      }
 
       if (mounted.current) {
-        setEmbarquesOperadorFiltrados(embarquesFormateados);
+  setEmbarquesOperadorFiltrados(embarquesFiltradosLocal);
 
         const initialContingencyState: typeof operadoresContingencia = {};
-        embarquesFormateados.forEach((e) => {
+        embarquesFiltradosLocal.forEach((e) => {
           if (e.modificadoPorEmergencia) {
             initialContingencyState[e.id] = {
               original: e.montoOriginalContingencia || 0,
@@ -2970,6 +3792,33 @@ export default function FacturacionCobranzaPage() {
     embarquesModificadosIds,
     tiposServicio,
   ]);
+
+  // Operadores para el modal de Pagos: incluir asignado, original y reemplazo del dataset cargado
+  const operadoresUnicosPagos = useMemo(() => {
+    const registros: Array<{ id: string; nombre: string }> = [];
+    embarquesOperadorFiltrados.forEach((e) => {
+      if (e.operadorAsignado?.id && e.operadorAsignado?.nombre) {
+        registros.push({ id: e.operadorAsignado.id, nombre: e.operadorAsignado.nombre });
+      } else if (e.operadorAsignado?.nombre) {
+        registros.push({ id: `nombre:${e.operadorAsignado.nombre}`, nombre: e.operadorAsignado.nombre });
+      }
+      if (e.operadorOriginalId && e.operadorOriginalNombre) {
+        registros.push({ id: e.operadorOriginalId, nombre: e.operadorOriginalNombre });
+      } else if (e.operadorOriginalNombre) {
+        registros.push({ id: `nombre:${e.operadorOriginalNombre}`, nombre: e.operadorOriginalNombre });
+      }
+      if (e.operadorReemplazoId && e.operadorReemplazoNombre) {
+        registros.push({ id: e.operadorReemplazoId, nombre: e.operadorReemplazoNombre });
+      } else if (e.operadorReemplazoNombre) {
+        registros.push({ id: `nombre:${e.operadorReemplazoNombre}`, nombre: e.operadorReemplazoNombre });
+      }
+    });
+    const map = new Map<string, { id: string; nombre: string }>();
+    registros.forEach((r) => {
+      if (!map.has(r.id)) map.set(r.id, r);
+    });
+    return Array.from(map.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  }, [embarquesOperadorFiltrados]);
 
   useEffect(() => {
     if (showPagosOperadoresModal) {
@@ -3010,7 +3859,7 @@ export default function FacturacionCobranzaPage() {
               open={showAnalisisOperadoresModal}
               onOpenChange={setShowAnalisisOperadoresModal}
             >
-              <DialogContent className="max-w-6xl w-[96vw] max-h-[95vh] overflow-y-auto">
+              <DialogContent className="max-w-7xl w-[96vw] max-h-[95vh] overflow-y-auto">
                 <DialogHeader>
                   <DialogTitle>
                     Análisis de Operadores - Pagos y Rendimiento
@@ -3029,7 +3878,10 @@ export default function FacturacionCobranzaPage() {
                       <Input
                         type="date"
                         value={fechaInicioAnalisis}
-                        onChange={(e) => setFechaInicioAnalisis(e.target.value)}
+                        onChange={(e) => {
+                          setFechaInicioAnalisis(e.target.value);
+                          if (analisisError) setAnalisisError(null);
+                        }}
                         className="w-36"
                       />
                     </div>
@@ -3040,7 +3892,10 @@ export default function FacturacionCobranzaPage() {
                       <Input
                         type="date"
                         value={fechaFinAnalisis}
-                        onChange={(e) => setFechaFinAnalisis(e.target.value)}
+                        onChange={(e) => {
+                          setFechaFinAnalisis(e.target.value);
+                          if (analisisError) setAnalisisError(null);
+                        }}
                         className="w-36"
                       />
                     </div>
@@ -3057,9 +3912,12 @@ export default function FacturacionCobranzaPage() {
                         disabled={loadingEmbarques}
                       >
                         <option value="todos">Todos los operadores</option>
-                        {operadoresUnicos.map((operador) => (
-                          <option key={operador?.id} value={operador?.nombre}>
-                            {operador?.nombre}
+                        {(operadoresUnicosAnalisis.length
+                          ? operadoresUnicosAnalisis
+                          : operadoresUnicos.map((o) => o.nombre)
+                        ).map((nombre) => (
+                          <option key={nombre} value={nombre}>
+                            {nombre}
                           </option>
                         ))}
                       </select>
@@ -3095,10 +3953,17 @@ export default function FacturacionCobranzaPage() {
                         <Button
                           onClick={generarAnalisisOperadores}
                           variant="default"
+                          className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50"
                           disabled={
-                            loadingEmbarques ||
-                            loadingTiposServicio ||
-                            loadingAnalisis
+                            Boolean(
+                              loadingAnalisis ||
+                                !fechaInicioAnalisis ||
+                                !fechaFinAnalisis ||
+                                (fechaInicioAnalisis &&
+                                  fechaFinAnalisis &&
+                                  new Date(fechaInicioAnalisis) >
+                                    new Date(fechaFinAnalisis))
+                            )
                           }
                         >
                           {loadingAnalisis
@@ -3118,6 +3983,11 @@ export default function FacturacionCobranzaPage() {
                     </div>
                   </div>
                 </div>
+                {analisisError && (
+                  <div className="-mt-2 mb-2 text-sm text-red-600">
+                    {analisisError}
+                  </div>
+                )}
                 {loadingAnalisis ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
@@ -3127,37 +3997,26 @@ export default function FacturacionCobranzaPage() {
                   </div>
                 ) : (
                   <>
-                    <div className="flex space-x-2 mb-4">
-                      <Button
-                        variant={
-                          activeAnalisisTab === "porOperador"
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() => setActiveAnalisisTab("porOperador")}
-                      >
-                        Por Operador
-                      </Button>
-                      <Button
-                        variant={
-                          activeAnalisisTab === "detalle"
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() => setActiveAnalisisTab("detalle")}
-                      >
-                        Detalle
-                      </Button>
-                      <Button
-                        variant={
-                          activeAnalisisTab === "contingencia"
-                            ? "default"
-                            : "outline"
-                        }
-                        onClick={() => setActiveAnalisisTab("contingencia")}
-                      >
-                        Casos de Contingencia
-                      </Button>
+                    <div className="flex items-center justify-between mb-4 gap-3">
+                      <div className="flex items-center gap-2 w-full">
+                        <Tabs value={activeAnalisisTab} onValueChange={setActiveAnalisisTab} className="w-full">
+                          <TabsList className="grid w-full grid-cols-3">
+                            <TabsTrigger value="porOperador">Por Operador</TabsTrigger>
+                            <TabsTrigger value="detalle">Detalle</TabsTrigger>
+                            <TabsTrigger value="contingencia">Casos de Contingencia</TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                        <button
+                          type="button"
+                          onClick={() => setShowContingenciaInfo(true)}
+                          aria-label="¿Qué es contingencia?"
+                          className="p-1 rounded hover:bg-gray-100 text-gray-500 hover:text-gray-700"
+                          title="¿Qué es contingencia?"
+                        >
+                          <HelpCircle className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {/* Resumen general movido al final del tab Por Operador */}
                     </div>
                     {analisisData.resumenGeneral === null && (
                       <div className="text-center py-8 text-gray-500">
@@ -3193,9 +4052,7 @@ export default function FacturacionCobranzaPage() {
                                 Total a Pagar MXN
                               </p>
                               <p className="text-2xl font-bold text-purple-700">
-                                ${"{"}
-                                analisisData.resumenGeneral.totalPagos.toLocaleString()
-                                {"}"}
+                                {`$${analisisData.resumenGeneral.totalPagos.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                               </p>
                             </div>
                             <div className="bg-orange-50 p-4 rounded-lg">
@@ -3213,9 +4070,53 @@ export default function FacturacionCobranzaPage() {
                     {activeAnalisisTab === "porOperador" &&
                       analisisData.analisisPorOperador.length > 0 && (
                         <div className="mb-6">
-                          <h3 className="font-bold text-lg mb-2">
-                            Pagos y Embarques por Operador
-                          </h3>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-bold text-lg">
+                              Pagos y Embarques por Operador
+                            </h3>
+                            <div className="hidden md:flex items-center gap-7 text-base text-gray-700">
+                              {(() => {
+                                // Construir la lista base (todos o por operador) desde los embarques mostrados en análisis
+                                const baseLista: any[] = analisisData.embarquesFiltradosAnalisis || [];
+                                const lista =
+                                  filtroAnalisisOperador === "todos"
+                                    ? baseLista
+                                    : baseLista.filter(
+                                        (e: any) =>
+                                          (e?.operadorAsignado?.nombre || "") ===
+                                          (filtroAnalisisOperador || "")
+                                      );
+
+                                const embarques = lista.length;
+                                const cont = lista.filter((e: any) => e.modificadoPorEmergencia).length;
+                                const total = lista.reduce((sum: number, e: any) => {
+                                  if (e.modificadoPorEmergencia) {
+                                    const m = (operadoresContingencia as any)[e.id] || {};
+                                    const monto = e.rolContingencia === "original" ? (m.original || 0) : (m.reemplazo || 0);
+                                    return sum + (monto || 0);
+                                  }
+                                  return sum + (e.pagoOperador || 0);
+                                }, 0);
+
+                                return (
+                                  <>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-gray-500">Embarques:</span>
+                                      <span className="font-semibold">{embarques}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-gray-500">Contingencia:</span>
+                                      <span className="font-semibold">{cont}</span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-gray-500">Total a pagar:</span>
+                                      <span className="font-semibold">{`$${Number(total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</span>
+                                    </div>
+                                  </>
+                                );
+                              })()}
+                            </div>
+                          </div>
                           {/* Controles de paginación */}
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-sm">
@@ -3230,6 +4131,7 @@ export default function FacturacionCobranzaPage() {
                                   setCurrentPageAnalisisOp(1);
                                 }}
                               >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={20}>20</option>
                                 <option value={50}>50</option>
@@ -3295,7 +4197,7 @@ export default function FacturacionCobranzaPage() {
                                   return pageItems.map((op: any) => (
                                     <tr key={op.nombre} className="border-b">
                                       <td className="px-2 py-1">{op.nombre}</td>
-                                      <td className="px-2 py-1 text-center">{`$${op.totalPagos.toLocaleString()}`}</td>
+                                      <td className="px-2 py-1 text-center">{`$${op.totalPagos.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
                                       <td className="px-2 py-1 text-center">
                                         {op.cantidadEmbarques}
                                       </td>
@@ -3308,7 +4210,7 @@ export default function FacturacionCobranzaPage() {
                                           "0"
                                         )}
                                       </td>
-                                      <td className="px-2 py-1 text-center">{`$${op.promedioPorEmbarque.toLocaleString()}`}</td>
+                                      <td className="px-2 py-1 text-center">{`$${op.promedioPorEmbarque.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</td>
                                     </tr>
                                   ));
                                 })()}
@@ -3372,98 +4274,43 @@ export default function FacturacionCobranzaPage() {
                               </Button>
                             </div>
                           </div>
-                          {/* Resumen al final de Por Operador (cuando se selecciona un operador específico) */}
-                          {filtroAnalisisOperador !== "todos" && (
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="bg-blue-50 p-4 rounded-lg">
-                                <p className="text-sm text-blue-800 font-medium">
-                                  Embarques totales asignados
-                                </p>
-                                <p className="text-2xl font-bold text-blue-900">
-                                  {(() => {
-                                    const selected =
-                                      analisisData.analisisPorOperador.find(
-                                        (x: any) =>
-                                          x.nombre === filtroAnalisisOperador
-                                      );
-                                    return selected?.cantidadEmbarques || 0;
-                                  })()}
-                                </p>
-                              </div>
-                              <div className="bg-orange-50 p-4 rounded-lg">
-                                <p className="text-sm text-orange-800 font-medium">
-                                  Embarques con contingencia
-                                </p>
-                                <p className="text-2xl font-bold text-orange-900">
-                                  {(() => {
-                                    const selected =
-                                      analisisData.analisisPorOperador.find(
-                                        (x: any) =>
-                                          x.nombre === filtroAnalisisOperador
-                                      );
-                                    return selected?.embarquesContingencia || 0;
-                                  })()}
-                                </p>
-                              </div>
-                              <div className="bg-green-50 p-4 rounded-lg">
-                                <p className="text-sm text-green-800 font-medium">
-                                  Total a pagar al operador (MXN)
-                                </p>
-                                <p className="text-2xl font-bold text-green-900">
-                                  {(() => {
-                                    const selected =
-                                      analisisData.analisisPorOperador.find(
-                                        (x: any) =>
-                                          x.nombre === filtroAnalisisOperador
-                                      );
-                                    const total = selected?.totalPagos || 0;
-                                    return `$${Number(total).toLocaleString()}`;
-                                  })()}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-                          {filtroAnalisisOperador === "todos" &&
-                            analisisData.resumenGeneral && (
-                              <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="bg-blue-50 p-4 rounded-lg">
-                                  <p className="text-sm text-blue-800 font-medium">
-                                    Embarques del período
-                                  </p>
-                                  <p className="text-2xl font-bold text-blue-900">
-                                    {analisisData.resumenGeneral.totalEmbarques}
-                                  </p>
-                                </div>
-                                <div className="bg-orange-50 p-4 rounded-lg">
-                                  <p className="text-sm text-orange-800 font-medium">
-                                    Embarques con contingencia
-                                  </p>
-                                  <p className="text-2xl font-bold text-orange-900">
-                                    {analisisData.resumenGeneral
-                                      .casosContingencia || 0}
-                                  </p>
-                                </div>
-                                <div className="bg-green-50 p-4 rounded-lg">
-                                  <p className="text-sm text-green-800 font-medium">
-                                    Total a pagar (MXN)
-                                  </p>
-                                  <p className="text-2xl font-bold text-green-900">
-                                    {`$${Number(
-                                      analisisData.resumenGeneral.totalPagos ||
-                                        0
-                                    ).toLocaleString()}`}
-                                  </p>
-                                </div>
-                              </div>
-                            )}
+                          {/* Resumen simple mostrado arriba, a la derecha del título */}
+                          {/* Resumen para operador específico ahora se muestra arriba, a la derecha del título */}
+                          {false && filtroAnalisisOperador === "todos" && analisisData.resumenGeneral}
                         </div>
                       )}
                     {activeAnalisisTab === "detalle" &&
                       analisisData.embarquesFiltradosAnalisis.length > 0 && (
                         <div className="mb-6">
-                          <h3 className="font-bold text-lg mb-2">
-                            Detalle de Embarques por Operador
-                          </h3>
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-bold text-lg">
+                              Detalle de Embarques por Operador
+                            </h3>
+                            <div className="hidden md:flex items-center gap-7 text-base text-gray-700">
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-500">Embarques:</span>
+                                <span className="font-semibold">{analisisData.embarquesFiltradosAnalisis.length}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-500">Contingencia:</span>
+                                <span className="font-semibold">{analisisData.embarquesFiltradosAnalisis.filter((e: any) => e.modificadoPorEmergencia).length}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <span className="text-gray-500">Total a pagar:</span>
+                                <span className="font-semibold">{(() => {
+                                  const total = (analisisData.embarquesFiltradosAnalisis || []).reduce((sum: number, e: any) => {
+                                    if (e.modificadoPorEmergencia) {
+                                      const m = operadoresContingencia[e.id] || {} as any;
+                                      const monto = e.rolContingencia === "original" ? (m.original || 0) : (m.reemplazo || 0);
+                                      return sum + (monto || 0);
+                                    }
+                                    return sum + (e.pagoOperador || 0);
+                                  }, 0);
+                                  return `$${Number(total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                })()}</span>
+                              </div>
+                            </div>
+                          </div>
                           {/* Controles de paginación (Detalle) */}
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 text-sm">
@@ -3478,6 +4325,7 @@ export default function FacturacionCobranzaPage() {
                                   setCurrentPageAnalisisDetalle(1);
                                 }}
                               >
+                                <option value={5}>5</option>
                                 <option value={10}>10</option>
                                 <option value={20}>20</option>
                                 <option value={50}>50</option>
@@ -3511,17 +4359,18 @@ export default function FacturacionCobranzaPage() {
                                   <th className="px-2 py-1 text-left">
                                     Operador
                                   </th>
-                                  <th className="px-2 py-1 text-left">
+                                  <th className="px-2 py-1 text-left w-56">
                                     Cliente
                                   </th>
+                                  <th className="px-2 py-1 text-left">Load</th>
                                   <th className="px-2 py-1 text-left">Fecha</th>
-                                  <th className="px-2 py-1 text-left">
+                                  <th className="px-2 py-1 text-left w-28">
                                     Tipo Servicio
                                   </th>
-                                  <th className="px-2 py-1 text-center">
+                                  <th className="px-2 py-1 text-center w-40">
                                     Pago Operador
                                   </th>
-                                  <th className="px-2 py-1 text-center">
+                                  <th className="px-2 py-1 text-center w-40">
                                     Contingencia
                                   </th>
                                   <th className="px-2 py-1 text-center">
@@ -3555,8 +4404,11 @@ export default function FacturacionCobranzaPage() {
                                       <td className="px-2 py-1">
                                         {e.operadorAsignado?.nombre}
                                       </td>
-                                      <td className="px-2 py-1">
+                                      <td className="px-2 py-1 w-56 truncate whitespace-nowrap">
                                         {e.clienteNombre}
+                                      </td>
+                                      <td className="px-2 py-1 font-mono truncate">
+                                        {(e as any).load_number || (e as any).numeroLoad || ""}
                                       </td>
                                       <td className="px-2 py-1">
                                         {e.fechaAsignacion
@@ -3565,10 +4417,10 @@ export default function FacturacionCobranzaPage() {
                                             ).toLocaleDateString("es-MX")
                                           : ""}
                                       </td>
-                                      <td className="px-2 py-1">
+                                      <td className="px-2 py-1 w-28 truncate whitespace-nowrap">
                                         {e.tipoServicioNombre}
                                       </td>
-                                      <td className="px-2 py-1 text-center">
+                                      <td className="px-2 py-1 text-center w-40 whitespace-nowrap">
                                         {(() => {
                                           if (e.modificadoPorEmergencia) {
                                             const m =
@@ -3580,21 +4432,26 @@ export default function FacturacionCobranzaPage() {
                                                 : m.reemplazo || 0;
                                             return `$${Number(
                                               monto || 0
-                                            ).toLocaleString()}`;
+                                            ).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                                           }
                                           return `$${Number(
                                             e.pagoOperador || 0
-                                          ).toLocaleString()}`;
+                                          ).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                                         })()}
                                       </td>
-                                      <td className="px-2 py-1 text-center">
-                                        {e.modificadoPorEmergencia ? (
-                                          <Badge variant="destructive">
-                                            Sí
-                                          </Badge>
-                                        ) : (
-                                          "No"
-                                        )}
+                                      <td className="px-2 py-1 text-center w-40 whitespace-nowrap">
+                                        {(() => {
+                                          if (!e.modificadoPorEmergencia) return "No";
+                                          const folio = e.folio || "";
+                                          const folioShort = folio.includes("-")
+                                            ? folio.split("-").slice(1).join("-")
+                                            : folio;
+                                          return (
+                                            <Badge variant="destructive">
+                                              {`Sí${folioShort ? ` / ${folioShort}` : ""}`}
+                                            </Badge>
+                                          );
+                                        })()}
                                       </td>
                                       <td className="px-2 py-1 text-center">
                                         <Button
@@ -3670,61 +4527,7 @@ export default function FacturacionCobranzaPage() {
                               </Button>
                             </div>
                           </div>
-                          {/* Resumen del desempeño del operador */}
-                          {filtroAnalisisOperador !== "todos" && (
-                            <div className="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                              <div className="bg-blue-50 p-4 rounded-lg">
-                                <p className="text-sm text-blue-800 font-medium">
-                                  Embarques totales asignados
-                                </p>
-                                <p className="text-2xl font-bold text-blue-900">
-                                  {
-                                    analisisData.embarquesFiltradosAnalisis
-                                      .length
-                                  }
-                                </p>
-                              </div>
-                              <div className="bg-orange-50 p-4 rounded-lg">
-                                <p className="text-sm text-orange-800 font-medium">
-                                  Embarques con contingencia
-                                </p>
-                                <p className="text-2xl font-bold text-orange-900">
-                                  {
-                                    analisisData.embarquesFiltradosAnalisis.filter(
-                                      (e: any) => e.modificadoPorEmergencia
-                                    ).length
-                                  }
-                                </p>
-                              </div>
-                              <div className="bg-green-50 p-4 rounded-lg">
-                                <p className="text-sm text-green-800 font-medium">
-                                  Total a pagar al operador (MXN)
-                                </p>
-                                <p className="text-2xl font-bold text-green-900">
-                                  {(() => {
-                                    const total =
-                                      analisisData.embarquesFiltradosAnalisis.reduce(
-                                        (sum: number, e: any) => {
-                                          if (e.modificadoPorEmergencia) {
-                                            const m =
-                                              operadoresContingencia[e.id] ||
-                                              {};
-                                            const monto =
-                                              e.rolContingencia === "original"
-                                                ? m.original || 0
-                                                : m.reemplazo || 0;
-                                            return sum + (monto || 0);
-                                          }
-                                          return sum + (e.pagoOperador || 0);
-                                        },
-                                        0
-                                      );
-                                    return `$${Number(total).toLocaleString()}`;
-                                  })()}
-                                </p>
-                              </div>
-                            </div>
-                          )}
+                          {/* Resumen del detalle se muestra arriba, a la derecha del título */}
                         </div>
                       )}
                     {activeAnalisisTab === "contingencia" &&
@@ -3732,36 +4535,8 @@ export default function FacturacionCobranzaPage() {
                         embarquesModificadosIds.includes(e.id)
                       ).length > 0 && (
                         <div className="space-y-6">
-                          <h3 className="text-lg font-semibold text-gray-800">
-                            Gestión de Casos de Contingencia
-                          </h3>
 
-                          <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
-                            <h4 className="font-semibold text-orange-900 mb-2">
-                              ¿Qué son los casos de contingencia?
-                            </h4>
-                            <p className="text-sm text-orange-800 mb-2">
-                              Los casos de contingencia ocurren cuando un
-                              embarque asignado originalmente a un operador debe
-                              ser reasignado a otro operador por situaciones de
-                              emergencia (enfermedad, accidente, etc.).
-                            </p>
-                            <p className="text-xs text-orange-700 mt-1">
-                              • <strong>Operador Original:</strong> Quien tenía
-                              la asignación inicial del embarque
-                              <br />• <strong>
-                                Operador de Reemplazo:
-                              </strong>{" "}
-                              Quien finalmente realizó el embarque
-                              <br />• <strong>División de Pago:</strong> Puedes
-                              asignar manualmente cualquier monto a cada
-                              operador según las circunstancias específicas del
-                              caso
-                              <br />• <strong>Flexibilidad Total:</strong> Los
-                              montos no están limitados por el precio base del
-                              servicio
-                            </p>
-                          </div>
+                          {/* Texto informativo removido; usar el modal de ayuda con ícono ? */}
 
                           {/* Casos de contingencia encontrados */}
                           {analisisData.embarquesFiltradosAnalisis && (
@@ -3794,192 +4569,133 @@ export default function FacturacionCobranzaPage() {
                                       </div>
                                     </CardHeader>
                                     <CardContent>
-                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {/* Información del embarque */}
-                                        <div>
-                                          <h4 className="font-medium text-gray-700 mb-3">
-                                            Información del Embarque
-                                          </h4>
-                                          <div className="space-y-2 text-sm">
-                                            <p>
-                                              <strong>Cliente:</strong>{" "}
-                                              {embarque.clienteNombre}
+                                      {/* Información en línea: filas/columnas al estilo Detalles del Embarque */}
+                                      <h4 className="font-medium text-gray-700 mb-3">
+                                        Información del Embarque
+                                      </h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-0.5 mb-3.5">
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Folio</label>
+                                          <p className="text-sm font-mono font-medium text-gray-900">{embarque.folio}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cliente</label>
+                                          <p className="text-sm text-gray-700">{embarque.clienteNombre}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Fecha</label>
+                                          <p className="text-sm text-gray-700">{new Date(embarque.fechaAsignacion).toLocaleDateString("es-MX")}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Tipo de Servicio</label>
+                                          <p className="text-sm text-gray-700">{embarque.tipoServicioNombre || "Sin especificar"}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Pago Base</label>
+                                          <p className="text-sm text-gray-700">{`$${Number(embarque.pagoOperador || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</p>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Operador Original</label>
+                                          <p className="text-sm text-gray-700">{embarque.operadorOriginalNombre || embarque.operadorAsignado?.nombre || "No especificado"}</p>
+                                        </div>
+                                        {embarque.operadorReemplazoNombre && (
+                                          <div className="space-y-1">
+                                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Operador de Reemplazo</label>
+                                            <p className="text-sm text-gray-700">{embarque.operadorReemplazoNombre}</p>
+                                          </div>
+                                        )}
+                                        {embarque.motivoModificacion && (
+                                          <div className="space-y-1 lg:col-span-4">
+                                            <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Motivo</label>
+                                            <p className="text-sm text-gray-700">{embarque.motivoModificacion}</p>
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <h4 className="font-medium text-gray-700 mb-3">División de Pago</h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Pago Original */}
+                                        <div className="bg-white p-3 rounded border">
+                                          <div className="flex justify-between items-center mb-2">
+                                            <span className="text-sm font-medium text-gray-700">Operador Original</span>
+                                            <Badge variant="outline">Original</Badge>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <p className="text-sm text-gray-600 truncate">
+                                              {embarque.operadorOriginalNombre || embarque.operadorAsignado?.nombre || "No especificado"}
                                             </p>
-                                            <p>
-                                              <strong>Fecha:</strong>{" "}
-                                              {new Date(
-                                                embarque.fechaAsignacion
-                                              ).toLocaleDateString("es-MX")}
-                                            </p>
-                                            <p>
-                                              <strong>Tipo de Servicio:</strong>{" "}
-                                              {embarque.tipoServicioNombre ||
-                                                "Sin especificar"}
-                                            </p>
-                                            <p>
-                                              <strong>Pago Base:</strong> $
-                                              {embarque.pagoOperador?.toLocaleString() ||
-                                                0}
-                                            </p>
-                                            {embarque.motivoModificacion && (
-                                              <p>
-                                                <strong>Motivo:</strong>{" "}
-                                                {embarque.motivoModificacion}
-                                              </p>
-                                            )}
+                                            <Input
+                                              type="number"
+                                              id={`pago-original-${embarque.id}`}
+                                              aria-label="Pago operador original"
+                                              placeholder="$"
+                                              value={operadoresContingencia[embarque.id]?.original || 0}
+                                              onChange={(e) => {
+                                                const valor = Number(e.target.value);
+                                                if (!isNaN(valor)) {
+                                                  handleContingencyPaymentChange(embarque.id, "original", valor);
+                                                }
+                                              }}
+                                              className="w-28 text-right text-sm"
+                                            />
                                           </div>
                                         </div>
 
-                                        {/* Modal: Captura de Facturación - movido a nivel superior para evitar conflictos */}
-                                        {/* Gestión de operadores */}
-                                        <div>
-                                          <h4 className="font-medium text-gray-700 mb-3">
-                                            Gestión de Operadores
-                                          </h4>
-                                          <div className="space-y-4">
-                                            {/* Operador Original */}
-                                            <div className="bg-white p-3 rounded border">
-                                              <div className="flex justify-between items-center mb-2">
-                                                <span className="text-sm font-medium text-gray-700">
-                                                  Operador Original:
-                                                </span>
-                                                <Badge variant="outline">
-                                                  Original
-                                                </Badge>
-                                              </div>
-                                              <p className="text-sm text-gray-600 mb-2">
-                                                {embarque.operadorOriginalNombre ||
-                                                  embarque.operadorAsignado
-                                                    ?.nombre ||
-                                                  "No especificado"}
-                                              </p>
-                                              <div className="flex items-center space-x-2">
-                                                <Label
-                                                  htmlFor={`pago-original-${embarque.id}`}
-                                                  className="text-xs"
-                                                >
-                                                  Pago:
-                                                </Label>
-                                                <Input
-                                                  type="number"
-                                                  id={`pago-original-${embarque.id}`}
-                                                  value={
-                                                    operadoresContingencia[
-                                                      embarque.id
-                                                    ]?.original || 0
+                                        {/* Pago Reemplazo */}
+                                        {embarque.operadorReemplazoNombre && (
+                                          <div className="bg-white p-3 rounded border">
+                                            <div className="flex justify-between items-center mb-2">
+                                              <span className="text-sm font-medium text-gray-700">Operador de Reemplazo</span>
+                                              <Badge variant="default">Reemplazo</Badge>
+                                            </div>
+                                            <div className="flex items-center gap-1">
+                                              <p className="text-sm text-gray-600 truncate">{embarque.operadorReemplazoNombre}</p>
+                                              <Input
+                                                type="number"
+                                                id={`pago-reemplazo-${embarque.id}`}
+                                                aria-label="Pago operador de reemplazo"
+                                                placeholder="$"
+                                                value={operadoresContingencia[embarque.id]?.reemplazo || 0}
+                                                onChange={(e) => {
+                                                  const valor = Number(e.target.value);
+                                                  if (!isNaN(valor)) {
+                                                    handleContingencyPaymentChange(embarque.id, "reemplazo", valor);
                                                   }
-                                                  onChange={(e) => {
-                                                    const valor = Number(
-                                                      e.target.value
-                                                    );
-                                                    if (!isNaN(valor)) {
-                                                      handleContingencyPaymentChange(
-                                                        embarque.id,
-                                                        "original",
-                                                        valor
-                                                      );
-                                                    }
-                                                  }}
-                                                  className="w-24 text-right text-xs"
-                                                />
-                                              </div>
-                                            </div>
-
-                                            {/* Operador de Reemplazo */}
-                                            <div className="bg-white p-3 rounded border">
-                                              <div className="flex justify-between items-center mb-2">
-                                                <span className="text-sm font-medium text-gray-700">
-                                                  Operador de Reemplazo:
-                                                </span>
-                                                <Badge variant="default">
-                                                  Reemplazo
-                                                </Badge>
-                                              </div>
-                                              <p className="text-sm text-gray-600 mb-2">
-                                                {embarque.operadorReemplazoNombre ||
-                                                  embarque.usuarioModificacion ||
-                                                  "No especificado"}
-                                              </p>
-                                              <div className="flex items-center space-x-2">
-                                                <Label
-                                                  htmlFor={`pago-reemplazo-${embarque.id}`}
-                                                  className="text-xs"
-                                                >
-                                                  Pago:
-                                                </Label>
-                                                <Input
-                                                  type="number"
-                                                  id={`pago-reemplazo-${embarque.id}`}
-                                                  value={
-                                                    operadoresContingencia[
-                                                      embarque.id
-                                                    ]?.reemplazo || 0
-                                                  }
-                                                  onChange={(e) => {
-                                                    const valor = Number(
-                                                      e.target.value
-                                                    );
-                                                    if (!isNaN(valor)) {
-                                                      handleContingencyPaymentChange(
-                                                        embarque.id,
-                                                        "reemplazo",
-                                                        valor
-                                                      );
-                                                    }
-                                                  }}
-                                                  className="w-24 text-right"
-                                                />
-                                              </div>
-                                            </div>
-
-                                            {/* Resumen de la división */}
-                                            <div className="bg-gray-100 p-3 rounded border border-gray-200">
-                                              <p className="text-sm font-medium text-gray-700">
-                                                Total División: $
-                                                {(
-                                                  (operadoresContingencia[
-                                                    embarque.id
-                                                  ]?.original || 0) +
-                                                  (operadoresContingencia[
-                                                    embarque.id
-                                                  ]?.reemplazo || 0)
-                                                ).toLocaleString()}
-                                              </p>
-                                              <p className="text-xs text-gray-600">
-                                                Pago base del servicio: $
-                                                {(
-                                                  embarque.pagoOperador || 0
-                                                ).toLocaleString()}{" "}
-                                                (solo referencia)
-                                              </p>
-                                              <p className="text-xs text-blue-600 font-medium mt-1">
-                                                En casos de contingencia, puedes
-                                                asignar cualquier monto según
-                                                las circunstancias.
-                                              </p>
-                                            </div>
-                                            <div className="mt-4 flex justify-end">
-                                              <Button
-                                                size="sm"
-                                                onClick={() =>
-                                                  saveContingencyPayment(
-                                                    embarque
-                                                  )
-                                                }
-                                                disabled={
-                                                  (operadoresContingencia[
-                                                    embarque.id
-                                                  ]?.original || 0) <= 0 &&
-                                                  (operadoresContingencia[
-                                                    embarque.id
-                                                  ]?.reemplazo || 0) <= 0
-                                                }
-                                              >
-                                                <Save className="h-4 w-4 mr-2" />
-                                                Guardar División de Pago
-                                              </Button>
+                                                }}
+                                                className="w-28 text-right text-sm"
+                                              />
                                             </div>
                                           </div>
+                                        )}
+                                      </div>
+
+                                      {/* Resumen */}
+                                      <div className="bg-gray-100 p-3 rounded border border-gray-200 mt-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <div>
+                                            <p className="text-sm font-medium text-gray-700">
+                                              {(() => {
+                                                const orig = operadoresContingencia[embarque.id]?.original || 0;
+                                                const repl = embarque.operadorReemplazoNombre ? (operadoresContingencia[embarque.id]?.reemplazo || 0) : 0;
+                                                const total = orig + repl;
+                                                return `Total División: $${Number(total).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                                              })()}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                              Pago base del servicio: {`$${Number(embarque.pagoOperador || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} (solo referencia)
+                                            </p>
+                                            <p className="text-xs text-blue-600 font-medium mt-1">
+                                              En casos de contingencia, puedes asignar cualquier monto según las circunstancias.
+                                            </p>
+                                          </div>
+                                          <Button
+                                            size="sm"
+                                            onClick={() => saveContingencyPayment(embarque)}
+                                            disabled={(operadoresContingencia[embarque.id]?.original || 0) <= 0 && (!!embarque.operadorReemplazoNombre ? (operadoresContingencia[embarque.id]?.reemplazo || 0) <= 0 : true)}
+                                          >
+                                            <Save className="h-4 w-4 mr-2" />
+                                            Guardar División de Pago
+                                          </Button>
                                         </div>
                                       </div>
                                     </CardContent>
@@ -4001,6 +4717,30 @@ export default function FacturacionCobranzaPage() {
                       )}
                   </>
                 )}
+              </DialogContent>
+            </Dialog>
+            {/* Modal discreto de ayuda para Casos de Contingencia */}
+            <Dialog open={showContingenciaInfo} onOpenChange={setShowContingenciaInfo}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Casos de Contingencia — Ayuda</DialogTitle>
+                  <DialogDescription>
+                    Guía breve sobre cómo se muestran y gestionan.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="text-sm text-gray-700 space-y-2">
+                  <p>
+                    Un caso de contingencia sucede cuando un embarque cambia de operador por una emergencia
+                    (enfermedad, accidente, etc.).
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1">
+                    <li>El mismo folio se refleja para <strong>Operador Original</strong> y <strong>Reemplazo</strong>.</li>
+                    <li>Los pagos <strong>no se calculan automáticamente</strong>; asigna montos manualmente a cada uno.</li>
+                    <li>El <strong>pago base</strong> del servicio es solo <em>referencia</em>; puedes dividir como corresponda.</li>
+                    <li>Aplican los filtros de <strong>Periodo</strong> y <strong>Operador</strong> del análisis.</li>
+                    <li>Usa “Guardar División de Pago” para registrar los montos.</li>
+                  </ul>
+                </div>
               </DialogContent>
             </Dialog>
             <Dialog
@@ -4030,13 +4770,11 @@ export default function FacturacionCobranzaPage() {
                         <SelectItem value="todos">
                           Todos los operadores
                         </SelectItem>
-                        {operadoresUnicos
-                          .filter((operador) => operador?.id)
-                          .map((operador) => (
-                            <SelectItem key={operador.id} value={operador.id}>
-                              {operador.nombre}
-                            </SelectItem>
-                          ))}
+                        {operadoresUnicosPagos.map((operador) => (
+                          <SelectItem key={operador.id} value={operador.id}>
+                            {operador.nombre}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -4131,7 +4869,7 @@ export default function FacturacionCobranzaPage() {
                       <>
                         <div className="mb-4 text-right text-lg font-bold text-gray-800">
                           Total Pagos Filtrados: $
-                          {totalPagosFiltrados.toLocaleString()}
+                          {totalPagosFiltrados.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-sm">
@@ -4186,7 +4924,7 @@ export default function FacturacionCobranzaPage() {
                                     ).toLocaleDateString()}
                                   </td>
                                   <td className="px-2 py-1">
-                                    ${embarque.pagoOperador?.toLocaleString()}
+                                    ${embarque.pagoOperador?.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td className="px-2 py-1">
                                     {embarque.modificadoPorEmergencia ? (
@@ -4327,10 +5065,10 @@ export default function FacturacionCobranzaPage() {
                                     {data.operador.nombre}
                                   </td>
                                   <td className="px-2 py-1">
-                                    ${data.totalPagos.toLocaleString()}
+                                    ${data.totalPagos.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td className="px-2 py-1">
-                                    ${data.totalPagosMesActual.toLocaleString()}
+                                    ${data.totalPagosMesActual.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   </td>
                                   <td className="px-2 py-1">
                                     {data.cantidadEmbarques}
@@ -4374,85 +5112,284 @@ export default function FacturacionCobranzaPage() {
                 <div className="py-8 text-center text-gray-500">
                   Cargando embarques archivados...
                 </div>
-              ) : embarquesArchivados.length === 0 ? (
-                <div className="py-8 text-center text-gray-500">
-                  No hay embarques archivados.
-                </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="px-2 py-1 text-left">Folio</th>
-                        <th className="px-2 py-1 text-left">Cliente</th>
-                        <th className="px-2 py-1 text-left">Load</th>
-                        <th className="px-2 py-1 text-left">Valor Facturado</th>
-                        <th className="px-2 py-1 text-left">
-                          Fecha Pago Factura
-                        </th>
-                        <th className="px-2 py-1 text-left">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {embarquesArchivados.map((embarque) => (
-                        <tr key={embarque.id} className="border-b">
-                          <td className="px-2 py-1">{embarque.folio}</td>
-                          <td className="px-2 py-1">
-                            {embarque.clienteNombre}
-                          </td>
-                          <td className="px-2 py-1">{embarque.load_number}</td>
-                          <td className="px-2 py-1">
-                            {(() => {
-                              const currency = embarque.moneda_flete || "MXN";
-                              const raw =
-                                typeof (embarque as any).precioFlete ===
-                                "number"
-                                  ? (embarque as any).precioFlete
-                                  : typeof (embarque as any).precio_flete ===
-                                    "string"
-                                  ? Number((embarque as any).precio_flete)
-                                  : typeof (embarque as any).precio_flete ===
-                                    "number"
-                                  ? (embarque as any).precio_flete
-                                  : undefined;
-                              const amount =
-                                typeof raw === "number" && !isNaN(raw)
-                                  ? raw
-                                  : 0;
-                              return (
-                                <>
-                                  ${amount.toLocaleString(undefined, {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2,
-                                  })} {currency}
-                                </>
-                              );
-                            })()}
-                          </td>
-                          <td className="px-2 py-1">
-                            {embarque.fecha_pago
-                              ? new Date(
-                                  embarque.fecha_pago
-                                ).toLocaleDateString()
-                              : "-"}
-                          </td>
-                          <td className="px-2 py-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEmbarqueDetalle(embarque);
-                                setShowDetailModal(true);
-                              }}
-                            >
-                              Ver Detalles
-                            </Button>
-                          </td>
+                <>
+                  <div className="mb-3 flex flex-col md:flex-row md:items-end gap-2">
+                    <div className="flex-1">
+                      <Label htmlFor="archivados-search">Buscar</Label>
+                      <Input
+                        id="archivados-search"
+                        placeholder="Buscar por folio, cliente o load..."
+                        value={archivadosSearch}
+                        onChange={(e) => {
+                          setArchivadosSearch(e.target.value);
+                          setArchivadosPage(1);
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>Tamaño página</span>
+                        <Select
+                          value={String(archivadosPageSize)}
+                          onValueChange={(v) => {
+                            setArchivadosPageSize(Number(v));
+                            setArchivadosPage(1);
+                          }}
+                        >
+                          <SelectTrigger className="w-24">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="10">10</SelectItem>
+                            <SelectItem value="25">25</SelectItem>
+                            <SelectItem value="50">50</SelectItem>
+                            <SelectItem value="100">100</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                        onClick={() => {
+                          // Exportar a CSV (etiquetado como Excel) con columnas solicitadas
+                          // Columnas: Folio, Cliente, Load, Carta Porte, Fecha Pago, Monto Flete, Divisa, Contingencia, Operador, Tractocamión, Remolque, Fecha Creación (última)
+                          let csv = "Folio,Cliente,Load,Carta Porte,Fecha Pago,Monto Flete,Divisa,Contingencia,Operador,Tractocamión,Remolque,Fecha Creación\n";
+                          archivadosFilteredSorted.forEach((e) => {
+                            const ea: any = e as any;
+                            const currency = ea.moneda_flete || ea.currency || "MXN";
+                            const rawVal =
+                              typeof ea.precioFlete === "number"
+                                ? ea.precioFlete
+                                : typeof ea.precio_flete === "string"
+                                ? Number(ea.precio_flete)
+                                : typeof ea.precio_flete === "number"
+                                ? ea.precio_flete
+                                : 0;
+                            const monto = Number.isFinite(rawVal) ? rawVal : 0;
+                            const cartaPorte = ea.carta_porte || ea.cartaPorte || "";
+                            const load = ea.load_number || ea.numeroLoad || "";
+                            const fechaCreacion = ea.fecha_creacion
+                              ? new Date(ea.fecha_creacion).toLocaleDateString()
+                              : "";
+                            const fechaPago = ea.fecha_pago
+                              ? new Date(ea.fecha_pago).toLocaleDateString()
+                              : "";
+                            const contingencia = (ea.modificadoPorEmergencia || (embarquesModificadosIds || []).includes(e.id)) ? "Sí" : "No";
+                            const operadorNombre = ea.operador
+                              ? `${ea.operador?.nombre || ""} ${ea.operador?.apellidos || ""}`.trim()
+                              : ea.operadorNombre || "";
+                            const tracto = ea.camion?.numero_economico || ea.camionAsignado?.numeroEconomico || "";
+                            const remolque = ea.remolque?.numero_economico || ea.remolque_numero_economico || "";
+                            const row = [
+                              e.folio,
+                              e.clienteNombre,
+                              load,
+                              cartaPorte,
+                              fechaPago,
+                              monto.toFixed(2),
+                              currency,
+                              contingencia,
+                              operadorNombre,
+                              tracto,
+                              remolque,
+                              fechaCreacion,
+                            ]
+                              .map((x) => `"${String(x ?? "").replaceAll('"', '""')}"`)
+                              .join(",");
+                            csv += row + "\n";
+                          });
+                          const blob = new Blob([csv], { type: "text/csv" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          const now = new Date();
+                          const pad = (n: number) => String(n).padStart(2, "0");
+                          const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}`;
+                          a.download = `embarques_archivados_facturacion_${stamp}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                      >
+                        Descargar Excel
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Periodos rápidos */}
+                  <div className="mt-2 mb-3 flex flex-wrap gap-2">
+                    <Button
+                      variant={archivadosPeriodo === "todo" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("todo")}
+                    >
+                      Todo
+                    </Button>
+                    <Button
+                      variant={archivadosPeriodo === "mes_actual" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("mes_actual")}
+                    >
+                      Mes actual
+                    </Button>
+                    <Button
+                      variant={archivadosPeriodo === "mes_anterior" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("mes_anterior")}
+                    >
+                      Mes anterior
+                    </Button>
+                    <Button
+                      variant={archivadosPeriodo === "ultimos_3" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("ultimos_3")}
+                    >
+                      Últ. 3 meses
+                    </Button>
+                    <Button
+                      variant={archivadosPeriodo === "ultimos_6" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("ultimos_6")}
+                    >
+                      Últ. 6 meses
+                    </Button>
+                    <Button
+                      variant={archivadosPeriodo === "este_anio" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setArchivadosPeriodo("este_anio")}
+                    >
+                      Este año
+                    </Button>
+                  </div>
+
+                  <div className="mb-3 text-sm text-gray-600">
+                    Mostrando {totalArchivados === 0 ? 0 : startIdx + 1}–{endIdx} de {totalArchivados}
+                  </div>
+
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="min-w-full text-sm table-fixed">
+                      <thead>
+                        <tr className="bg-purple-50">
+                          <th className="px-1 py-1 text-left font-semibold whitespace-nowrap w-32 md:w-40 cursor-pointer select-none" onClick={() => toggleSortArchivados("folio")}>
+                            Folio{sortIndicatorArchivados("folio")}
+                          </th>
+                          <th className="px-0 py-1 text-left font-semibold w-40 md:w-48 truncate cursor-pointer select-none" onClick={() => toggleSortArchivados("cliente")}>
+                            Cliente{sortIndicatorArchivados("cliente")}
+                          </th>
+                          <th className="px-2 py-1 text-left font-semibold w-14 md:w-16 cursor-pointer select-none" onClick={() => toggleSortArchivados("load")}>
+                            Load{sortIndicatorArchivados("load")}
+                          </th>
+                          <th className="px-2 py-1 text-left font-semibold w-36 truncate cursor-pointer select-none" onClick={() => toggleSortArchivados("valor")}>
+                            Valor Facturado{sortIndicatorArchivados("valor")}
+                          </th>
+                          <th className="px-0 py-1 text-left font-semibold w-24 cursor-pointer select-none" onClick={() => toggleSortArchivados("fechaPago")}>
+                            Fecha Pago Factura{sortIndicatorArchivados("fechaPago")}
+                          </th>
+                          <th className="px-2 py-1 text-left font-semibold w-24">Acciones</th>
+                          <th className="px-2 py-1 text-left font-semibold w-28">Eliminar</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {paginatedArchivados.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="text-center py-8 text-gray-500">
+                              No hay embarques archivados.
+                            </td>
+                          </tr>
+                        ) : (
+                          paginatedArchivados.map((embarque) => (
+                            <tr key={embarque.id} className="border-b hover:bg-purple-50">
+                              <td className="px-1 py-1 whitespace-nowrap w-32 md:w-40 font-mono">{embarque.folio}</td>
+                              <td className="px-0 py-1 w-40 md:w-48 truncate">{embarque.clienteNombre}</td>
+                              <td className="px-2 py-1 w-14 md:w-16 truncate text-left font-mono">{(embarque as any).load_number || embarque.numeroLoad || ""}</td>
+                              <td className="px-2 py-1 w-36 truncate">
+                                {(() => {
+                                  const currency = (embarque as any).moneda_flete || "MXN";
+                                  const raw =
+                                    typeof (embarque as any).precioFlete === "number"
+                                      ? (embarque as any).precioFlete
+                                      : typeof (embarque as any).precio_flete === "string"
+                                      ? Number((embarque as any).precio_flete)
+                                      : typeof (embarque as any).precio_flete === "number"
+                                      ? (embarque as any).precio_flete
+                                      : 0;
+                                  const amount = Number.isFinite(raw) ? raw : 0;
+                                  return (
+                                    <>
+                                      ${amount.toLocaleString('es-MX', {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })} {currency}
+                                    </>
+                                  );
+                                })()}
+                              </td>
+                              <td className="px-0 py-1 w-24 whitespace-nowrap text-left">
+                                {embarque.fecha_pago
+                                  ? new Date(embarque.fecha_pago).toLocaleDateString()
+                                  : "-"}
+                              </td>
+                              <td className="px-2 py-1 text-left">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => {
+                                    setEmbarqueDetalle(embarque);
+                                    setShowDetailModal(true);
+                                  }}
+                                >
+                                  Ver Detalles
+                                </Button>
+                              </td>
+                              <td className="px-2 py-1 text-left">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => eliminarArchivadoDefinitivoFC(embarque)}
+                                  disabled={!puedeEliminarArchivadoFC(embarque)}
+                                  className={`border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black${
+                                    !puedeEliminarArchivadoFC(embarque) ? " opacity-50 cursor-not-allowed" : ""
+                                  }`}
+                                >
+                                  Eliminar
+                                </Button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                    {totalArchivadosPaginas > 1 && (
+                      <div className="flex items-center justify-between p-3 text-sm">
+                        <div>
+                          Página {clampedPage} de {totalArchivadosPaginas}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setArchivadosPage((p) => Math.max(1, p - 1))}
+                            disabled={clampedPage <= 1}
+                          >
+                            ◀ Anterior
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setArchivadosPage((p) =>
+                                Math.min(totalArchivadosPaginas, p + 1)
+                              )
+                            }
+                            disabled={clampedPage >= totalArchivadosPaginas}
+                          >
+                            Siguiente ▶
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </DialogContent>
           </Dialog>
@@ -4489,6 +5426,7 @@ export default function FacturacionCobranzaPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
                         <SelectItem value="10">10</SelectItem>
                         <SelectItem value="20">20</SelectItem>
                         <SelectItem value="50">50</SelectItem>
@@ -4588,16 +5526,16 @@ export default function FacturacionCobranzaPage() {
                                 excedeUSD || excedeMXN ? "bg-red-50" : ""
                               }`}
                             >
-                              <td className="px-4 py-2 font-medium text-gray-800">
+                              <td className="px-4 py-1 font-medium text-gray-800">
                                 <div className="flex items-center gap-2">
                                   <span>{cliente.nombre}</span>
                                   {(excedeUSD || excedeMXN) && (
-                                    <Badge variant="destructive" className="text-[10px] py-0 px-1">Excedido</Badge>
+                                    <Badge className="bg-orange-100 text-orange-800 border-orange-300 text-[10px] py-0 px-1">Excedido</Badge>
                                   )}
                                 </div>
                               </td>
                               {/* Corrected field name */}
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-1">
                                 <Input
                                   type="number"
                                   value={limiteUSD}
@@ -4614,16 +5552,16 @@ export default function FacturacionCobranzaPage() {
                                   className="w-24 text-right text-xs"
                                 />
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-1">
                                 <span
                                   className={`font-bold ${
                                     excedeUSD ? "text-red-600" : "text-gray-600"
                                   }`}
                                 >
-                                  ${totalPendienteUSD.toLocaleString()}
+                                  ${totalPendienteUSD.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-1">
                                 <Input
                                   type="number"
                                   value={limiteMXN}
@@ -4640,23 +5578,22 @@ export default function FacturacionCobranzaPage() {
                                   className="w-24 text-right text-xs"
                                 />
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-1">
                                 <span
                                   className={`font-bold ${
                                     excedeMXN ? "text-red-600" : "text-gray-600"
                                   }`}
                                 >
-                                  ${totalPendienteMXN.toLocaleString()}
+                                  ${totalPendienteMXN.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                               </td>
-                              <td className="px-4 py-2">
+                              <td className="px-4 py-1">
                                 {excedeUSD || excedeMXN ? (
                                   <Badge
-                                    variant="destructive"
-                                    className="flex items-center justify-center"
+                                    variant="outline"
+                                    className="flex items-center justify-center bg-orange-100 text-orange-800 border-orange-300"
                                   >
-                                    <AlertTriangle className="h-3 w-3 mr-1" />{" "}
-                                    Excedido
+                                    <AlertTriangle className="h-3 w-3 mr-1 text-orange-600" /> Excedido
                                   </Badge>
                                 ) : (
                                   <Badge
@@ -4736,10 +5673,9 @@ export default function FacturacionCobranzaPage() {
                     Flete Año MXN
                   </p>
                   <p className="text-2xl font-bold text-green-600">
-                    ${yearlyFleteMXN.toLocaleString()}
+                    ${yearlyFleteMXN.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-green-600" />
               </div>
             </CardContent>
           </Card>
@@ -4751,10 +5687,9 @@ export default function FacturacionCobranzaPage() {
                     Flete Año USD
                   </p>
                   <p className="text-2xl font-bold text-green-600">
-                    ${yearlyFleteUSD.toLocaleString()}
+                    ${yearlyFleteUSD.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                 </div>
-                <DollarSign className="h-8 w-8 text-green-600" />
               </div>
             </CardContent>
           </Card>
@@ -4777,18 +5712,30 @@ export default function FacturacionCobranzaPage() {
           </Card>
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Facturados</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {
-                      embarquesFiltrados.filter(
-                        (e) => e.estado_facturacion === "facturado"
-                      ).length
-                    }
-                  </p>
+              <div className="flex items-start justify-between">
+                <div className="flex items-start gap-8">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Facturados</p>
+                    <p className="text-2xl font-bold text-yellow-600">
+                      {
+                        embarquesFiltrados.filter(
+                          (e) => e.estado_facturacion === "facturado"
+                        ).length
+                      }
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Pagados</p>
+                    <p className="text-2xl font-bold text-purple-700">
+                      {
+                        embarquesFiltrados.filter(
+                          (e) => e.estado_facturacion === "pagado"
+                        ).length
+                      }
+                    </p>
+                  </div>
                 </div>
-                <Calendar className="h-8 w-8 text-yellow-600" />
+                {/* Icon removed as requested */}
               </div>
             </CardContent>
           </Card>
@@ -4796,14 +5743,9 @@ export default function FacturacionCobranzaPage() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pagados</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {
-                      embarquesFiltrados.filter(
-                        (e) =>
-                          e.estado_facturacion === "pagado" || (e as any).pagado
-                      ).length
-                    }
+                  <p className="text-sm font-medium text-gray-600">Archivados</p>
+                  <p className="text-2xl font-bold text-purple-700">
+                    {archivadosIds.length}
                   </p>
                 </div>
                 <Package className="h-8 w-8 text-purple-600" />
@@ -4858,18 +5800,18 @@ export default function FacturacionCobranzaPage() {
               Pagos Operadores
             </Button> */}
             <Button
-              onClick={() => setShowArchivadosModal(true)}
-              variant="outline"
-            >
-              <Package className="h-4 w-4 mr-2 text-purple-600" />
-              Archivados
-            </Button>
-            <Button
               onClick={() => setShowTiposServicioModal(true)}
               variant="outline"
             >
               <Package className="h-4 w-4 mr-2" />
               Servicios
+            </Button>
+            <Button
+              onClick={() => setShowArchivadosModal(true)}
+              variant="outline"
+            >
+              <Package className="h-4 w-4 mr-2 text-purple-600" />
+              Archivados
             </Button>
           </div>
         </div>
@@ -4936,31 +5878,31 @@ export default function FacturacionCobranzaPage() {
                               ) && (
                                 <Badge
                                   variant="destructive"
-                                  className="ml-2 bg-red-600 text-white animate-pulse"
+                                  className="ml-2 bg-red-600 text-white"
                                 >
                                   <AlertTriangle className="h-3 w-3 mr-1" />
-                                  CONTINGENCIA
+                                  Contingencia
                                 </Badge>
                               )}
+                              {(() => {
+                                const creditCheck = checkCreditExceeded(
+                                  embarque.clienteNombre,
+                                  embarque.montoFacturado ?? (embarque as any)?.precioFlete ?? 0,
+                                  embarque.moneda_flete
+                                );
+                                return (
+                                  creditCheck.exceeded && (
+                                    <span className="ml-2 inline-flex items-center rounded-full bg-orange-500 px-2 py-0.5 text-white text-xs">
+                                      {creditCheck.message}
+                                    </span>
+                                  )
+                                );
+                              })()}
                             </div>
                             <p className="text-sm text-gray-500">
                               Load: {embarque.load_number || "-"}
                             </p>
                           </div>
-                          {(() => {
-                            const creditCheck = checkCreditExceeded(
-                              embarque.clienteNombre,
-                              embarque.montoFacturado ?? (embarque as any)?.precioFlete ?? 0,
-                              embarque.moneda_flete
-                            );
-                            return (
-                              creditCheck.exceeded && (
-                                <span className="ml-2 inline-flex items-center rounded-full bg-red-600 px-2 py-0.5 text-white text-xs">
-                                  {creditCheck.message}
-                                </span>
-                              )
-                            );
-                          })()}
                           {embarque.modificadoPorEmergencia && (
                             <Badge
                               variant="destructive"
@@ -5206,7 +6148,7 @@ export default function FacturacionCobranzaPage() {
                                   : 0;
                               return (
                                 <>
-                                  ${amount.toLocaleString(undefined, {
+                                  ${amount.toLocaleString('es-MX', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                   })} {currency}
@@ -5221,26 +6163,20 @@ export default function FacturacionCobranzaPage() {
                                 embarque.quickpaid_descuento > 0 && (
                                   <p className="text-yellow-700 font-semibold">
                                     Descuento: -$
-                                    {embarque.quickpaid_descuento.toLocaleString(
-                                      undefined,
-                                      {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      }
-                                    )}
+                                    {embarque.quickpaid_descuento.toLocaleString('es-MX', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}
                                   </p>
                                 )}
                               {typeof embarque.precio_quickpaid === "number" &&
                                 embarque.precio_quickpaid > 0 && (
                                   <p className="text-yellow-900 font-semibold">
                                     Precio QuickPaid: $
-                                    {embarque.precio_quickpaid.toLocaleString(
-                                      undefined,
-                                      {
-                                        minimumFractionDigits: 2,
-                                        maximumFractionDigits: 2,
-                                      }
-                                    )}
+                                    {embarque.precio_quickpaid.toLocaleString('es-MX', {
+                                      minimumFractionDigits: 2,
+                                      maximumFractionDigits: 2,
+                                    })}
                                   </p>
                                 )}
                             </div>
@@ -5315,7 +6251,7 @@ export default function FacturacionCobranzaPage() {
 
         {/* Control Clientes */}
         <Dialog open={showControlClientesModal} onOpenChange={setShowControlClientesModal}>
-          <DialogContent className="max-w-6xl">
+          <DialogContent className="max-w-7xl">
             <DialogHeader>
               <DialogTitle>Control de Clientes</DialogTitle>
               <DialogDescription>
@@ -5324,140 +6260,183 @@ export default function FacturacionCobranzaPage() {
             </DialogHeader>
 
             <div className="space-y-4">
-              <div className="flex flex-wrap items-end gap-3">
-                <Label htmlFor="control-cliente">Cliente</Label>
-                <Select
-                  value={controlClienteSeleccionado || ""}
-                  onValueChange={(value) => setControlClienteSeleccionado(value || null)}
-                >
-                  <SelectTrigger id="control-cliente" className="w-[320px]">
-                    <SelectValue placeholder="Selecciona un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap items-start gap-3">
+                <div className="flex flex-col gap-3 w-full">
+                  {/* Primera fila: Cliente + Periodo + Estado + Acciones */}
+                  <div className="flex flex-wrap items-end gap-3 w-full">
+                    <div className="flex flex-col">
+                      <Label htmlFor="control-cliente" className="text-xs text-gray-600 mb-1">Cliente</Label>
+                      <Select
+                        value={controlClienteSeleccionado ?? "todos"}
+                        onValueChange={(value) => setControlClienteSeleccionado(value === "todos" ? null : value)}
+                      >
+                        <SelectTrigger id="control-cliente" className="w-[320px]">
+                          <SelectValue placeholder="Selecciona un cliente" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos los clientes</SelectItem>
+                          {clientesOrdenadosPorNombre.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nombre}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {/* Rango rápido */}
+                    <div className="flex flex-col">
+                      <Label className="text-xs text-gray-600 mb-1">Periodo</Label>
+                      <Select value={controlClientesRango} onValueChange={(v) => setRangoControlClientes(v)}>
+                        <SelectTrigger className="w-[200px]">
+                          <SelectValue placeholder="Selecciona un periodo" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="mes_actual">Mes actual</SelectItem>
+                          <SelectItem value="mes_anterior">Mes anterior</SelectItem>
+                          <SelectItem value="dos_meses_atras">Dos meses atrás</SelectItem>
+                          <SelectItem value="seis_meses_atras">Seis meses atrás</SelectItem>
+                          <SelectItem value="custom">Personalizado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col">
+                      <Label htmlFor="control-estado" className="text-xs text-gray-600 mb-1">Estado</Label>
+                      <Select value={controlClientesEstadoFiltro} onValueChange={setControlClientesEstadoFiltro}>
+                        <SelectTrigger id="control-estado" className="w-[240px]">
+                          <SelectValue placeholder="Estado" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="todos">Todos</SelectItem>
+                          {/* Orden lógico: Todos, Pendiente, Facturados, Pagados, En tránsito, Archivados */}
+                          <SelectItem value="pendiente_facturacion">Pendiente de facturar</SelectItem>
+                          <SelectItem value="facturado">Facturados</SelectItem>
+                          <SelectItem value="pagado">Pagados</SelectItem>
+                          <SelectItem value="transito">En tránsito</SelectItem>
+                          <SelectItem value="archivado">Archivados</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
 
-                {/* Rango rápido */}
-                <div className="flex flex-col">
-                  <Label className="text-xs text-gray-600 mb-1">Periodo</Label>
-                  <Select value={controlClientesRango} onValueChange={(v) => setRangoControlClientes(v)}>
-                    <SelectTrigger className="w-[200px]">
-                      <SelectValue placeholder="Selecciona un periodo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mes_actual">Mes actual</SelectItem>
-                      <SelectItem value="mes_anterior">Mes anterior</SelectItem>
-                      <SelectItem value="dos_meses_atras">Dos meses atrás</SelectItem>
-                      <SelectItem value="seis_meses_atras">Seis meses atrás</SelectItem>
-                      <SelectItem value="custom">Personalizado</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    {/* Acciones en la misma fila, alineadas con Periodo */}
+                    <div className="ml-auto flex items-end gap-3">
+                      <Button
+                        className="bg-green-600 hover:bg-green-700 text-white"
+                        onClick={() => setControlClientesGenerado(true)}
+                      >
+                        Generar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          const inRange = (e: any) => {
+                            const fechaStr = e.fechaAsignacion || e.fecha_creacion || e.updated_at;
+                            if (!fechaStr) return true;
+                            const d = new Date(fechaStr);
+                            const desde = controlClientesPeriodo.desde
+                              ? new Date(controlClientesPeriodo.desde)
+                              : null;
+                            const hasta = controlClientesPeriodo.hasta
+                              ? new Date(controlClientesPeriodo.hasta + "T23:59:59")
+                              : null;
+                            if (desde && d < desde) return false;
+                            if (hasta && d > hasta) return false;
+                            return true;
+                          };
+                          const base = (embarquesAsignados || [])
+                            .filter((e: any) => {
+                              const estadoNorm = String(e?.estado || "").toLowerCase();
+                              return !(/cancel/.test(estadoNorm));
+                            })
+                            .filter((e: any) => {
+                              const tieneOperador = Boolean(e?.operadorAsignado?.id || e?.operadorAsignado?.nombre);
+                              const precio = (e as any).montoFacturado ?? (e as any).precioFlete ?? (e as any).precio_flete;
+                              const tienePrecio = typeof precio === "number" ? precio > 0 : Number(precio) > 0;
+                              return tieneOperador && tienePrecio;
+                            })
+                            .filter((e) => (controlClienteSeleccionado ? e.cliente_id === controlClienteSeleccionado : true))
+                            .filter(inRange)
+                            .filter((e) => {
+                              if (controlClientesEstadoFiltro === "todos") return true;
+                              if (controlClientesEstadoFiltro === "archivado") return e.estado_facturacion === "archivado";
+                              if (controlClientesEstadoFiltro === "pendiente_facturacion") return (e.estado_facturacion || "pendiente_facturacion") === "pendiente_facturacion";
+                              if (controlClientesEstadoFiltro === "pagado") return (e.estado_facturacion || "").toLowerCase().includes("pagado");
+                              if (controlClientesEstadoFiltro === "facturado") return (e.estado_facturacion || "").toLowerCase().includes("facturado");
+                              if (controlClientesEstadoFiltro === "transito") return (String(e.estado || "").toLowerCase()).includes("transit");
+                              return true;
+                            })
+                            .sort(compareControlClientes);
+
+                          const rows = base.map((e) => ({
+                            folio: e.folio,
+                            cliente: (e as any).clienteNombre,
+                            load: (e as any).load_number || "-",
+                            tipo: (tiposServicio.find((t) => t.id === (e as any).tipo_servicio_id)?.nombre) ||
+                              (e as any).tipoServicioNombre ||
+                              (e as any).tipoServicio || "-",
+                            fecha: new Date((e as any).fechaAsignacion || (e as any).fecha_creacion || (e as any).updated_at || Date.now()).toLocaleDateString(),
+                            monto: ((e as any).montoFacturado ?? (e as any).precioFlete ?? (e as any).precio_flete ?? 0),
+                            moneda: (e as any).moneda_flete || "MXN",
+                            estado: (e as any).estado_facturacion || "pendiente_facturacion",
+                          }));
+                          let csv = "Folio,Cliente,Load,Tipo Servicio,Fecha,Monto,Moneda,Estado\n";
+                          rows.forEach((r) => {
+                            csv += `${r.folio},${r.cliente},${r.load},${r.tipo},${r.fecha},${r.monto},${r.moneda},${r.estado}\n`;
+                          });
+                          const blob = new Blob([csv], { type: "text/csv" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `control_clientes_${controlClientesTab}.csv`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                      >
+                        <Download className="h-4 w-4 mr-2" /> Exportar
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Segunda fila: Periodo Desde / Hasta debajo de Cliente */}
+                  <div className="flex flex-wrap items-end gap-3">
+                    <div className="flex flex-col">
+                      <Label htmlFor="control-desde" className="text-xs text-gray-600 mb-1">Desde</Label>
+                      <Input
+                        id="control-desde"
+                        type="date"
+                        className="w-[160px]"
+                        value={controlClientesPeriodo.desde || ""}
+                        onChange={(e) => {
+                          setControlClientesPeriodo((p) => ({ ...p, desde: e.target.value || null }));
+                          setControlClientesRango("custom");
+                        }}
+                      />
+                    </div>
+                    <div className="flex flex-col">
+                      <Label htmlFor="control-hasta" className="text-xs text-gray-600 mb-1">Hasta</Label>
+                      <Input
+                        id="control-hasta"
+                        type="date"
+                        className="w-[160px]"
+                        value={controlClientesPeriodo.hasta || ""}
+                        onChange={(e) => {
+                          setControlClientesPeriodo((p) => ({ ...p, hasta: e.target.value || null }));
+                          setControlClientesRango("custom");
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Rango de fechas */}
-                <div className="flex flex-col">
-                  <Label htmlFor="control-desde" className="text-xs text-gray-600 mb-1">Desde</Label>
-                  <Input
-                    id="control-desde"
-                    type="date"
-                    className="w-[160px]"
-                    value={controlClientesPeriodo.desde || ""}
-                    onChange={(e) => {
-                      setControlClientesPeriodo((p) => ({ ...p, desde: e.target.value || null }));
-                      setControlClientesRango("custom");
-                    }}
-                  />
-                </div>
-                <div className="flex flex-col">
-                  <Label htmlFor="control-hasta" className="text-xs text-gray-600 mb-1">Hasta</Label>
-                  <Input
-                    id="control-hasta"
-                    type="date"
-                    className="w-[160px]"
-                    value={controlClientesPeriodo.hasta || ""}
-                    onChange={(e) => {
-                      setControlClientesPeriodo((p) => ({ ...p, hasta: e.target.value || null }));
-                      setControlClientesRango("custom");
-                    }}
-                  />
-                </div>
-                <div className="ml-auto">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      const inRange = (e: any) => {
-                        const fechaStr = e.fecha_creacion || e.updated_at;
-                        if (!fechaStr) return true;
-                        const d = new Date(fechaStr);
-                        const desde = controlClientesPeriodo.desde
-                          ? new Date(controlClientesPeriodo.desde)
-                          : null;
-                        const hasta = controlClientesPeriodo.hasta
-                          ? new Date(controlClientesPeriodo.hasta + "T23:59:59")
-                          : null;
-                        if (desde && d < desde) return false;
-                        if (hasta && d > hasta) return false;
-                        return true;
-                      };
-                      const rows = (embarquesFiltrados || [])
-                        .filter((e) =>
-                          controlClienteSeleccionado
-                            ? e.cliente_id === controlClienteSeleccionado
-                            : true
-                        )
-                        .filter(inRange)
-                        .filter((e) =>
-                          controlClientesTab === "activos"
-                            ? e.estado_facturacion !== "archivado"
-                            : e.estado_facturacion === "archivado"
-                        )
-                        .sort(compareControlClientes)
-                        .map((e) => ({
-                          folio: e.folio,
-                          cliente: e.clienteNombre,
-                          load: e.load_number || "-",
-                          tipo: (tiposServicio.find((t) => t.id === (e as any).tipo_servicio_id)?.nombre) ||
-                            (e as any).tipoServicioNombre ||
-                            (e as any).tipoServicio || "-",
-                          fecha: new Date(e.fecha_creacion || e.updated_at || Date.now()).toLocaleDateString(),
-                          monto: (e.montoFacturado ?? (e as any).precioFlete ?? 0),
-                          moneda: e.moneda_flete || "MXN",
-                          estado: e.estado_facturacion || "pendiente_facturacion",
-                        }));
-                      let csv = "Folio,Cliente,Load,Tipo Servicio,Fecha,Monto,Moneda,Estado\n";
-                      rows.forEach((r) => {
-                        csv += `${r.folio},${r.cliente},${r.load},${r.tipo},${r.fecha},${r.monto},${r.moneda},${r.estado}\n`;
-                      });
-                      const blob = new Blob([csv], { type: "text/csv" });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `control_clientes_${controlClientesTab}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                  >
-                    <Download className="h-4 w-4 mr-2" /> Exportar Excel
-                  </Button>
-                </div>
+                
               </div>
 
-              <Tabs value={controlClientesTab} onValueChange={(v) => setControlClientesTab(v as any)}>
-                <TabsList className="grid w-full grid-cols-2">
-                  <TabsTrigger value="activos">No archivados</TabsTrigger>
-                  <TabsTrigger value="archivados">Archivados</TabsTrigger>
-                </TabsList>
-                <TabsContent value="activos">
+      <div>
                   <div className="overflow-x-auto">
                     <table className="min-w-full text-sm border-collapse">
                       <thead>
                         <tr className="bg-gray-100 border-b border-gray-200">
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Folio", "folio")}</th>
+                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Empresa</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Load", "load")}</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Tipo Servicio", "tipo")}</th>
                           <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Fecha", "fecha")}</th>
@@ -5467,28 +6446,7 @@ export default function FacturacionCobranzaPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(embarquesFiltrados || [])
-                          .filter((e) =>
-                            controlClienteSeleccionado
-                              ? e.cliente_id === controlClienteSeleccionado
-                              : true
-                          )
-                          .filter((e) => {
-                            const fechaStr = e.fecha_creacion || e.updated_at;
-                            if (!fechaStr) return true;
-                            const d = new Date(fechaStr);
-                            const desde = controlClientesPeriodo.desde
-                              ? new Date(controlClientesPeriodo.desde)
-                              : null;
-                            const hasta = controlClientesPeriodo.hasta
-                              ? new Date(controlClientesPeriodo.hasta + "T23:59:59")
-                              : null;
-                            if (desde && d < desde) return false;
-                            if (hasta && d > hasta) return false;
-                            return true;
-                          })
-                          .filter((e) => e.estado_facturacion !== "archivado")
-                          .sort(compareControlClientes)
+        {controlClientesGenerado && paginatedControlActivos
                           .map((e) => {
                             const currency = e.moneda_flete || "MXN";
                             const amount =
@@ -5506,13 +6464,14 @@ export default function FacturacionCobranzaPage() {
                             return (
                               <tr key={e.id} className="border-b border-gray-100">
                                 <td className="px-3 py-2 text-blue-700 font-medium">{e.folio}</td>
+                                <td className="px-3 py-2 text-gray-700">{(e as any).clienteNombre || "-"}</td>
                                 <td className="px-3 py-2 text-gray-700">{e.load_number || "-"}</td>
                                 <td className="px-3 py-2 text-gray-700">{tipoNombre}</td>
-                                <td className="px-3 py-2 text-gray-700">{new Date(e.fecha_creacion || e.updated_at || Date.now()).toLocaleDateString()}</td>
+                                <td className="px-3 py-2 text-gray-700">{new Date(e.fechaAsignacion || e.fecha_creacion || e.updated_at || Date.now()).toLocaleDateString()}</td>
                                 <td className="px-3 py-2 text-gray-800 font-semibold">
-                                  ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
+                                  ${amount.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
                                 </td>
-                                <td className="px-3 py-2 text-gray-700">{e.estado_facturacion || "pendiente_facturacion"}</td>
+            <td className="px-3 py-2 text-gray-700">{e.estado_facturacion || "pendiente_facturacion"}</td>
                                 <td className="px-3 py-2">
                                   <Button size="sm" variant="outline" onClick={() => verDetallesEmbarque(e as any)} aria-label="Ver detalles">
                                     <Eye className="h-4 w-4" aria-hidden="true" />
@@ -5524,81 +6483,47 @@ export default function FacturacionCobranzaPage() {
                       </tbody>
                     </table>
                   </div>
-                </TabsContent>
-                <TabsContent value="archivados">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-gray-100 border-b border-gray-200">
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Folio", "folio")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Load", "load")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Tipo Servicio", "tipo")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Fecha", "fecha")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Monto", "monto")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">{renderSortHeader("Estado", "estado")}</th>
-                          <th className="px-3 py-2 text-left font-semibold text-gray-700">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(embarquesFiltrados || [])
-                          .filter((e) =>
-                            controlClienteSeleccionado
-                              ? e.cliente_id === controlClienteSeleccionado
-                              : true
-                          )
-                          .filter((e) => {
-                            const fechaStr = e.fecha_creacion || e.updated_at;
-                            if (!fechaStr) return true;
-                            const d = new Date(fechaStr);
-                            const desde = controlClientesPeriodo.desde
-                              ? new Date(controlClientesPeriodo.desde)
-                              : null;
-                            const hasta = controlClientesPeriodo.hasta
-                              ? new Date(controlClientesPeriodo.hasta + "T23:59:59")
-                              : null;
-                            if (desde && d < desde) return false;
-                            if (hasta && d > hasta) return false;
-                            return true;
-                          })
-                          .filter((e) => e.estado_facturacion === "archivado")
-                          .sort(compareControlClientes)
-                          .map((e) => {
-                            const currency = e.moneda_flete || "MXN";
-                            const amount =
-                              (typeof (e as any).montoFacturado === "number"
-                                ? (e as any).montoFacturado
-                                : typeof (e as any).montoFacturado === "string"
-                                ? Number((e as any).montoFacturado)
-                                : undefined) ??
-                              (typeof (e as any).precioFlete === "number"
-                                ? (e as any).precioFlete
-                                : typeof (e as any).precioFlete === "string"
-                                ? Number((e as any).precioFlete)
-                                : 0);
-                            const tipoNombre = getTipoNombreFor(e as any);
-                            return (
-                              <tr key={e.id} className="border-b border-gray-100">
-                                <td className="px-3 py-2 text-blue-700 font-medium">{e.folio}</td>
-                                <td className="px-3 py-2 text-gray-700">{e.load_number || "-"}</td>
-                                <td className="px-3 py-2 text-gray-700">{tipoNombre}</td>
-                                <td className="px-3 py-2 text-gray-700">{new Date(e.fecha_creacion || e.updated_at || Date.now()).toLocaleDateString()}</td>
-                                <td className="px-3 py-2 text-gray-800 font-semibold">
-                                  ${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {currency}
-                                </td>
-                                <td className="px-3 py-2 text-gray-700">{e.estado_facturacion || "pendiente_facturacion"}</td>
-                                <td className="px-3 py-2">
-                                  <Button size="sm" variant="outline" onClick={() => verDetallesEmbarque(e as any)} aria-label="Ver detalles">
-                                    <Eye className="h-4 w-4" aria-hidden="true" />
-                                  </Button>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                      </tbody>
-                    </table>
+      {/* Pagination controls */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+                    <div className="flex items-center gap-2 text-sm">
+                      <Label htmlFor="items-per-page-control-act" className="text-sm">Registros por página:</Label>
+                      <Select
+                        value={String(itemsPerPageControl)}
+                        onValueChange={(v) => setItemsPerPageControl(Number(v))}
+                      >
+                        <SelectTrigger id="items-per-page-control-act" className="w-[100px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[5, 10, 15, 20, 25, 50, 100].map(n => (
+                            <SelectItem key={n} value={String(n)}>{n}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPageControlActivos(p => Math.max(1, p - 1))}
+        disabled={currentPageControlActivos <= 1}
+                      >
+                        Anterior
+                      </Button>
+                      <span>
+        Página {currentPageControlActivos} de {totalPagesControlActivos}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPageControlActivos(p => Math.min(totalPagesControlActivos, p + 1))}
+        disabled={currentPageControlActivos >= totalPagesControlActivos}
+                      >
+                        Siguiente
+                      </Button>
+                    </div>
                   </div>
-                </TabsContent>
-              </Tabs>
+      </div>
 
             </div>
           </DialogContent>
@@ -5619,32 +6544,77 @@ export default function FacturacionCobranzaPage() {
 
             <div className="space-y-6">
               <div className="flex items-center justify-between">
-                <div className="text-sm text-gray-600">
-                  Puedes crear nuevos tipos de servicio y ajustar sus pagos.
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-8 w-8"
+                    onClick={() => setShowTiposInfo(true)}
+                    title="Información"
+                  >
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                  <div className="text-sm text-gray-600 hidden md:block">
+                    Puedes crear nuevos tipos de servicio y ajustar sus pagos.
+                  </div>
                 </div>
-                <Button
-                  onClick={() => setShowCrearTipoModal(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                >
-                  + Agregar Tipo de Servicio
-                </Button>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="items-per-page-tipos" className="text-sm">Registros por página:</Label>
+                    <Select
+                      value={String(itemsPerPageTipos)}
+                      onValueChange={(value) => {
+                        setItemsPerPageTipos(Number(value));
+                        setCurrentPageTipos(1);
+                      }}
+                    >
+                      <SelectTrigger id="items-per-page-tipos" className="w-20">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="5">5</SelectItem>
+                        <SelectItem value="10">10</SelectItem>
+                        <SelectItem value="20">20</SelectItem>
+                        <SelectItem value="50">50</SelectItem>
+                        <SelectItem value="100">100</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => exportarTiposServicioExcel()}
+                  >
+                    <Download className="h-4 w-4 mr-2" /> Exportar
+                  </Button>
+                  <Button
+                    onClick={() => setShowCrearTipoModal(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    + Agregar Tipo de Servicio
+                  </Button>
+                </div>
               </div>
 
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <h3 className="font-semibold text-blue-900 mb-2">
-                  Tabulador de Pagos a Operadores
-                </h3>
-                <p className="text-sm text-blue-800">
-                  Define el monto que pagarás a tus operadores por cada tipo de
-                  servicio. Cuando asignes un embarque con un tipo de servicio
-                  específico, el sistema calculará automáticamente el pago
-                  correspondiente al operador basándose en estos valores.
-                </p>
-                <p className="text-xs text-blue-700 mt-1">
-                  • Los montos se establecen en pesos mexicanos (MXN) • Los
-                  cambios se guardan automáticamente en la base de datos
-                </p>
-              </div>
+              {/* Modal informativo con el texto azul */}
+              <Dialog open={showTiposInfo} onOpenChange={setShowTiposInfo}>
+                <DialogContent className="max-w-xl">
+                  <DialogHeader>
+                    <DialogTitle>Tabulador de Pagos a Operadores</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-2">
+                    <p className="text-sm text-blue-800">
+                      Define el monto que pagarás a tus operadores por cada tipo de
+                      servicio. Cuando asignes un embarque con un tipo de servicio
+                      específico, el sistema calculará automáticamente el pago
+                      correspondiente al operador basándose en estos valores.
+                    </p>
+                    <p className="text-xs text-blue-700">
+                      • Los montos se establecen en pesos mexicanos (MXN) • Los
+                      cambios se guardan automáticamente en la base de datos
+                    </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {loadingTiposServicio ? (
                 <div className="flex items-center justify-center py-8">
@@ -5683,10 +6653,13 @@ export default function FacturacionCobranzaPage() {
                         <th className="px-3 py-2 text-right font-semibold text-gray-700">
                           Pago Operador (MXN)
                         </th>
+                        <th className="px-3 py-2 text-center font-semibold text-gray-700">
+                          Eliminar
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {tiposServicio.map((tipo) => (
+                      {paginatedTipos.map((tipo) => (
                         <tr key={tipo.id} className="border-b border-gray-100">
                           <td className="px-3 py-2 font-medium text-gray-800">
                             {tipo.nombre}
@@ -5715,10 +6688,45 @@ export default function FacturacionCobranzaPage() {
                               />
                             </div>
                           </td>
+                          <td className="px-3 py-2 text-center">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                              onClick={() => eliminarTipoServicio(tipo)}
+                            >
+                              Eliminar
+                            </Button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {totalPagesTipos > 1 && (
+                    <div className="flex justify-center items-center space-x-2 mt-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPageTipos((p) => Math.max(1, p - 1))}
+                        disabled={currentPageTipos === 1}
+                      >
+                        <ChevronLeft className="h-4 w-4" />
+                        Anterior
+                      </Button>
+                      <span className="text-sm text-gray-700">
+                        Página {currentPageTipos} de {totalPagesTipos}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPageTipos((p) => Math.min(totalPagesTipos, p + 1))}
+                        disabled={currentPageTipos === totalPagesTipos}
+                      >
+                        Siguiente
+                        <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -5806,6 +6814,7 @@ export default function FacturacionCobranzaPage() {
               <Button
                 onClick={crearNuevoTipoServicio}
                 disabled={guardandoNuevoTipo}
+                className="bg-green-600 hover:bg-green-700 text-white"
               >
                 {guardandoNuevoTipo ? "Guardando..." : "Guardar"}
               </Button>
@@ -5814,7 +6823,7 @@ export default function FacturacionCobranzaPage() {
         </Dialog>
 
         <Dialog open={showDetailModal} onOpenChange={setShowDetailModal}>
-          <DialogContent className="max-w-7xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className={`max-w-7xl w-full ${activeDetailTab === "modificaciones" ? "h-[70vh]" : "h-[50vh]"} overflow-hidden flex flex-col`}>
             <DialogHeader>
               <DialogTitle>
                 Detalles del Embarque - {embarqueDetalle?.folio}
@@ -5822,142 +6831,165 @@ export default function FacturacionCobranzaPage() {
             </DialogHeader>
 
             {embarqueDetalle && (
-              <div className="space-y-4">
+              <div className="space-y-4 flex-1 overflow-y-auto">
                 <div className="border-b flex items-center justify-between gap-2">
-                  <nav className="-mb-px flex space-x-8">
+                  <nav className="-mb-px flex space-x-8" aria-label="Tabs">
                     <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
                         activeDetailTab === "general"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
                       }`}
                       onClick={() => setActiveDetailTab("general")}
                     >
                       Información General
                     </button>
                     <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeDetailTab === "facturacion"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
+                        activeDetailTab === "entrega"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
                       }`}
-                      onClick={() => setActiveDetailTab("facturacion")}
+                      onClick={() => setActiveDetailTab("entrega")}
                     >
-                      Datos de Facturación
+                      Ubicaciones
                     </button>
                     <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
                         activeDetailTab === "transportacion"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
                       }`}
                       onClick={() => setActiveDetailTab("transportacion")}
                     >
                       Transportación
                     </button>
                     <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
+                        activeDetailTab === "facturacion"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => setActiveDetailTab("facturacion")}
+                    >
+                      Facturación
+                    </button>
+                    <button
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
                         activeDetailTab === "cliente"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
                       }`}
                       onClick={() => setActiveDetailTab("cliente")}
                     >
-                      Datos del Cliente
+                      Contacto del Cliente
                     </button>
                     <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                        activeDetailTab === "entrega"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
-                      }`}
-                      onClick={() => setActiveDetailTab("entrega")}
-                    >
-                      Entrega
-                    </button>
-                    <button
-                      className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
                         activeDetailTab === "modificaciones"
-                          ? "border-gray-900 text-gray-900"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                          ? "border-red-500 text-red-600"
+                          : "border-transparent text-red-500 hover:text-red-700"
                       }`}
                       onClick={() => setActiveDetailTab("modificaciones")}
                     >
                       Historial de Cambios
                     </button>
+                    <button
+                      className={`border-b-2 py-2 px-1 text-sm font-medium ${
+                        activeDetailTab === "fotos"
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                      onClick={() => setActiveDetailTab("fotos")}
+                    >
+                      Fotos ({fotosDetalle.length})
+                    </button>
                   </nav>
-                  <div className="-mb-px">
+                  {/* Botón Exportar oculto por solicitud */}
+                  {/* <div className="-mb-px">
                     <Button size="sm" variant="outline" onClick={exportarDetalleEmbarqueExcel}>
-                      <Download className="h-4 w-4 mr-2" /> Exportar Excel
+                      <Download className="h-4 w-4 mr-2" /> Exportar
                     </Button>
-                  </div>
+                  </div> */}
                 </div>
 
-                <div className="mt-4">
+                <div className="mt-4 min-h-[420px]">
                   {activeDetailTab === "general" && (
                     <div className="space-y-6">
-                      <div className="grid grid-cols-2 gap-6">
-                        <div className="space-y-3">
-                          <h3 className="font-medium text-gray-900">
-                            Información del Embarque
-                          </h3>
+                      {/* Información del Embarque */}
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
+                          Información del Embarque
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+                          {/* Columna izquierda: datos del embarque */}
                           <div className="space-y-1">
                             <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">Folio:</span>
+                              <span className="text-gray-500 font-semibold">Folio:</span>
                               <span>{embarqueDetalle.folio}</span>
                             </p>
                             <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">Cliente:</span>
+                              <span className="text-gray-500 font-semibold">Cliente:</span>
                               <span>{embarqueDetalle.clienteNombre}</span>
                             </p>
                             <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">Load:</span>
+                              <span className="text-gray-500 font-semibold">Load:</span>
                               <span>{embarqueDetalle.load_number}</span>
                             </p>
                             <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">
-                                Fecha Creacion:
-                              </span>
+                              <span className="text-gray-500 font-semibold">Fecha Creación:</span>
                               <span>
-                                {new Date(
-                                  embarqueDetalle.updated_at!
-                                ).toLocaleDateString()}
+                                {new Date(embarqueDetalle.updated_at!).toLocaleDateString()}
+                              </span>
+                            </p>
+                            <p className="grid grid-cols-2 text-sm">
+                              <span className="text-gray-500 font-semibold">Carta Porte:</span>
+                              <span>{(embarqueDetalle as any).carta_porte || "-"}</span>
+                            </p>
+                            <p className="grid grid-cols-2 text-sm">
+                              <span className="text-gray-500 font-semibold">Tipo de Servicio:</span>
+                              <span>
+                                {embarqueDetalle.tipoServicioNombre ||
+                                  (tiposServicio.find((t) => t.id === (embarqueDetalle as any).tipo_servicio_id)?.nombre || "Sin especificar")}
+                              </span>
+                            </p>
+                            <p className="grid grid-cols-2 text-sm">
+                              <span className="text-gray-500 font-semibold">Contenido:</span>
+                              <span>{(embarqueDetalle as any).contenido || "-"}</span>
+                            </p>
+                            <p className="grid grid-cols-2 text-sm">
+                              <span className="text-gray-500 font-semibold">Observaciones:</span>
+                              <span>
+                                {embarqueDetalle.comentarios ||
+                                  embarqueDetalle.observacionesFacturacion ||
+                                  (embarqueDetalle as any).observaciones_facturacion ||
+                                  "-"}
                               </span>
                             </p>
                           </div>
-                        </div>
 
-                        <div className="space-y-3">
-                          <h3 className="font-medium text-gray-900">
-                            Detalles de Operación
-                          </h3>
-                          <div className="space-y-1">
-                            <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">Operador:</span>
-                              <span>
-                                {embarqueDetalle.operadorAsignado?.nombre ||
-                                  "Sin asignar"}
-                              </span>
-                            </p>
-                            <p className="grid grid-cols-2 text-sm">
-                              <span className="text-gray-500">Unidad:</span>
-                              <span>
-                                {embarqueDetalle.camionAsignado
-                                  ?.numeroEconomico || "N/A"}
-                              </span>
-                            </p>
+                          {/* Columna derecha: Total facturado grande */}
+                          <div className="flex md:justify-end md:pr-8">
+                            <div className="text-right">
+                              <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Total Facturado</div>
+                              <div className="text-3xl md:text-4xl font-bold text-blue-600 leading-tight">
+                                ${
+                                  (
+                                    (embarqueDetalle.cantidad_final_facturada ?? embarqueDetalle.precio_flete ?? 0) as number
+                                  ).toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                } {embarqueDetalle.moneda_flete || "MXN"}
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </div>
 
+                      
+
                       {embarqueDetalle.comentarios && (
                         <div className="border-t pt-4 mt-4">
-                          <h3 className="font-medium text-gray-900 mb-2">
-                            Comentarios
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {embarqueDetalle.comentarios}
-                          </p>
+                          <h3 className="font-medium text-gray-900 mb-2">Comentarios</h3>
+                          <p className="text-sm text-gray-600">{embarqueDetalle.comentarios}</p>
                         </div>
                       )}
                     </div>
@@ -5965,29 +6997,56 @@ export default function FacturacionCobranzaPage() {
 
                   {activeDetailTab === "facturacion" && (
                     <div className="space-y-6">
-                      <div className="flex justify-end">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => embarqueDetalle && abrirModalFacturacion(embarqueDetalle)}
-                        >
-                          <Edit className="h-4 w-4 mr-2" /> Editar Facturación
-                        </Button>
-                      </div>
-
-                      {/* Resumen compacto en una fila */}
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 border-b pb-2">Información de Facturación</h3>
+                      {/* Resumen compacto en una fila + botón editar alineado */}
                       <div className="flex flex-col md:flex-row md:items-center md:gap-6 text-sm">
                         <div className="flex-1 flex items-center justify-between md:justify-start md:gap-2 py-1">
                           <span className="text-gray-500">Valor Facturado</span>
                           <span className="font-semibold text-gray-900">
-                            ${ (embarqueDetalle.cantidad_final_facturada ?? embarqueDetalle.precio_flete ?? 0).toLocaleString() } {embarqueDetalle.moneda_flete}
+                            ${ (embarqueDetalle.cantidad_final_facturada ?? embarqueDetalle.precio_flete ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) } {embarqueDetalle.moneda_flete}
                           </span>
                         </div>
                         <div className="flex-1 flex items-center justify-between md:justify-start md:gap-2 py-1">
                           <span className="text-gray-500">Estado facturación</span>
-                          <span className="font-semibold text-gray-900 capitalize">
-                            {embarqueDetalle.estado_facturacion?.replaceAll("_"," ") || "pendiente facturación"}
-                          </span>
+                          <div className="flex items-center">
+                            <Select
+                              value={embarqueDetalle.estado_facturacion || "pendiente_facturacion"}
+                              onValueChange={async (value) => {
+                                try {
+                                  const v = (["pendiente_facturacion", "facturado", "pagado"] as const).includes(value as any)
+                                    ? (value as "pendiente_facturacion" | "facturado" | "pagado")
+                                    : "pendiente_facturacion";
+                                  const embarquesActualizados = embarquesAsignados.map((e) =>
+                                    e.id === embarqueDetalle.id ? { ...e, estado_facturacion: v } : e
+                                  );
+                                  if (mounted.current) {
+                                    setEmbarquesAsignados(embarquesActualizados);
+                                    localStorage.setItem(
+                                      "embarquesAsignados",
+                                      JSON.stringify(embarquesActualizados)
+                                    );
+                                    setEmbarqueDetalle({ ...embarqueDetalle, estado_facturacion: v });
+                                  }
+                                  await supabase
+                                    .from("embarques")
+                                    .update({ estado_facturacion: v, updated_at: new Date().toISOString() })
+                                    .eq("id", embarqueDetalle.id);
+                                } catch (error) {
+                                  console.error("Error actualizando estado de facturación:", error);
+                                  alert("Error al actualizar el estado de facturación.");
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="w-44 h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pendiente_facturacion">Pendiente Facturación</SelectItem>
+                                <SelectItem value="facturado">Facturado</SelectItem>
+                                <SelectItem value="pagado">Pagado</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                         <div className="flex-1 flex items-center justify-between md:justify-start md:gap-2 py-1">
                           <span className="text-gray-500">Pago</span>
@@ -6000,6 +7059,15 @@ export default function FacturacionCobranzaPage() {
                             </span>
                           </span>
                         </div>
+                        <div className="mt-2 md:mt-0 md:ml-auto">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => embarqueDetalle && abrirModalFacturacion(embarqueDetalle)}
+                          >
+                            <Edit className="h-4 w-4 mr-2" /> Editar Facturación
+                          </Button>
+                        </div>
                       </div>
 
                       {(embarqueDetalle as any).quickpaid_enabled && (
@@ -6011,9 +7079,9 @@ export default function FacturacionCobranzaPage() {
                         </div>
                       )}
 
-                      {/* Facturas 1 a 4 en filas */}
+                      {/* Listado de facturas en filas */}
                       <div className="space-y-3">
-                        <h3 className="font-medium text-gray-900">Facturas (1 a 4)</h3>
+                        {/* Etiqueta 'Facturas (1 a 4)' removida por solicitud */}
                         <div className="overflow-x-auto">
                           <table className="min-w-full text-sm">
                             <thead>
@@ -6073,20 +7141,35 @@ export default function FacturacionCobranzaPage() {
                   )}
 
                   {activeDetailTab === "transportacion" && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Patente Agente Aduana</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).patente_agente_aduanal || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Aduana de Cruce</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).aduana_cruce || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Dueño de Mercancía</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).dueno_mercancia || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Contenido</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).contenido || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Peso (kg)</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).peso ?? (embarqueDetalle as any).peso_kg ?? "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Carta Porte</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).carta_porte || "-"}</span></p>
+                    <div className="space-y-6">
+                      {/* Detalles de Operación (movido a este tab) */}
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 border-b pb-2">Detalles de Operación</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Operador</span><span className="md:block md:mt-1 font-medium text-gray-900">{embarqueDetalle.operadorAsignado?.nombre || "Sin asignar"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Unidad (Tractocamión)</span><span className="md:block md:mt-1 font-medium text-gray-900">{embarqueDetalle.camionAsignado?.numeroEconomico || (embarqueDetalle as any).camion?.numero_economico || "N/A"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Remolque</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).remolque?.numero_economico || (embarqueDetalle as any).remolque_numero_economico || (embarqueDetalle as any).remolque_placa || "N/A"}</span></p>
+                        </div>
+                      </div>
+
+                      {/* Información de Transportación */}
+                      <div className="space-y-3">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-2 border-b pb-2">Información de Transportación</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Patente Agente Aduana</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).patente_agente_aduanal || "-"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Aduana de Cruce</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).aduana_cruce || "-"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Dueño de Mercancía</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).dueno_mercancia || "-"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Contenido</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).contenido || "-"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Peso (kg)</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).peso ?? (embarqueDetalle as any).peso_kg ?? "-"}</span></p>
+                          <p className="flex justify-between md:block"><span className="text-gray-500">Carta Porte</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).carta_porte || "-"}</span></p>
+                        </div>
                       </div>
                     </div>
                   )}
 
                   {activeDetailTab === "cliente" && (
                     <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 border-b pb-2">Contacto del Cliente</h3>
                       {(() => {
                         const c = getClienteById(embarqueDetalle.cliente_id);
                         const anyDet: any = embarqueDetalle;
@@ -6109,13 +7192,108 @@ export default function FacturacionCobranzaPage() {
                   )}
 
                   {activeDetailTab === "entrega" && (
-                    <div className="space-y-2 text-sm">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Lugar de Recolecta</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).direccion_recolecta || (embarqueDetalle as any).direccionRecolecta || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Lugar de Entrega</span><span className="md:block md:mt-1 font-medium text-gray-900">{(embarqueDetalle as any).direccion_entrega || (embarqueDetalle as any).direccionEnganche || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Fecha/Hora Recolecta</span><span className="md:block md:mt-1 font-medium text-gray-900">{`${(embarqueDetalle as any).fecha_recolecta || ""} ${(embarqueDetalle as any).hora_recolecta || ""}`.trim() || "-"}</span></p>
-                        <p className="flex justify-between md:block"><span className="text-gray-500">Fecha/Hora Entrega</span><span className="md:block md:mt-1 font-medium text-gray-900">{`${(embarqueDetalle as any).fecha_entrega || (embarqueDetalle as any).fechaEntrega || ""} ${(embarqueDetalle as any).hora_entrega || ""}`.trim() || "-"}</span></p>
+                    <div className="space-y-6">
+                      <div className="bg-white border rounded-lg p-6">
+                        <h3 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Direcciones de Recolecta y Entrega</h3>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                          <div className="space-y-3">
+                            <label className="text-sm font-medium text-gray-700">Dirección de Recolecta</label>
+                            <div className="bg-gray-50 border rounded-lg p-4">
+                              <p className="text-sm text-gray-900 leading-relaxed">
+                                {(embarqueDetalle as any).direccion_recolecta || (embarqueDetalle as any).direccionRecolecta || "No especificada"}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-3">
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Fecha</label>
+                                <p className="text-sm text-gray-700">{(embarqueDetalle as any).fecha_recolecta || "Sin fecha"}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hora</label>
+                                <p className="text-sm text-gray-700">{(embarqueDetalle as any).hora_recolecta || "Sin hora"}</p>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-3">
+                            <label className="text-sm font-medium text-gray-700">Dirección de Entrega</label>
+                            <div className="bg-gray-50 border rounded-lg p-4">
+                              <p className="text-sm text-gray-900 leading-relaxed">
+                                {(embarqueDetalle as any).direccion_entrega || (embarqueDetalle as any).direccionEnganche || "No especificada"}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 mt-3">
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Fecha</label>
+                                <p className="text-sm text-gray-700">{(embarqueDetalle as any).fecha_entrega || (embarqueDetalle as any).fechaEntrega || "Sin fecha"}</p>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Hora</label>
+                                <p className="text-sm text-gray-700">{(embarqueDetalle as any).hora_entrega || "Sin hora"}</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                    </div>
+                  )}
+
+                  {activeDetailTab === "fotos" && (
+                    <div className="space-y-4">
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2 border-b pb-2">Fotos de Evidencia del Embarque</h3>
+                      {loadingFotosDetalle ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-600"></div>
+                          <span className="ml-2 text-sm text-gray-600">Cargando fotos...</span>
+                        </div>
+                      ) : fotosDetalle.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                          {fotosDetalle.map((foto) => (
+                            <div key={foto.id} className="border rounded-lg overflow-hidden bg-white">
+                              <button
+                                type="button"
+                                className="block w-full aspect-square bg-gray-50"
+                                onClick={() => setSelectedImage(foto.url_blob)}
+                                title={foto.nombre_archivo}
+                              >
+                                <img
+                                  src={foto.url_blob}
+                                  alt={foto.nombre_archivo}
+                                  className="w-full h-full object-cover"
+                                  loading="lazy"
+                                />
+                              </button>
+                              <div className="p-2 text-xs text-gray-600">
+                                <div className="truncate" title={foto.nombre_archivo}>{foto.nombre_archivo}</div>
+                                <div className="flex justify-between mt-1">
+                                  <span>{foto.fecha_subida ? new Date(foto.fecha_subida).toLocaleDateString() : ""}</span>
+                                  {typeof foto.tamano_bytes === "number" && (
+                                    <span>
+                                      {Math.max(1, Math.round(foto.tamano_bytes / 1024))} KB
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex justify-end gap-2 mt-2">
+                                  <a
+                                    href={foto.url_blob}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                  >
+                                    Ver
+                                  </a>
+                                  <a href={foto.url_blob} download className="text-gray-700 hover:underline">
+                                    Descargar
+                                  </a>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-center py-10 text-gray-600">
+                          No hay fotos de evidencia para este embarque.
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -6130,6 +7308,27 @@ export default function FacturacionCobranzaPage() {
                 </div>
               </div>
             )}
+
+            {/* Footer actions: Cerrar, Exportar, Modificar */}
+            <div className="border-t pt-3 mt-3 flex items-center justify-start gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowDetailModal(false)}
+                aria-label="Cerrar detalles"
+              >
+                Cerrar
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportarDetalleEmbarqueExcel}
+                aria-label="Exportar detalles"
+              >
+                <Download className="h-4 w-4 mr-2" /> Exportar
+              </Button>
+              {/* Botón Modificar oculto por solicitud */}
+            </div>
           </DialogContent>
         </Dialog>
 
@@ -6430,6 +7629,30 @@ export default function FacturacionCobranzaPage() {
               </DialogDescription>
             </DialogHeader>
 
+            {/* Controles de generación aleatoria */}
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs">Cantidad</Label>
+                <Select
+                  value={String(facturasRandomCount)}
+                  onValueChange={(v) => setFacturasRandomCount(Number(v))}
+                >
+                  <SelectTrigger className="w-[90px] h-8">
+                    <SelectValue placeholder="Cantidad" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">1</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="3">3</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button type="button" variant="outline" onClick={() => generarFacturacionAleatoria(facturasRandomCount)}>
+                Generar aleatorio
+              </Button>
+            </div>
+
             <div className="space-y-3">
               <div className="hidden md:grid md:grid-cols-4 gap-2 text-xs text-gray-600">
                 <div>Folio</div>
@@ -6693,8 +7916,8 @@ export default function FacturacionCobranzaPage() {
               >
                 Cancelar
               </Button>
-              <Button type="button" onClick={guardarDatosFacturacion}>
-                Guardar
+              <Button type="button" onClick={guardarDatosFacturacion} disabled={savingFacturacion} className="bg-green-600 hover:bg-green-700 text-white disabled:opacity-50">
+                {savingFacturacion ? "Guardando..." : "Guardar"}
               </Button>
             </DialogFooter>
           </DialogContent>

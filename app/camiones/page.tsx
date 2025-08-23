@@ -2525,7 +2525,7 @@ export default function CamionesPage() {
                   placeholder="Buscar por número económico, marca, modelo o placas..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-sm"
+                  className="w-full sm:w-[28rem]"
                 />
               </div>
               {totalItems > 0 && (

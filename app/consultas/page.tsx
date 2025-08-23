@@ -3,9 +3,6 @@
 import { MainLayout } from "@/components/layout/main-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import {
   Download,
@@ -15,8 +12,6 @@ import {
   Package,
   TrendingUp,
   AlertTriangle,
-  FileText,
-  TrendingDown,
 } from "lucide-react"
 import { useState, useEffect } from "react"
 // Corregir importación para usar la instancia supabase existente
@@ -25,8 +20,6 @@ import { supabase } from "@/lib/supabase"
 export default function ConsultasPage() {
   const [fechaInicio, setFechaInicio] = useState("")
   const [fechaFin, setFechaFin] = useState("")
-  const [tipoConsulta, setTipoConsulta] = useState("todos")
-  const [clienteSeleccionado, setClienteSeleccionado] = useState("todos")
   const [loading, setLoading] = useState(true)
 
   // Estados para las estadísticas
@@ -37,7 +30,7 @@ export default function ConsultasPage() {
   const [motivosContingencia, setMotivosContingencia] = useState<any[]>([])
   const [estadisticasGenerales, setEstadisticasGenerales] = useState<any>({})
   const [embarquesPorEstado, setEmbarquesPorEstado] = useState<any[]>([])
-  const [fletesExtremos, setFletesExtremos] = useState<{ altos: any[]; bajos: any[] }>({ altos: [], bajos: [] })
+  const [clientesMenosAsignados, setClientesMenosAsignados] = useState<Array<{ id: string | number; nombre: string; asignados: number }>>([])
 
   useEffect(() => {
     cargarEstadisticas()
@@ -198,10 +191,10 @@ export default function ConsultasPage() {
       setMotivosContingencia(motivosData || [])
 
       // Obtener estadísticas generales
-      const { data: embarquesCount } = await supabase.from("embarques").select("*", { count: "exact", head: true })
-      const { data: operadoresCount } = await supabase.from("operadores").select("*", { count: "exact", head: true })
-      const { data: camionesCount } = await supabase.from("camiones").select("*", { count: "exact", head: true })
-      const { data: clientesCount } = await supabase.from("clientes").select("*", { count: "exact", head: true })
+  const { count: embarquesCount } = await supabase.from("embarques").select("*", { count: "exact", head: true })
+  const { count: operadoresCount } = await supabase.from("operadores").select("*", { count: "exact", head: true })
+  const { count: camionesCount } = await supabase.from("camiones").select("*", { count: "exact", head: true })
+  const { count: clientesCount } = await supabase.from("clientes").select("*", { count: "exact", head: true })
 
       // Obtener distribución de embarques por estado
       const { data: embarquesPorEstadoData } = await supabase.from("embarques").select("estado")
@@ -219,33 +212,48 @@ export default function ConsultasPage() {
       }))
       setEmbarquesPorEstado(estadosArray)
 
-      const { data: fletesData } = await supabase
-        .from("vista_embarques_completa")
+  // Año actual para limitar el cálculo al presente año
+      const now = new Date()
+      const year = now.getFullYear()
+      const startOfYear = `${year}-01-01`
+      const startOfNextYear = `${year + 1}-01-01`
+
+      // Traer todos los clientes y embarques históricos (excluye cancelados) y agrupar por cliente
+      const { data: clientesTodos } = await supabase.from("clientes").select("id, nombre")
+      const { data: embarquesAll } = await supabase
+        .from("embarques")
         .select(`
-          id,
-          numero_embarque,
-          cliente_nombre,
-          origen,
-          destino,
-          precio_flete,
-          moneda_flete,
-          fecha_creacion,
-          operador_nombre
+          cliente_id,
+          estado,
+          cliente:clientes(nombre)
         `)
-        .not("precio_flete", "is", null)
-        .order("precio_flete", { ascending: false })
+        .not("cliente_id", "is", null)
+        .neq("estado", "cancelado")
 
-      // Obtener los 5 fletes más altos y más bajos
-      const fletesAltos = fletesData?.slice(0, 5) || []
-      const fletesBajos = fletesData?.slice(-5).reverse() || []
+      const mapa = new Map<string | number, { id: string | number; nombre: string; asignados: number }>()
+      ;(clientesTodos || []).forEach((c: any) => {
+        mapa.set(c.id, { id: c.id, nombre: c.nombre || "Cliente sin nombre", asignados: 0 })
+      })
+      ;(embarquesAll || []).forEach((e: any) => {
+        const id = e.cliente_id
+        if (!id) return
+        if (!mapa.has(id)) {
+          mapa.set(id, { id, nombre: e.cliente?.nombre || "Cliente sin nombre", asignados: 0 })
+        }
+        const item = mapa.get(id)!
+        item.asignados += 1
+      })
 
-      setFletesExtremos({ altos: fletesAltos, bajos: fletesBajos })
+      const menosAsignados = Array.from(mapa.values())
+        .sort((a, b) => a.asignados - b.asignados || a.nombre.localeCompare(b.nombre))
+        .slice(0, 5)
+      setClientesMenosAsignados(menosAsignados)
 
       setEstadisticasGenerales({
-        totalEmbarques: embarquesCount?.count || 0,
-        totalOperadores: operadoresCount?.count || 0,
-        totalCamiones: camionesCount?.count || 0,
-        totalClientes: clientesCount?.count || 0,
+        totalEmbarques: embarquesCount || 0,
+        totalOperadores: operadoresCount || 0,
+        totalCamiones: camionesCount || 0,
+        totalClientes: clientesCount || 0,
       })
     } catch (error) {
       console.error("Error cargando estadísticas:", error)
@@ -257,15 +265,15 @@ export default function ConsultasPage() {
   const descargarReporteCompleto = () => {
     const reporteCompleto = {
       fecha_reporte: new Date().toISOString().split("T")[0],
-      periodo: `${fechaInicio || "Inicio"} - ${fechaFin || "Actual"}`,
+      periodo: `${new Date().getFullYear()} (Año actual)`,
       estadisticas_generales: estadisticasGenerales,
       top_clientes: topClientes,
       camiones_mas_usados: camionesUsados,
       operadores_stats: operadoresStats,
       tipos_servicio_populares: tiposServicio,
       motivos_contingencia: motivosContingencia,
-      embarques_por_estado: embarquesPorEstado,
-      fletes_extremos: fletesExtremos,
+  embarques_por_estado: embarquesPorEstado,
+  clientes_menos_asignados: clientesMenosAsignados,
     }
 
     const jsonContent = JSON.stringify(reporteCompleto, null, 2)
@@ -450,7 +458,7 @@ export default function ConsultasPage() {
                 <div>
                   <p className="font-semibold text-green-600 mb-2">Más Embarques</p>
                   <div className="space-y-2">
-                    {operadoresStats.masEmbarques?.map((operador, index) => (
+                    {operadoresStats.masEmbarques?.map((operador: any, index: number) => (
                       <div key={operador.id} className="flex items-center justify-between p-2 bg-green-50 rounded-lg">
                         <span className="text-sm font-medium">{operador.nombre}</span>
                         <Badge className="bg-green-100 text-green-800">{operador.embarques}</Badge>
@@ -461,7 +469,7 @@ export default function ConsultasPage() {
                 <div>
                   <p className="font-semibold text-red-600 mb-2">Menos Embarques</p>
                   <div className="space-y-2">
-                    {operadoresStats.menosEmbarques?.map((operador, index) => (
+                    {operadoresStats.menosEmbarques?.map((operador: any, index: number) => (
                       <div key={operador.id} className="flex items-center justify-between p-2 bg-red-50 rounded-lg">
                         <span className="text-sm font-medium">{operador.nombre}</span>
                         <Badge className="bg-red-100 text-red-800">{operador.embarques}</Badge>
@@ -559,131 +567,36 @@ export default function ConsultasPage() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <TrendingUp className="h-5 w-5 text-blue-600" />
-                Fletes Extremos
+                <Users className="h-5 w-5 text-red-600" />
+                Clientes con menos operaciones (Histórico)
               </CardTitle>
-              <CardDescription>Embarques con precios más altos y más bajos</CardDescription>
+              <CardDescription>Top 5 clientes con menor número de operaciones (incluye archivados)</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-6">
-                <div>
-                  <h4 className="font-semibold text-green-600 mb-3 flex items-center">
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Fletes Más Altos
-                  </h4>
-                  <div className="space-y-2">
-                    {fletesExtremos.altos.map((embarque, index) => (
-                      <div
-                        key={embarque.id}
-                        className="flex items-center justify-between p-3 border rounded-lg bg-green-50"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-green-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <p className="font-medium">{embarque.numero_embarque}</p>
-                            <p className="text-sm text-gray-600">{embarque.cliente_nombre}</p>
-                            <p className="text-xs text-gray-500">
-                              {embarque.origen} → {embarque.destino}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-green-600">
-                            ${embarque.precio_flete?.toLocaleString()} {embarque.moneda_flete}
-                          </p>
-                          <p className="text-xs text-gray-500">{embarque.operador_nombre}</p>
-                        </div>
+              <div className="space-y-3">
+                {clientesMenosAsignados.map((cliente, index) => (
+                  <div key={cliente.id} className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <div className="flex items-center justify-center w-8 h-8 bg-red-100 text-red-600 rounded-full font-bold">
+                        {index + 1}
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-semibold text-red-600 mb-3 flex items-center">
-                    <TrendingDown className="h-4 w-4 mr-2" />
-                    Fletes Más Bajos
-                  </h4>
-                  <div className="space-y-2">
-                    {fletesExtremos.bajos.map((embarque, index) => (
-                      <div
-                        key={embarque.id}
-                        className="flex items-center justify-between p-3 border rounded-lg bg-red-50"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center text-sm font-bold">
-                            {index + 1}
-                          </div>
-                          <div>
-                            <p className="font-medium">{embarque.numero_embarque}</p>
-                            <p className="text-sm text-gray-600">{embarque.cliente_nombre}</p>
-                            <p className="text-xs text-gray-500">
-                              {embarque.origen} → {embarque.destino}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-red-600">
-                            ${embarque.precio_flete?.toLocaleString()} {embarque.moneda_flete}
-                          </p>
-                          <p className="text-xs text-gray-500">{embarque.operador_nombre}</p>
-                        </div>
+                      <div>
+                        <p className="font-medium">{cliente.nombre}</p>
+                        <p className="text-sm text-gray-600">Incluye archivados</p>
                       </div>
-                    ))}
+                    </div>
+                    <Badge className="bg-red-100 text-red-800">{cliente.asignados} operaciones</Badge>
                   </div>
-                </div>
-
-                {fletesExtremos.altos.length === 0 && fletesExtremos.bajos.length === 0 && (
-                  <p className="text-center text-gray-500 py-4">No hay datos de fletes disponibles</p>
+                ))}
+                {clientesMenosAsignados.length === 0 && (
+                  <p className="text-center text-gray-500 py-4">No hay embarques asignados este año</p>
                 )}
               </div>
             </CardContent>
           </Card>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Filtros de Consulta</CardTitle>
-            <CardDescription>Personaliza el período de análisis</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="fechaInicio">Fecha Inicio</Label>
-                <Input
-                  id="fechaInicio"
-                  type="date"
-                  value={fechaInicio}
-                  onChange={(e) => setFechaInicio(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="fechaFin">Fecha Fin</Label>
-                <Input id="fechaFin" type="date" value={fechaFin} onChange={(e) => setFechaFin(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="tipoConsulta">Tipo de Consulta</Label>
-                <Select value={tipoConsulta} onValueChange={setTipoConsulta}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todos">Todos los registros</SelectItem>
-                    <SelectItem value="activos">Solo activos</SelectItem>
-                    <SelectItem value="recientes">Últimos 30 días</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-end">
-                <Button onClick={cargarEstadisticas} className="w-full">
-                  <FileText className="h-4 w-4 mr-2" />
-                  Actualizar
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+  {/* Sección de filtros de consulta eliminada según requerimiento */}
       </div>
     </MainLayout>
   )

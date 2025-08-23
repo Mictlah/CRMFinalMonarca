@@ -20,6 +20,15 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import {
   Truck,
   Users,
   Search,
@@ -31,8 +40,10 @@ import {
   Check,
   Camera,
   Coins,
+  Package,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Trash2 } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   supabase,
@@ -45,6 +56,7 @@ import {
 } from "@/lib/supabase";
 import { getAlertThresholds, calcularNivelAlerta } from "@/lib/alert-thresholds";
 import { agregarAuditLog } from "@/lib/audit";
+import { getCurrentUser } from "@/lib/auth";
 
 export default function AsignarOperadoresPage() {
   const searchParams = useSearchParams();
@@ -76,6 +88,12 @@ export default function AsignarOperadoresPage() {
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showModifyModal, setShowModifyModal] = useState(false);
+  // Cancelación
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelingEmbarque, setCancelingEmbarque] = useState<Embarque | null>(
+    null
+  );
+  const [cancelReason, setCancelReason] = useState("");
   const [embarqueDetalle, setEmbarqueDetalle] = useState<Embarque | null>(null);
   const [embarqueAModificar, setEmbarqueAModificar] = useState<Embarque | null>(
     null
@@ -87,6 +105,237 @@ export default function AsignarOperadoresPage() {
     []
   );
   const [loadingCompleted, setLoadingCompleted] = useState(false);
+  // Contadores para verificación
+  const [totalFinalizadosDB, setTotalFinalizadosDB] = useState<number | null>(null);
+  const [totalCanceladosArchivadosDB, setTotalCanceladosArchivadosDB] = useState<number | null>(null);
+
+  // Estado y utilidades para filtros/sort/paginación de Registros Completados
+  const [completadosSearch, setCompletadosSearch] = useState("");
+  const [completadosTipoServicio, setCompletadosTipoServicio] = useState("todos");
+  const [completadosPeriodo, setCompletadosPeriodo] = useState<
+    "todo" | "mes_actual" | "mes_anterior" | "ultimos_3" | "ultimos_6" | "este_anio"
+  >("todo");
+  const [completadosSortField, setCompletadosSortField] = useState<
+    "folio" | "cliente" | "load" | "fecha" | "tipo"
+  >("folio");
+  const [completadosSortDir, setCompletadosSortDir] = useState<"asc" | "desc">(
+    "desc"
+  );
+  const [completadosPage, setCompletadosPage] = useState(1);
+  const [completadosPageSize, setCompletadosPageSize] = useState(25);
+
+  // Determinar el ID más antiguo con estado archivado (para habilitar eliminación siempre en el más viejo)
+  const masViejoArchivadoId = useMemo(() => {
+    const archivados = (embarquesFinalizados || []).filter((e) => e.estado === "archivado");
+    if (archivados.length === 0) return null as string | null;
+    const ordenados = [...archivados].sort((a, b) => {
+      const ad = new Date(a.fecha_creacion || a.updated_at || 0).getTime();
+      const bd = new Date(b.fecha_creacion || b.updated_at || 0).getTime();
+      return ad - bd;
+    });
+    return ordenados[0]?.id || null;
+  }, [embarquesFinalizados]);
+
+  // Regla de 1 año para activar el botón Eliminar en registros archivados
+  const puedeEliminarCompletado = (e: Embarque) => {
+    if (e.estado !== "archivado") return false; // solo eliminar si está archivado
+    const baseIso = e.fecha_creacion || e.updated_at || e.fecha_finalizacion;
+    if (!baseIso) return false;
+    const base = new Date(baseIso);
+    if (isNaN(base.getTime())) return false;
+    const ahora = new Date();
+    const haceUnAnio = new Date(ahora);
+    haceUnAnio.setFullYear(ahora.getFullYear() - 1);
+    return (masViejoArchivadoId && e.id === masViejoArchivadoId) || base <= haceUnAnio;
+  };
+
+  const eliminarCompletado = async (embarque: Embarque) => {
+    // Si no es archivado, sólo lo oculta del modal (seguridad extra)
+    if (embarque.estado !== "archivado") {
+      setEmbarquesFinalizados((prev) => prev.filter((x) => x.id !== embarque.id));
+      return;
+    }
+    const confirmado = window.confirm(
+      `¿Eliminar definitivamente el embarque ${embarque.folio}?\n\nEsta acción no se puede deshacer y eliminará el registro de forma permanente.`
+    );
+    if (!confirmado) return;
+    try {
+      setSaving(true);
+      await agregarAuditLog("ELIMINAR", "Asignación → Registros Completados", `Folio: ${embarque.folio} | Usuario: ${getCurrentUser()?.nombre || ''}`);
+      const { error } = await supabase.from("embarques").delete().eq("id", embarque.id);
+      if (error) {
+        console.error("Error eliminando embarque:", error);
+        alert("Error al eliminar: " + error.message);
+        return;
+      }
+      // Refrescar listas
+      await cargarEmbarquesFinalizados();
+      await cargarDatos();
+    } catch (err) {
+      console.error("Error inesperado al eliminar:", err);
+      alert("No se pudo eliminar el embarque.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Resetear página cuando cambian filtros
+  useEffect(() => {
+    setCompletadosPage(1);
+  }, [completadosSearch, completadosTipoServicio, completadosPeriodo, completadosPageSize]);
+
+  const getServiceDisplayName = (id: string) => {
+    switch (id) {
+      case "exportacion-cargada-caja-seca-240":
+        return "EXP. CARGADA - CAJA SECA 240";
+      case "exportacion-cargada-larmex-240":
+        return "EXP. CARGADA - CAJA SECA (LARMEX) 240";
+      case "exportacion-cargada-thermo-agricultura-240":
+        return "EXP. CARGADA - THERMO (AGRICULTURA) 240";
+      case "exportacion-cargada-plataforma-240":
+        return "EXP. CARGADA - PLATAFORMA 240";
+      case "importacion-cargada-caja-seca-240":
+        return "IMP. CARGADA - CAJA SECA 240";
+      case "importacion-cargada-plataforma-240":
+        return "IMP. CARGADA - PLATAFORMA 240";
+      case "importacion-vacia-caja-seca-thermo-240":
+        return "IMP. VACÍA - CAJA SECA/THERMO 240";
+      case "importacion-cargada-plataforma-amarre-240":
+        return "IMP. CARGADA - PLATAFORMA CON AMARRE 240";
+      case "importacion-en-tractor-240":
+        return "IMP. - EN TRACTOR 240";
+      case "exportacion-cargada-caja-seca-800":
+        return "EXP. CARGADA - CAJA SECA 800";
+      case "exportacion-vacia-caja-seca-800":
+        return "EXP. VACÍA - CAJA SECA 800";
+      case "exportacion-en-tractor-800":
+        return "EXP. - EN TRACTOR 800";
+      case "exportacion-cargada-plataforma-800":
+        return "EXP. CARGADA - PLATAFORMA 800";
+      case "importacion-cargada-caja-seca-800":
+        return "IMP. CARGADA - CAJA SECA 800";
+      case "importacion-vacia-plataforma-800":
+        return "IMP. VACÍA - PLATAFORMA 800";
+      case "pagos-extras":
+        return "PAGOS EXTRAS";
+      case "horas-rojo-amarillo":
+        return "HORAS ROJO/AMARILLO";
+      case "cargas-descargas":
+        return "CARGAS/DESCARGAS";
+      case "movimientos-en-falso":
+        return "MOVIMIENTOS EN FALSO";
+      case "movimientos-locales":
+        return "MOVIMIENTOS LOCALES";
+      case "otro":
+        return "OTRO";
+      default:
+        return id || "No especificado";
+    }
+  };
+
+  const sortIndicatorCompletados = (field: typeof completadosSortField) => {
+    if (completadosSortField !== field) return "";
+    return completadosSortDir === "asc" ? " ▲" : " ▼";
+  };
+
+  const handleSortCompletados = (field: typeof completadosSortField) => {
+    if (completadosSortField === field) {
+      setCompletadosSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setCompletadosSortField(field);
+      setCompletadosSortDir("asc");
+    }
+  };
+
+  const tiposServicioCompletados = Array.from(
+    new Set((embarquesFinalizados || []).map((e) => e.tipo_servicio_id).filter(Boolean))
+  ) as string[];
+
+  const fechaDentroDePeriodo = (fechaIso?: string | null) => {
+    if (!fechaIso) return false;
+    const fecha = new Date(fechaIso);
+    const ahora = new Date();
+    const anioActual = ahora.getFullYear();
+    const mesActual = ahora.getMonth();
+    if (completadosPeriodo === "todo") return true;
+    if (completadosPeriodo === "mes_actual") {
+      return fecha.getFullYear() === anioActual && fecha.getMonth() === mesActual;
+    }
+    if (completadosPeriodo === "mes_anterior") {
+      const mesAnterior = new Date(anioActual, mesActual - 1, 1);
+      return (
+        fecha.getFullYear() === mesAnterior.getFullYear() &&
+        fecha.getMonth() === mesAnterior.getMonth()
+      );
+    }
+    if (completadosPeriodo === "ultimos_3") {
+      const limite = new Date();
+      limite.setMonth(limite.getMonth() - 3);
+      return fecha >= limite;
+    }
+    if (completadosPeriodo === "ultimos_6") {
+      const limite = new Date();
+      limite.setMonth(limite.getMonth() - 6);
+      return fecha >= limite;
+    }
+    if (completadosPeriodo === "este_anio") {
+      return fecha.getFullYear() === anioActual;
+    }
+    return true;
+  };
+
+  const embarquesFinalizadosFiltrados = (embarquesFinalizados || [])
+    .filter((e) => {
+      const term = completadosSearch.toLowerCase();
+      const matchesTerm =
+        !term ||
+        e.folio?.toLowerCase().includes(term) ||
+        (e.cliente?.nombre || "").toLowerCase().includes(term) ||
+        (e.load_number || "").toLowerCase().includes(term);
+      const matchesTipo =
+        completadosTipoServicio === "todos" || e.tipo_servicio_id === completadosTipoServicio;
+      const fechaRef = e.fecha_finalizacion || e.updated_at || e.fecha_creacion;
+      const matchesPeriodo = fechaDentroDePeriodo(fechaRef || undefined);
+      return matchesTerm && matchesTipo && matchesPeriodo;
+    })
+    .sort((a, b) => {
+      const dir = completadosSortDir === "asc" ? 1 : -1;
+      const val = (f: typeof completadosSortField, x: any) => {
+        switch (f) {
+          case "folio":
+            return x.folio || "";
+          case "cliente":
+            return (x.cliente?.nombre || "");
+          case "load":
+            return x.load_number || "";
+          case "tipo":
+            return getServiceDisplayName(x.tipo_servicio_id || "");
+          case "fecha":
+          default:
+            return new Date(x.fecha_finalizacion || x.updated_at || x.fecha_creacion || 0).getTime();
+        }
+      };
+      const av = val(completadosSortField, a);
+      const bv = val(completadosSortField, b);
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return 0;
+    });
+
+  const totalCompletadosFiltrados = embarquesFinalizadosFiltrados.length;
+  const totalCompletadosPaginas = Math.max(
+    1,
+    Math.ceil(totalCompletadosFiltrados / completadosPageSize)
+  );
+  const firstIdxComp = totalCompletadosFiltrados === 0 ? 0 : (completadosPage - 1) * completadosPageSize;
+  const lastIdxComp = Math.min(
+    totalCompletadosFiltrados,
+    firstIdxComp + completadosPageSize
+  );
+  const embarquesFinalizadosPaginados = embarquesFinalizadosFiltrados.slice(
+    firstIdxComp,
+    lastIdxComp
+  );
 
   // Estados para los datos
   const [embarques, setEmbarques] = useState<Embarque[]>([]);
@@ -135,12 +384,68 @@ export default function AsignarOperadoresPage() {
   const [loadingFotos, setLoadingFotos] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
+  const cancelarEmbarque = async () => {
+    if (!cancelingEmbarque || !cancelReason.trim()) {
+      alert("Por favor ingresa una justificación para la cancelación");
+      return;
+    }
+    try {
+      setSaving(true);
+      const baseUpdate: any = {
+        estado: "cancelado",
+        updated_at: new Date().toISOString(),
+      };
+      try {
+        baseUpdate.observaciones = `${
+          (cancelingEmbarque as any).observaciones || ""
+        }\n\n[CANCELADO] ${cancelReason}`.trim();
+      } catch {}
+
+      const { error: baseError } = await supabase
+        .from("embarques")
+        .update(baseUpdate)
+        .eq("id", cancelingEmbarque.id);
+      if (baseError) {
+        alert(`Error al cancelar embarque: ${baseError.message}`);
+        return;
+      }
+      // Metadata best-effort
+      try {
+        const metaUpdate: any = {
+          fecha_cancelacion: new Date().toISOString(),
+          cancelado_por: getCurrentUser()?.nombre || "Usuario",
+          motivo_cancelacion: cancelReason.trim(),
+        };
+        await supabase.from("embarques").update(metaUpdate).eq("id", cancelingEmbarque.id);
+      } catch (e) {
+        console.warn("No se pudo guardar metadata de cancelación", e);
+      }
+      try {
+        await agregarAuditLog(
+          "ACTUALIZAR",
+          "Embarques",
+          `Folio: ${cancelingEmbarque.folio} | Motivo: ${cancelReason}`
+        );
+      } catch {}
+
+      setShowCancelModal(false);
+      setCancelingEmbarque(null);
+      setCancelReason("");
+      await cargarDatos();
+    } catch (e) {
+      console.error(e);
+      alert("Error al cancelar embarque");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // Cargar datos desde Supabase
   const cargarDatos = async () => {
     try {
       setLoading(true);
 
-      const { data: embarquesData, error: embarquesError } = await supabase
+    const { data: embarquesData, error: embarquesError } = await supabase
         .from("embarques")
         .select(
           `
@@ -151,7 +456,7 @@ export default function AsignarOperadoresPage() {
           remolque:remolques(*)
         `
         )
-        .in("estado", ["listo-para-asignar", "asignado", "en-transito"])
+  .in("estado", ["listo-para-asignar", "asignado", "en-transito", "cancelado", "archivado"]) // incluir cancelados y archivados para lógica de doble archivado
         .order("fecha_creacion", { ascending: false });
 
       if (embarquesError) {
@@ -242,7 +547,7 @@ export default function AsignarOperadoresPage() {
         remolque:remolques(*)
       `
         )
-        .eq("estado", "finalizado")
+        .in("estado", ["finalizado", "cancelado", "archivado"]) // incluir archivados si fueron archivados en Asignación
         .order("updated_at", { ascending: false });
 
       if (
@@ -264,7 +569,7 @@ export default function AsignarOperadoresPage() {
             remolque:remolques(*)
           `
           )
-          .eq("estado", "finalizado")
+          .in("estado", ["finalizado", "cancelado", "archivado"]) // incluir archivados si fueron archivados en Asignación
           .order("updated_at", { ascending: false });
 
         if (fallbackError) {
@@ -283,12 +588,52 @@ export default function AsignarOperadoresPage() {
         return;
       }
 
-      setEmbarquesFinalizados(embarquesData || []);
+      // Mostrar todos los FINALIZADOS.
+      // Mostrar CANCELADOS solo si fueron archivados desde Asignación (tag en observaciones).
+      // Mostrar ARCHIVADOS si:
+      //   - Fueron previamente FINALIZADOS (tienen fecha_finalizacion), o
+      //   - Fueron archivados desde Asignación (tienen el tag en observaciones).
+      const withArchFilter = (embarquesData || []).filter((e) => {
+        if (e.estado === "finalizado") return true;
+        if (e.estado === "cancelado") {
+          const obs = (e.observaciones || "").toUpperCase();
+          return obs.includes("[ARCHIVADO-ASIGNACION]");
+        }
+        if (e.estado === "archivado") {
+          const obs = (e.observaciones || "").toUpperCase();
+          const archivadoAsignacion = obs.includes("[ARCHIVADO-ASIGNACION]");
+          const fueFinalizado = Boolean(e.fecha_finalizacion);
+          return fueFinalizado || archivadoAsignacion;
+        }
+        return false;
+      });
+      setEmbarquesFinalizados(withArchFilter);
+      // Actualizar contadores globales desde la BD
+      await contarCompletadosDB();
     } catch (error) {
       console.error("Error general:", error);
       setEmbarquesFinalizados([]);
     } finally {
       setLoadingCompleted(false);
+    }
+  };
+
+  const contarCompletadosDB = async () => {
+    try {
+      const [{ count: countFinalizados }, { count: countCanceladosArch } ] = await Promise.all([
+        supabase.from("embarques").select("id", { count: "exact", head: true }).eq("estado", "finalizado"),
+        supabase
+          .from("embarques")
+          .select("id", { count: "exact", head: true })
+          .eq("estado", "cancelado")
+          .ilike("observaciones", "%[ARCHIVADO-ASIGNACION]%"),
+      ]);
+      setTotalFinalizadosDB(typeof countFinalizados === "number" ? countFinalizados : null);
+      setTotalCanceladosArchivadosDB(typeof countCanceladosArch === "number" ? countCanceladosArch : null);
+    } catch (err) {
+      console.error("Error contando completados:", err);
+      setTotalFinalizadosDB(null);
+      setTotalCanceladosArchivadosDB(null);
     }
   };
 
@@ -423,6 +768,22 @@ export default function AsignarOperadoresPage() {
     try {
       setSaving(true);
 
+      // Validación específica: si se eligió capturar remolque manual, requerir ambos campos
+      if (
+        modificacionData.cambiar_remolque &&
+        modificacionData.nuevo_remolque_id === "manual"
+      ) {
+        const placa = (modificacionData.remolque_placa || "").trim();
+        const numero = (modificacionData.remolque_numero_economico || "").trim();
+        if (!numero || !placa) {
+          alert(
+            "Para remolque manual, captura el Número Económico y la Placa."
+          );
+          setSaving(false);
+          return;
+        }
+      }
+
       const updateData: any = {
         updated_at: new Date().toISOString(),
       };
@@ -468,6 +829,12 @@ export default function AsignarOperadoresPage() {
           updateData.moneda_flete = modificacionData.nueva_moneda_flete;
         }
         updateData.flete_falso = modificacionData.flete_en_falso;
+  // Al modificar el flete en contingencia, cualquier QuickPaid previo deja de aplicar.
+  // Convertimos el nuevo precio en el precio regular a mostrar en tarjetas.
+  updateData.quickpaid_enabled = false;
+  updateData.quickpaid_percent = null;
+  updateData.quickpaid_descuento = null;
+  updateData.precio_quickpaid = null;
       }
 
       const { error: updateError } = await supabase
@@ -476,8 +843,14 @@ export default function AsignarOperadoresPage() {
         .eq("id", embarqueAModificar.id);
 
       if (updateError) {
+        // Mostrar más detalles si existen (mensaje, detalles, hint)
+        const detailedMsg =
+          (updateError as any)?.message ||
+          (updateError as any)?.details ||
+          (updateError as any)?.hint ||
+          JSON.stringify(updateError);
         console.error("Error actualizando embarque:", updateError);
-        alert("Error al actualizar embarque: " + updateError.message);
+        alert("Error al actualizar embarque: " + detailedMsg);
         return;
       }
 
@@ -675,6 +1048,7 @@ export default function AsignarOperadoresPage() {
 
       const updateData: any = {
         estado: "finalizado",
+        estado_facturacion: "pendiente_facturacion",
         updated_at: new Date().toISOString(),
       };
 
@@ -732,7 +1106,8 @@ export default function AsignarOperadoresPage() {
         fechaAsignacion: new Date().toISOString().split("T")[0],
         fechaCompletado: new Date().toISOString().split("T")[0],
         fecha_finalizacion: new Date().toISOString(),
-        estado: "completado",
+  estado: "completado",
+  estado_facturacion: "pendiente_facturacion",
         montoFacturado: embarque.precio_flete || 0,
         precioFlete: embarque.precio_flete || 0,
         precio_flete: embarque.precio_flete || 0,
@@ -770,7 +1145,7 @@ export default function AsignarOperadoresPage() {
       );
       const embarquesAsignadosActualizados = [
         ...embarquesAsignados.filter((e: any) => e.id !== embarque.id),
-        { ...embarqueCompletado, estado: "finalizado" },
+  { ...embarqueCompletado, estado: "finalizado", estado_facturacion: "pendiente_facturacion" },
       ];
       localStorage.setItem(
         "embarquesAsignados",
@@ -780,7 +1155,11 @@ export default function AsignarOperadoresPage() {
       alert(
         `Embarque ${embarque.folio} finalizado exitosamente.\nAhora está disponible en el área de Facturación y Cobranza.`
       );
-      await cargarDatos();
+      // Refrescar datos de pantalla y del modal de completados
+      await Promise.all([
+        cargarDatos(),
+        cargarEmbarquesFinalizados(),
+      ]);
     } catch (error) {
       console.error("Error:", error);
       alert("Error al finalizar embarque");
@@ -789,27 +1168,36 @@ export default function AsignarOperadoresPage() {
     }
   };
 
-  // Archivar un embarque finalizado (mover a Archivados como en Crear Embarques)
+  // Archivar desde Asignación: marcar el registro como archivado en Asignación (no mover a "Crear Embarques → Archivos")
   const archivarEmbarque = async (embarqueId: string) => {
     const embarque = embarques.find((e) => e.id === embarqueId);
     if (!embarque) return;
     const ok = window.confirm(
-      `¿Deseas archivar el embarque ${embarque.folio}?\n\nPodrás consultarlo en Crear Embarques → Archivos.`
+      `¿Deseas archivar el embarque ${embarque.folio} en Registros Completados?\n\nQuedará disponible en Asignación → Registros Completados.`
     );
     if (!ok) return;
     try {
       setSaving(true);
       const nowIso = new Date().toISOString();
+      // Marcar como archivado en Asignación usando una etiqueta en observaciones para no requerir cambios de esquema
+      const tag = "[ARCHIVADO-ASIGNACION]";
+      const observacionesPrevias = embarque.observaciones || "";
+      const yaArchivado = observacionesPrevias.toUpperCase().includes(tag);
+      const nuevasObservaciones = yaArchivado
+        ? observacionesPrevias
+        : `${observacionesPrevias ? observacionesPrevias.trim() + "\n\n" : ""}${tag} ${new Date().toLocaleString("es-MX")} por ${getCurrentUser()?.nombre || "Usuario"}`;
+
       const { error } = await supabase
         .from("embarques")
-        .update({ estado: "archivado", fecha_archivado: nowIso, updated_at: nowIso })
+        .update({ observaciones: nuevasObservaciones, updated_at: nowIso })
         .eq("id", embarqueId);
       if (error) {
         console.error("Error archivando embarque:", error);
         alert(`Error al archivar: ${error.message}`);
         return;
       }
-      alert(`Embarque ${embarque.folio} archivado.\nConsulta en Crear Embarques → Archivos.`);
+      // Refrescar listas: quitar de la lista principal (si aplica) y asegurar que aparezca en "Registros Completados"
+      await cargarEmbarquesFinalizados();
       await cargarDatos();
     } catch (e: any) {
       console.error("Error:", e);
@@ -875,6 +1263,7 @@ export default function AsignarOperadoresPage() {
       },
       entregado: { color: "bg-green-100 text-green-800", label: "Entregado" },
       finalizado: { color: "bg-green-100 text-green-800", label: "Finalizado" },
+  cancelado: { color: "bg-red-100 text-red-800", label: "Cancelado" },
     };
 
     const estadoInfo = estados[estado as keyof typeof estados] || {
@@ -923,7 +1312,12 @@ export default function AsignarOperadoresPage() {
         ? embarque.estado === "finalizado"
         : embarque.estado === filtroEstado;
 
-    return matchesSearch && matchesFilter;
+  // Si ya fue archivado en Asignación (tiene la etiqueta), ocultarlo de la lista principal
+  const observacionesUpper = (embarque.observaciones || "").toUpperCase();
+  const archivadoAsignacion = observacionesUpper.includes("[ARCHIVADO-ASIGNACION]");
+  const ocultarPorArchivoAsignacion = archivadoAsignacion;
+
+    return matchesSearch && matchesFilter && !ocultarPorArchivoAsignacion;
   });
 
   const imprimirDetalles = () => {
@@ -1128,7 +1522,7 @@ export default function AsignarOperadoresPage() {
           <div class="field-label">Precio Flete</div>
           <div class="field-value">${
             embarqueDetalle.precio_flete
-              ? `$${embarqueDetalle.precio_flete}`
+              ? `$${(Number(embarqueDetalle.precio_flete) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               : "Sin definir"
           }</div>
         </div>
@@ -1377,12 +1771,11 @@ export default function AsignarOperadoresPage() {
         {modificaciones.map((mod, index) => (
           <div
             key={mod.id || index}
-            className="bg-white border border-red-200 rounded-lg p-4"
+            className="bg-white border rounded-lg p-4"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                <span className="text-sm font-medium text-red-800">
+                <span className="text-sm font-semibold text-red-700">
                   Modificación #{modificaciones.length - index}
                 </span>
               </div>
@@ -1392,118 +1785,78 @@ export default function AsignarOperadoresPage() {
             </div>
 
             <div className="space-y-3">
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-3">
-                <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
-                  Justificación
-                </label>
-                <p className="text-sm text-gray-900 mt-1">
+              {/* Justificación en bloque completo */}
+              <div>
+                <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Justificación</div>
+                <p className="text-sm text-gray-900 mt-0.5">
                   {mod.razon || "Sin justificación registrada"}
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {(mod.operador_original_nombre ||
-                  mod.operador_nuevo_nombre) && (
-                  <div className="bg-blue-50 border border-blue-200 rounded p-3">
-                    <label className="text-xs font-medium text-blue-700 uppercase tracking-wide">
-                      Cambio de Operador
-                    </label>
-                    <div className="mt-2 space-y-1">
+              {/* Resto de campos en fila debajo de la justificación */}
+              <div className="flex flex-col md:flex-row md:flex-wrap gap-4 md:gap-6">
+                {(mod.operador_original_nombre || mod.operador_nuevo_nombre) && (
+                  <div className="min-w-[220px]">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cambio de Operador</div>
+                    <div className="mt-0.5 space-y-0.5">
                       {mod.operador_original_nombre && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Anterior:</span>{" "}
-                          {mod.operador_original_nombre}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Anterior:</span> {mod.operador_original_nombre}</p>
                       )}
                       {mod.operador_nuevo_nombre && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Nuevo:</span>{" "}
-                          {mod.operador_nuevo_nombre}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Nuevo:</span> {mod.operador_nuevo_nombre}</p>
                       )}
                     </div>
                   </div>
                 )}
 
                 {(mod.camion_original_numero || mod.camion_nuevo_numero) && (
-                  <div className="bg-green-50 border border-green-200 rounded p-3">
-                    <label className="text-xs font-medium text-green-700 uppercase tracking-wide">
-                      Cambio de Tractocamión
-                    </label>
-                    <div className="mt-2 space-y-1">
+                  <div className="min-w-[220px] md:border-l md:pl-4">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cambio de Tractocamión</div>
+                    <div className="mt-0.5 space-y-0.5">
                       {mod.camion_original_numero && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Anterior:</span>{" "}
-                          {mod.camion_original_numero}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Anterior:</span> {mod.camion_original_numero}</p>
                       )}
                       {mod.camion_nuevo_numero && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Nuevo:</span>{" "}
-                          {mod.camion_nuevo_numero}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Nuevo:</span> {mod.camion_nuevo_numero}</p>
                       )}
                     </div>
                   </div>
                 )}
 
-                {(mod.remolque_original_numero ||
-                  mod.remolque_nuevo_numero) && (
-                  <div className="bg-orange-50 border border-orange-200 rounded p-3">
-                    <label className="text-xs font-medium text-orange-700 uppercase tracking-wide">
-                      Cambio de Remolque
-                    </label>
-                    <div className="mt-2 space-y-1">
+                {(mod.remolque_original_numero || mod.remolque_nuevo_numero) && (
+                  <div className="min-w-[220px] md:border-l md:pl-4">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cambio de Remolque</div>
+                    <div className="mt-0.5 space-y-0.5">
                       {mod.remolque_original_numero && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Anterior:</span>{" "}
-                          {mod.remolque_original_numero}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Anterior:</span> {mod.remolque_original_numero}</p>
                       )}
                       {mod.remolque_nuevo_numero && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Nuevo:</span>{" "}
-                          {mod.remolque_nuevo_numero}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Nuevo:</span> {mod.remolque_nuevo_numero}</p>
                       )}
                     </div>
                   </div>
                 )}
 
-                {(mod.precio_flete_original || mod.precio_flete_nuevo) && (
-                  <div className="bg-purple-50 border border-purple-200 rounded p-3">
-                    <label className="text-xs font-medium text-purple-700 uppercase tracking-wide">
-                      Cambio de Flete
-                    </label>
-                    <div className="mt-2 space-y-1">
+                {(mod.precio_flete_original || mod.precio_flete_nuevo || mod.flete_en_falso) && (
+                  <div className="min-w-[220px] md:border-l md:pl-4">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cambio de Flete</div>
+                    <div className="mt-0.5 space-y-0.5">
                       {mod.precio_flete_original && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Anterior:</span> $
-                          {mod.precio_flete_original}{" "}
-                          {mod.moneda_flete_original || "MXN"}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Anterior:</span> ${typeof mod.precio_flete_original === "number" ? mod.precio_flete_original.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : mod.precio_flete_original} {mod.moneda_flete_original || "MXN"}</p>
                       )}
                       {mod.precio_flete_nuevo && (
-                        <p className="text-sm text-gray-700">
-                          <span className="font-medium">Nuevo:</span> $
-                          {mod.precio_flete_nuevo}{" "}
-                          {mod.moneda_flete_nueva || "MXN"}
-                        </p>
+                        <p className="text-sm text-gray-700"><span className="font-medium">Nuevo:</span> ${typeof mod.precio_flete_nuevo === "number" ? mod.precio_flete_nuevo.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : mod.precio_flete_nuevo} {mod.moneda_flete_nueva || "MXN"}</p>
                       )}
                       {mod.flete_en_falso && (
-                        <p className="text-sm text-red-600">
-                          <span className="font-medium">
-                            ⚠️ Marcado como flete en falso
-                          </span>
-                        </p>
+                        <p className="text-sm text-red-600"><span className="font-medium">⚠️ Marcado como flete en falso</span></p>
                       )}
                     </div>
                   </div>
                 )}
-              </div>
 
-              <div className="text-xs text-gray-500 pt-2 border-t">
-                Usuario: {mod.usuario_modificacion || "Sistema"}
+                <div className="text-xs text-gray-500 md:ml-auto">
+                  Usuario: {mod.usuario_modificacion || "Sistema"}
+                </div>
               </div>
             </div>
           </div>
@@ -1696,35 +2049,28 @@ export default function AsignarOperadoresPage() {
               <CardHeader>
                 <div className="flex justify-between items-start">
                   <div>
-                    <CardTitle className="text-lg">
-                      Folio: {embarque.folio}
-                      {(embarque.estado === "asignado" ||
-                        embarque.estado === "en-transito") &&
-                        embarque.quickpaid_enabled && (
-                          <span className="ml-2 align-middle inline-flex items-center">
-                            <span
-                              className="px-2 py-0.5 rounded-full bg-yellow-400 text-yellow-900 text-xs font-semibold align-middle"
-                              title="Este embarque fue asignado con QuickPaid"
-                            >
-                              QuickPaid
-                            </span>
-                            {/* Icono Coins de lucide-react */}
-                            <Coins className="h-4 w-4 text-yellow-700 ml-1" />
-                          </span>
-                        )}
-                      {asignaciones[embarque.id]?.quickpaidEnabled && (
+                    <CardTitle>
+                      <span className="inline-flex items-center text-blue-600 text-xl">
+                        <Package className="h-5 w-5 text-blue-600 mr-1" />
+                        {embarque.folio}
+                      </span>
+                      {typeof (embarque as any).precio_quickpaid === "number" && (embarque as any).precio_quickpaid > 0 && (
                         <span
-                          title="QuickPaid aplicado"
-                          className="ml-2 align-middle inline-block"
+                          className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full bg-yellow-400 text-yellow-900 text-xs font-semibold align-middle"
+                          title="Este embarque fue asignado con QuickPaid"
                         >
-                          <span className="text-yellow-500 text-xl">🎈</span>
+                          QuickPaid
+                          <Coins className="h-4 w-4 text-yellow-700 ml-1" />
                         </span>
                       )}
                     </CardTitle>
                     <CardDescription>
-                      {embarque.cliente?.nombre &&
-                        `Cliente: ${embarque.cliente.nombre}`}
-                      {/* Operador oculto en esta vista superior */}
+                      {(() => {
+                        const cliente = embarque.cliente?.nombre ? `Cliente: ${embarque.cliente.nombre}` : "";
+                        const load = embarque.load_number ? `Load: ${embarque.load_number}` : "";
+                        const sep = cliente && load ? " • " : "";
+                        return `${cliente}${sep}${load}` || "`";
+                      })()}
                     </CardDescription>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -1735,6 +2081,8 @@ export default function AsignarOperadoresPage() {
                         size="sm"
                         onClick={() => {
                           setEmbarqueDetalle(embarque);
+                          setActiveTab("general");
+                          setSelectedImage(null);
                           setShowDetailsModal(true);
                           cargarFotosEmbarque(embarque.id);
                         }}
@@ -1742,6 +2090,21 @@ export default function AsignarOperadoresPage() {
                         <Eye className="h-4 w-4 mr-1" />
                         Ver Detalles
                       </Button>
+                      {(embarque.estado === "listo-para-asignar" ||
+                        embarque.estado === "asignado" ||
+                        embarque.estado === "en-transito") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCancelingEmbarque(embarque);
+                            setCancelReason("");
+                            setShowCancelModal(true);
+                          }}
+                        >
+                          Cancelar
+                        </Button>
+                      )}
                       {(embarque.estado === "asignado" ||
                         embarque.modificado) && (
                         <Button
@@ -1797,7 +2160,7 @@ export default function AsignarOperadoresPage() {
                           }}
                         >
                           <AlertTriangle className="h-4 w-4 mr-1" />
-                          Modificar
+                          Contingencia
                         </Button>
                       )}
                       {(embarque.estado === "asignado" ||
@@ -1834,7 +2197,7 @@ export default function AsignarOperadoresPage() {
                           )}
                         </Button>
                       )}
-                      {embarque.estado === "finalizado" && (
+                      {(embarque.estado === "finalizado" || embarque.estado === "cancelado" || embarque.estado === "archivado") && (
                         <Button
                           variant="outline"
                           size="sm"
@@ -2031,14 +2394,23 @@ export default function AsignarOperadoresPage() {
                             <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Cliente</label>
                             <p className="text-sm text-gray-900 mt-1">{embarque.cliente?.nombre || "Sin asignar"}</p>
                             {(() => {
-                              const contacto = contactosClientes.find((c) => c.cliente_id === embarque.cliente?.id);
+                              // Preferir el contacto seleccionado por el usuario si viene en el embarque
+                              const seleccionado: any = (embarque as any).info_representante || null;
+                              // Si no hay seleccionado, usar el principal o el primero
+                              const fallback = contactosClientes.find(
+                                (c) => c.cliente_id === embarque.cliente?.id && (c as any).es_principal
+                              ) || contactosClientes.find((c) => c.cliente_id === embarque.cliente?.id);
+                              const contact = seleccionado || fallback;
+                              if (!contact) return (
+                                <p className="mt-1 text-sm text-gray-700">Contacto no especificado</p>
+                              );
+                              const nombre = `${contact.nombre ?? ""}${contact.apellidos ? ` ${contact.apellidos}` : ""}`.trim() || (contact as any)?.nombre_completo || "Contacto sin nombre";
+                              const telefono = contact.telefono || (contact as any)?.phone || "";
                               return (
                                 <div className="mt-1">
-                                  <p className="text-sm text-gray-900">
-                                    {contacto ? `${contacto.nombre} ${contacto.apellidos || ""}` : "Contacto no especificado"}
-                                  </p>
-                                  {contacto?.puesto && (
-                                    <p className="text-xs text-gray-500">{contacto.puesto}</p>
+                                  <p className="text-sm text-gray-900">{nombre}</p>
+                                  {telefono && (
+                                    <p className="text-xs text-gray-600">Tel: {telefono}</p>
                                   )}
                                 </div>
                               );
@@ -2111,7 +2483,7 @@ export default function AsignarOperadoresPage() {
                                 <span className="text-xs text-gray-500">Precio Flete</span>
                                 <p className="text-sm font-semibold text-green-600">
                                   {embarque.precio_flete
-                                    ? `$${embarque.precio_flete.toLocaleString()} ${embarque.moneda_flete || "MXN"}`
+                                    ? `$${(Number(embarque.precio_flete) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${embarque.moneda_flete || "MXN"}`
                                     : "Sin definir"}
                                 </p>
                               </div>
@@ -2119,7 +2491,7 @@ export default function AsignarOperadoresPage() {
                                 <div>
                                   <span className="text-xs text-gray-500">Descuento QuickPaid</span>
                                   <p className="text-sm font-semibold text-yellow-700">-$
-                                    {(embarque.quickpaid_descuento ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {embarque.moneda_flete || "MXN"}
+                                    {(embarque.quickpaid_descuento ?? 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {embarque.moneda_flete || "MXN"}
                                   </p>
                                 </div>
                               )}
@@ -2130,7 +2502,7 @@ export default function AsignarOperadoresPage() {
                                     typeof embarque.precio_quickpaid === "number" && embarque.precio_quickpaid > 0
                                       ? embarque.precio_quickpaid
                                       : embarque.precio_flete || 0
-                                  ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {embarque.moneda_flete || "MXN"}
+                                  ).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} {embarque.moneda_flete || "MXN"}
                                 </p>
                               </div>
                             </div>
@@ -2154,25 +2526,24 @@ export default function AsignarOperadoresPage() {
                         <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">
                           Contacto del Cliente
                         </label>
-                        <p className="text-sm text-gray-900">
-                          {(() => {
-                            const contacto = contactosClientes.find(
-                              (c) => c.cliente_id === embarque.cliente?.id
-                            );
-                            return contacto
-                              ? `${contacto.nombre} ${contacto.apellidos || ""}`
-                              : "No especificado";
-                          })()}
-                        </p>
                         {(() => {
-                          const contacto = contactosClientes.find(
-                            (c) => c.cliente_id === embarque.cliente?.id
+                          const seleccionado: any = (embarque as any).info_representante || null;
+                          const fallback = contactosClientes.find(
+                            (c) => c.cliente_id === embarque.cliente?.id && (c as any).es_principal
+                          ) || contactosClientes.find((c) => c.cliente_id === embarque.cliente?.id);
+                          const contacto = seleccionado || fallback;
+                          if (!contacto)
+                            return <p className="text-sm text-gray-900">No especificado</p>;
+                          const nombre = `${contacto.nombre ?? ""}${contacto.apellidos ? ` ${contacto.apellidos}` : ""}`.trim() || (contacto as any)?.nombre_completo || "Contacto sin nombre";
+                          const telefono = contacto.telefono || (contacto as any)?.phone || "";
+                          return (
+                            <div>
+                              <p className="text-sm text-gray-900">{nombre}</p>
+                              {telefono && (
+                                <p className="text-xs text-gray-600">Tel: {telefono}</p>
+                              )}
+                            </div>
                           );
-                          return contacto?.puesto ? (
-                            <p className="text-xs text-gray-500">
-                              {contacto.puesto}
-                            </p>
-                          ) : null;
                         })()}
                       </div>
                       <div className="space-y-1">
@@ -2245,7 +2616,7 @@ export default function AsignarOperadoresPage() {
                             </label>
                             <p className="text-sm font-semibold text-green-600">
                               {embarque.precio_flete
-                                ? `$${embarque.precio_flete.toLocaleString()} ${embarque.moneda_flete || 'MXN'}`
+                                ? `$${(Number(embarque.precio_flete) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${embarque.moneda_flete || 'MXN'}`
                                 : 'Sin definir'}
                             </p>
                             {embarque.precio_flete && embarque.moneda_flete && (
@@ -2263,7 +2634,7 @@ export default function AsignarOperadoresPage() {
                               </label>
                               <p className="text-sm font-semibold text-yellow-700">
                                 -$
-                                {(embarque.quickpaid_descuento ?? 0).toLocaleString(undefined, {
+                                {(embarque.quickpaid_descuento ?? 0).toLocaleString('es-MX', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}{' '}
@@ -2285,7 +2656,7 @@ export default function AsignarOperadoresPage() {
                               </label>
                               <p className="text-sm font-semibold text-yellow-900">
                                 $
-                                {(embarque.precio_quickpaid ?? 0).toLocaleString(undefined, {
+                                {(embarque.precio_quickpaid ?? 0).toLocaleString('es-MX', {
                                   minimumFractionDigits: 2,
                                   maximumFractionDigits: 2,
                                 })}{' '}
@@ -2710,15 +3081,15 @@ export default function AsignarOperadoresPage() {
                                     <div className="flex flex-wrap gap-4">
                                       <span>
                                         <b>Precio Flete:</b> $
-                                        {precioFlete.toFixed(2)}
+                                        {precioFlete.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                       <span>
                                         <b>Descuento QuickPaid:</b> -$
-                                        {descuento.toFixed(2)}
+                                        {descuento.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                       <span>
                                         <b>Precio con Descuento:</b> $
-                                        {precioConDescuento.toFixed(2)}
+                                        {precioConDescuento.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                       </span>
                                     </div>
                                   </div>
@@ -2778,7 +3149,7 @@ export default function AsignarOperadoresPage() {
                                         ? `${camionSeleccionado.numero_economico} - ${camionSeleccionado.marca}`
                                         : "No seleccionado"
                                     }\n` +
-                                    `Precio Flete: $${asignacion.precio_flete} ${asignacion.moneda_flete}\n\n` +
+                                    `Precio Flete: $${(Number(asignacion.precio_flete) || 0).toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${asignacion.moneda_flete}\n\n` +
                                     `Esta acción cambiará el estado del embarque a "Asignado".`
                                 );
 
@@ -2822,7 +3193,7 @@ export default function AsignarOperadoresPage() {
 
       {/* Modal de Detalles con Pestañas */}
       {showDetailsModal && embarqueDetalle && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
             <div className="flex justify-between items-center p-6 border-b">
               <div>
@@ -3332,17 +3703,8 @@ export default function AsignarOperadoresPage() {
                   {activeTab === "modificaciones" &&
                     embarqueDetalle?.modificado && (
                       <div className="space-y-6">
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-6">
-                          <div className="flex items-center mb-4">
-                            <AlertTriangle className="h-6 w-6 text-red-600 mr-3" />
-                            <h3 className="text-lg font-semibold text-red-800">
-                              Historial de Modificaciones
-                            </h3>
-                          </div>
-
-                          <ModificacionesHistory
-                            embarqueId={embarqueDetalle.id}
-                          />
+                        <div className="bg-white border rounded-lg p-6">
+                          <ModificacionesHistory embarqueId={embarqueDetalle.id} />
                         </div>
                       </div>
                     )}
@@ -3398,22 +3760,32 @@ export default function AsignarOperadoresPage() {
 
                 {/* Action Buttons */}
                 <div className="border-t pt-4 mt-6">
-                  <div className="flex justify-start space-x-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex justify-start space-x-4">
+                      <Button
+                        onClick={descargarExcel}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                      >
+                        📊 Descargar Excel
+                      </Button>
+                      <Button
+                        onClick={imprimirDetalles}
+                        variant="outline"
+                        size="sm"
+                        className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                      >
+                        🖨️ Imprimir Detalles
+                      </Button>
+                    </div>
                     <Button
-                      onClick={descargarExcel}
+                      onClick={() => setShowDetailsModal(false)}
                       variant="outline"
                       size="sm"
-                      className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                      className="ml-auto border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
                     >
-                      📊 Descargar Excel
-                    </Button>
-                    <Button
-                      onClick={imprimirDetalles}
-                      variant="outline"
-                      size="sm"
-                      className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
-                    >
-                      🖨️ Imprimir Detalles
+                      Cerrar
                     </Button>
                   </div>
                 </div>
@@ -3536,11 +3908,11 @@ export default function AsignarOperadoresPage() {
                               cambiar_operador: e.target.checked,
                             }))
                           }
-                          className="w-5 h-5 text-red-600"
+                          className="w-4 h-4 text-red-600"
                         />
                         <Label
                           htmlFor="cambiar_operador"
-                          className="text-lg font-semibold text-gray-800"
+                          className="text-sm font-semibold text-gray-700"
                         >
                           Cambiar Operador
                         </Label>
@@ -3549,20 +3921,20 @@ export default function AsignarOperadoresPage() {
                       {modificacionData.cambiar_operador && (
                         <div className="space-y-6">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-gray-50 border rounded-lg p-4">
-                              <h4 className="text-sm font-semibold text-gray-700 mb-3">
+                            <div>
+                              <h4 className="text-sm font-semibold text-gray-700 mb-2">
                                 Operador Actual
                               </h4>
-                              <div className="space-y-2">
-                                <p className="text-base font-medium text-gray-900">
+                              <div className="inline-flex flex-wrap items-center gap-2 rounded-md border border-gray-200 px-3 py-2">
+                                <span className="text-sm font-medium text-gray-900">
                                   {embarqueAModificar.operador
                                     ? `${embarqueAModificar.operador.nombre} ${embarqueAModificar.operador.apellidos}`
                                     : "Sin asignar"}
-                                </p>
+                                </span>
                                 {embarqueAModificar.operador?.telefono && (
-                                  <p className="text-sm text-gray-600">
+                                  <span className="text-xs text-gray-500">
                                     Tel: {embarqueAModificar.operador.telefono}
-                                  </p>
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -3592,7 +3964,7 @@ export default function AsignarOperadoresPage() {
                                       key={operador.id}
                                       value={operador.id}
                                     >
-                                      <div className="flex flex-col">
+                                      <div className="flex items-center gap-2">
                                         <span className="font-medium">
                                           {operador.nombre} {operador.apellidos}
                                         </span>
@@ -3630,11 +4002,11 @@ export default function AsignarOperadoresPage() {
                               cambiar_camion: e.target.checked,
                             }))
                           }
-                          className="w-5 h-5 text-red-600"
+                          className="w-4 h-4 text-red-600"
                         />
                         <Label
                           htmlFor="cambiar_camion"
-                          className="text-lg font-semibold text-gray-800"
+                          className="text-sm font-semibold text-gray-700"
                         >
                           Cambiar Tractocamión
                         </Label>
@@ -3646,17 +4018,23 @@ export default function AsignarOperadoresPage() {
                             <h4 className="text-sm font-semibold text-gray-700 mb-3">
                               Tractocamión Actual
                             </h4>
-                            <div className="space-y-2">
-                              <p className="text-base font-mono font-medium text-gray-900">
-                                {embarqueAModificar.camion?.numero_economico ||
-                                  "Sin asignar"}
+                            <div>
+                              <p className="text-sm text-gray-900">
+                                <span className="font-mono font-medium text-gray-900">
+                                  {embarqueAModificar.camion?.numero_economico || "Sin asignar"}
+                                </span>
+                                {embarqueAModificar.camion?.marca && (
+                                  <span className="text-gray-600 ml-2">
+                                    - {embarqueAModificar.camion.marca}{" "}
+                                    {embarqueAModificar.camion.modelo || ""}
+                                  </span>
+                                )}
+                                {embarqueAModificar.camion?.placas && (
+                                  <span className="text-gray-600 ml-2">
+                                    - Placas: {embarqueAModificar.camion.placas}
+                                  </span>
+                                )}
                               </p>
-                              {embarqueAModificar.camion?.marca && (
-                                <p className="text-sm text-gray-600">
-                                  {embarqueAModificar.camion.marca}{" "}
-                                  {embarqueAModificar.camion.modelo}
-                                </p>
-                              )}
                             </div>
                           </div>
 
@@ -3712,11 +4090,11 @@ export default function AsignarOperadoresPage() {
                               cambiar_remolque: e.target.checked,
                             }))
                           }
-                          className="w-5 h-5 text-red-600"
+                          className="w-4 h-4 text-red-600"
                         />
                         <Label
                           htmlFor="cambiar_remolque"
-                          className="text-lg font-semibold text-gray-800"
+                          className="text-sm font-semibold text-gray-700"
                         >
                           Cambiar Remolque
                         </Label>
@@ -3728,26 +4106,33 @@ export default function AsignarOperadoresPage() {
                             <h4 className="text-sm font-semibold text-gray-700 mb-3">
                               Remolque Actual
                             </h4>
-                            <div className="space-y-2">
-                              <p className="text-base font-mono font-medium text-gray-900">
-                                {embarqueAModificar.remolque
-                                  ?.numero_economico ||
-                                  embarqueAModificar.remolque_numero_economico || // Corrected column name
-                                  "Sin asignar"}
-                              </p>
-                              {embarqueAModificar.remolque?.placas && (
-                                <p className="text-sm text-gray-600">
-                                  Placas: {embarqueAModificar.remolque.placas}
-                                </p>
-                              )}
-                              {embarqueAModificar.remolque_placa &&
-                                !embarqueAModificar.remolque && ( // Corrected column name
-                                  <p className="text-sm text-gray-600">
-                                    Placas (Manual):{" "}
-                                    {embarqueAModificar.remolque_placa}{" "}
-                                    {/* Corrected column name */}
-                                  </p>
+                            <div>
+                              <p className="text-sm text-gray-900">
+                                <span className="font-mono font-medium text-gray-900">
+                                  {embarqueAModificar.remolque?.numero_economico || embarqueAModificar.remolque_numero_economico || "Sin asignar"}
+                                </span>
+                                {embarqueAModificar.remolque?.marca && (
+                                  <span className="text-gray-600 ml-2">
+                                    - {embarqueAModificar.remolque.marca}
+                                    {embarqueAModificar.remolque.modelo ? ` ${embarqueAModificar.remolque.modelo}` : ""}
+                                  </span>
                                 )}
+                                {(() => {
+                                  const placasInventario = embarqueAModificar.remolque?.placas;
+                                  const placasManual = !embarqueAModificar.remolque && embarqueAModificar.remolque_placa;
+                                  if (placasInventario) {
+                                    return (
+                                      <span className="text-gray-600 ml-2">- Placas: {placasInventario}</span>
+                                    );
+                                  }
+                                  if (placasManual) {
+                                    return (
+                                      <span className="text-gray-600 ml-2">- Placas: {placasManual} (Manual)</span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </p>
                             </div>
                           </div>
 
@@ -3855,11 +4240,11 @@ export default function AsignarOperadoresPage() {
                               cambiar_flete: e.target.checked,
                             }))
                           }
-                          className="w-5 h-5 text-red-600"
+                          className="w-4 h-4 text-red-600"
                         />
                         <Label
                           htmlFor="cambiar_flete"
-                          className="text-lg font-semibold text-gray-800"
+                          className="text-sm font-semibold text-gray-700"
                         >
                           Cambiar Información de Flete
                         </Label>
@@ -3868,16 +4253,20 @@ export default function AsignarOperadoresPage() {
                       {modificacionData.cambiar_flete && (
                         <div className="space-y-6">
                           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div className="bg-gray-50 border rounded-lg p-4">
+                            <div className="border rounded-lg p-4">
                               <h4 className="text-sm font-semibold text-gray-700 mb-3">
                                 Precio Flete Actual
                               </h4>
-                              <p className="text-xl font-bold text-gray-900">
-                                {embarqueAModificar.precio_flete
-                                  ? `$${embarqueAModificar.precio_flete} ${
-                                      embarqueAModificar.moneda_flete || "MXN"
-                                    }`
-                                  : "Sin definir"}
+                              <p className="text-base font-bold text-gray-900">
+                                {(() => {
+                                  const quickEnabled = (embarqueAModificar as any)?.quickpaid_enabled;
+                                  const current = quickEnabled
+                                    ? (embarqueAModificar as any)?.precio_quickpaid ?? embarqueAModificar.precio_flete
+                                    : embarqueAModificar.precio_flete;
+                                  return current
+                                    ? `$${current} ${embarqueAModificar.moneda_flete || "MXN"}`
+                                    : "Sin definir";
+                                })()}
                               </p>
                             </div>
 
@@ -3932,7 +4321,7 @@ export default function AsignarOperadoresPage() {
                                     flete_en_falso: e.target.checked,
                                   }))
                                 }
-                                className="w-5 h-5 text-red-600"
+                                className="w-4 h-4 text-red-600"
                               />
                               <div>
                                 <Label
@@ -3987,272 +4376,263 @@ export default function AsignarOperadoresPage() {
       {/* Modal de Registros Completados */}
       {showCompletedModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
+          <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[92vh] overflow-hidden">
             <div className="flex justify-between items-center p-6 border-b">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">
-                  Registros Completados
-                </h2>
+                <h2 className="text-xl font-bold text-gray-900">Registros Completados</h2>
                 <p className="text-sm text-gray-600">
-                  Embarques finalizados y archivados (
-                  {embarquesFinalizados.length} registros)
+                  Finalizados y cancelados ({totalCompletadosFiltrados} visibles)
+                  {typeof totalFinalizadosDB === 'number' && (
+                    <> · Finalizados totales BD: {totalFinalizadosDB}</>
+                  )}
+                  {typeof totalCanceladosArchivadosDB === 'number' && (
+                    <> · Cancelados archivados BD: {totalCanceladosArchivadosDB}</>
+                  )}
                 </p>
               </div>
-              <Button
-                onClick={() => setShowCompletedModal(false)}
-                variant="outline"
-                size="sm"
-              >
-                ✕
-              </Button>
+              <Button onClick={() => setShowCompletedModal(false)} variant="outline" size="sm">✕</Button>
             </div>
 
             <div className="overflow-y-auto max-h-[calc(90vh-120px)]">
               <div className="p-6">
-                <div className="flex flex-col md:flex-row gap-4 mb-6">
-                  <div className="flex items-center space-x-2 flex-1">
-                    <Search className="h-4 w-4 text-gray-400" />
-                    <Input placeholder="Buscar en registros completados..." />
+                {/* Buscador + Tipo de Servicio */}
+                <div className="mb-4 flex flex-col md:flex-row md:items-end gap-2">
+                  <div className="flex-1">
+                    <Label htmlFor="completados-search">Buscar</Label>
+                    <Input
+                      id="completados-search"
+                      placeholder="Buscar por folio, cliente o load..."
+                      value={completadosSearch}
+                      onChange={(e) => setCompletadosSearch(e.target.value)}
+                    />
                   </div>
+                  <div className="w-full md:w-64">
+                    <Label htmlFor="completados-tipo-servicio">Tipo de Servicio</Label>
+                    <Select
+                      value={completadosTipoServicio}
+                      onValueChange={setCompletadosTipoServicio}
+                    >
+                      <SelectTrigger id="completados-tipo-servicio">
+                        <SelectValue placeholder="Filtrar por tipo de servicio" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos</SelectItem>
+                        {tiposServicioCompletados.map((tipoId) => (
+                          <SelectItem key={tipoId} value={tipoId}>
+                            {getServiceDisplayName(tipoId)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                {/* Periodos rápidos */}
+                <div className="mt-2 mb-3 flex flex-wrap gap-2">
                   <Button
-                    onClick={descargarRegistrosCompletos}
-                    variant="outline"
-                    className="bg-green-50 border-green-200 text-green-700 hover:bg-green-100"
+                    variant={completadosPeriodo === "todo" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("todo")}
                   >
-                    📊 Descargar Excel
+                    Todo
                   </Button>
+                  <Button
+                    variant={completadosPeriodo === "mes_actual" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("mes_actual")}
+                  >
+                    Mes actual
+                  </Button>
+                  <Button
+                    variant={completadosPeriodo === "mes_anterior" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("mes_anterior")}
+                  >
+                    Mes anterior
+                  </Button>
+                  <Button
+                    variant={completadosPeriodo === "ultimos_3" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("ultimos_3")}
+                  >
+                    Últ. 3 meses
+                  </Button>
+                  <Button
+                    variant={completadosPeriodo === "ultimos_6" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("ultimos_6")}
+                  >
+                    Últ. 6 meses
+                  </Button>
+                  <Button
+                    variant={completadosPeriodo === "este_anio" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setCompletadosPeriodo("este_anio")}
+                  >
+                    Este año
+                  </Button>
+                </div>
+
+                {/* Resumen + página */}
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <div className="text-sm text-gray-600">
+                    Mostrando {totalCompletadosFiltrados === 0 ? 0 : firstIdxComp + 1}
+                    –{lastIdxComp} de {totalCompletadosFiltrados}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span>Tamaño página</span>
+                      <Select
+                        value={String(completadosPageSize)}
+                        onValueChange={(v) => setCompletadosPageSize(Number(v))}
+                      >
+                        <SelectTrigger className="w-24">
+                          <SelectValue placeholder="25" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="10">10</SelectItem>
+                          <SelectItem value="25">25</SelectItem>
+                          <SelectItem value="50">50</SelectItem>
+                          <SelectItem value="100">100</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button
+                      variant="outline"
+                      className="border-gray-400 text-black bg-white hover:bg-gray-100 hover:text-black"
+                      onClick={descargarRegistrosCompletos}
+                    >
+                      Descargar Excel
+                    </Button>
+                  </div>
                 </div>
 
                 {loadingCompleted ? (
                   <div className="flex items-center justify-center py-8">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                    <span className="ml-2 text-sm text-gray-600">
-                      Cargando registros...
-                    </span>
+                    <span className="ml-2 text-sm text-gray-600">Cargando registros...</span>
                   </div>
-                ) : embarquesFinalizados.length === 0 ? (
+                ) : totalCompletadosFiltrados === 0 ? (
                   <div className="text-center py-8">
-                    <p className="text-gray-500">
-                      No hay registros completados disponibles
-                    </p>
+                    <Package className="h-10 w-10 mx-auto mb-2 text-purple-400" />
+                    <p className="text-gray-500">No hay registros completados que coincidan</p>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Folio
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Cliente
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Operador
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Tractocamión
-                          </th>
-                          <th className="px-3 py-2 whitespace-nowrap text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Remolque
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Origen
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Destino
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Fecha Finalización
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Precio Flete
-                          </th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-[120px]">
-                            Tipo de Servicio
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Acciones
-                          </th>
-                          <th className="px-3 py-2 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                            Restaurar
-                          </th>
+                  <div className="border rounded-lg overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-purple-50">
+                          <th className="px-3 py-2 text-left font-semibold whitespace-nowrap w-40 md:w-48 cursor-pointer select-none" onClick={() => handleSortCompletados("folio")}>Folio{sortIndicatorCompletados("folio")}</th>
+                          <th className="px-3 py-2 text-left font-semibold w-48 md:w-64 cursor-pointer select-none" onClick={() => handleSortCompletados("cliente")}>Cliente{sortIndicatorCompletados("cliente")}</th>
+                          <th className="px-2 py-2 text-left font-semibold whitespace-nowrap w-14 md:w-16 cursor-pointer select-none" onClick={() => handleSortCompletados("load")}>Load{sortIndicatorCompletados("load")}</th>
+                          <th className="px-2 py-2 text-left font-semibold whitespace-nowrap w-32 cursor-pointer select-none" onClick={() => handleSortCompletados("tipo")}>Tipo de Servicio{sortIndicatorCompletados("tipo")}</th>
+                          <th className="px-3 py-2 text-right font-semibold whitespace-nowrap w-40">Monto Facturado</th>
+                          <th className="px-3 py-2 text-left font-semibold whitespace-nowrap w-28">Resultado</th>
+                          <th className="px-3 py-2 text-left font-semibold w-32 cursor-pointer select-none" onClick={() => handleSortCompletados("fecha")}>Fecha Finalización{sortIndicatorCompletados("fecha")}</th>
+                          <th className="px-3 py-2 text-center font-semibold">Detalles</th>
+                          <th className="px-3 py-2 text-center font-semibold">Eliminar</th>
+                          <th className="px-3 py-2 text-center font-semibold" style={{ display: 'none' }}>Restaurar</th>
                         </tr>
                       </thead>
-                      <tbody className="bg-white divide-y divide-gray-200">
-                        {embarquesFinalizados.map((embarque) => (
-                          <tr key={embarque.id}>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {embarque.folio}
+                      <tbody>
+                        {embarquesFinalizadosPaginados.map((embarque) => (
+                          <tr key={embarque.id} className="border-b hover:bg-purple-50">
+                            <td className="px-3 py-2 font-mono whitespace-nowrap w-40 md:w-48">{embarque.folio}</td>
+                            <td className="px-3 py-2 w-48 md:w-64 truncate">{embarque.cliente?.nombre || ""}</td>
+                            <td className="px-2 py-2 whitespace-nowrap w-14 md:w-16 truncate">{embarque.load_number || ""}</td>
+                            <td className="px-2 py-2 whitespace-nowrap w-32 md:w-36 truncate">{getServiceDisplayName(embarque.tipo_servicio_id || "")}</td>
+                            <td className="px-3 py-2 text-right whitespace-nowrap">
+                              {(() => {
+                                const monto =
+                                  typeof embarque.precio_quickpaid === "number" && embarque.precio_quickpaid > 0
+                                    ? embarque.precio_quickpaid
+                                    : embarque.precio_flete || 0;
+                                const moneda = embarque.moneda_flete || "MXN";
+                                return monto
+                                  ? `$${monto.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${moneda}`
+                                  : "Sin definir";
+                              })()}
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.cliente?.nombre || "Sin cliente"}
+                            <td className="px-3 py-2 whitespace-nowrap">
+                              {(() => {
+                                const cancelado = Boolean(
+                                  (embarque as any).cancelado_por ||
+                                  (embarque as any).motivo_cancelacion ||
+                                  (embarque as any).fecha_cancelacion ||
+                                  (embarque.observaciones || "").toUpperCase().includes("[CANCELADO]")
+                                );
+                                return cancelado ? (
+                                  <Badge className="bg-red-100 text-red-800">Cancelado</Badge>
+                                ) : (
+                                  <Badge className="bg-green-100 text-green-800">Finalizado</Badge>
+                                );
+                              })()}
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.operador
-                                ? `${embarque.operador.nombre} ${embarque.operador.apellidos}`
-                                : "Sin operador"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.camion?.numero_economico ||
-                                "Sin camión"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.remolque?.numero_economico ||
-                                embarque.remolque_numero_economico ||
-                                "Sin remolque"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.direccion_recolecta ||
-                                embarque.origen ||
-                                "N/A"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.direccion_entrega ||
-                                embarque.destino ||
-                                "N/A"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700">
-                              {embarque.fecha_finalizacion
-                                ? new Date(
-                                    embarque.fecha_finalizacion
-                                  ).toLocaleDateString()
-                                : new Date(
-                                    embarque.updated_at
-                                  ).toLocaleDateString()}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm font-semibold text-green-600">
-                              {embarque.precio_flete
-                                ? `$${embarque.precio_flete.toLocaleString()} ${
-                                    embarque.moneda_flete || "MXN"
-                                  }`
-                                : "Sin definir"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-sm text-gray-700 w-[120px] overflow-hidden text-ellipsis">
-                              {embarque.tipo_servicio_id
-                                ? embarque.tipo_servicio_id ===
-                                  "exportacion-cargada-caja-seca-240"
-                                  ? "EXP. CARGADA - CAJA SECA 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-cargada-larmex-240"
-                                  ? "EXP. CARGADA - CAJA SECA (LARMEX) 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-cargada-thermo-agricultura-240"
-                                  ? "EXP. CARGADA - THERMO (AGRICULTURA) 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-cargada-plataforma-240"
-                                  ? "EXP. CARGADA - PLATAFORMA 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-cargada-caja-seca-240"
-                                  ? "IMP. CARGADA - CAJA SECA 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-cargada-plataforma-240"
-                                  ? "IMP. CARGADA - PLATAFORMA 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-vacia-caja-seca-thermo-240"
-                                  ? "IMP. VACÍA - CAJA SECA/THERMO 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-cargada-plataforma-amarre-240"
-                                  ? "IMP. CARGADA - PLATAFORMA CON AMARRE 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-en-tractor-240"
-                                  ? "IMP. - EN TRACTOR 240"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-cargada-caja-seca-800"
-                                  ? "EXP. CARGADA - CAJA SECA 800"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-vacia-caja-seca-800"
-                                  ? "EXP. VACÍA - CAJA SECA 800"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-en-tractor-800"
-                                  ? "EXP. - EN TRACTOR 800"
-                                  : embarque.tipo_servicio_id ===
-                                    "exportacion-cargada-plataforma-800"
-                                  ? "EXP. CARGADA - PLATAFORMA 800"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-cargada-caja-seca-800"
-                                  ? "IMP. CARGADA - CAJA SECA 800"
-                                  : embarque.tipo_servicio_id ===
-                                    "importacion-vacia-plataforma-800"
-                                  ? "IMP. VACÍA - PLATAFORMA 800"
-                                  : embarque.tipo_servicio_id === "pagos-extras"
-                                  ? "PAGOS EXTRAS"
-                                  : embarque.tipo_servicio_id ===
-                                    "horas-rojo-amarillo"
-                                  ? "HORAS ROJO/AMARILLO"
-                                  : embarque.tipo_servicio_id ===
-                                    "cargas-descargas"
-                                  ? "CARGAS/DESCARGAS"
-                                  : embarque.tipo_servicio_id ===
-                                    "movimientos-en-falso"
-                                  ? "MOVIMIENTOS EN FALSO"
-                                  : embarque.tipo_servicio_id ===
-                                    "movimientos-locales"
-                                  ? "MOVIMIENTOS LOCALES"
-                                  : embarque.tipo_servicio_id === "otro"
-                                  ? "OTRO"
-                                  : embarque.tipo_servicio_id
-                                : "No especificado"}
-                            </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-center text-sm font-medium">
+                            <td className="px-3 py-2 w-32 whitespace-nowrap">{
+                              embarque.fecha_archivado
+                                ? new Date(embarque.fecha_archivado).toLocaleDateString("es-MX")
+                                : (embarque.fecha_finalizacion
+                                  ? new Date(embarque.fecha_finalizacion).toLocaleDateString("es-MX")
+                                  : (embarque.updated_at
+                                    ? new Date(embarque.updated_at).toLocaleDateString("es-MX")
+                                    : ""))
+                            }</td>
+                            <td className="px-3 py-2 text-center">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => {
+                                  // Abrir el modal de detalles manteniendo abierto el de registros completados
                                   setEmbarqueDetalle(embarque);
+                                  setActiveTab("general");
+                                  setSelectedImage(null);
                                   setShowDetailsModal(true);
                                   cargarFotosEmbarque(embarque.id);
                                 }}
+                                aria-label="Ver detalles"
+                                title="Ver detalles del embarque"
                               >
-                                <Eye className="h-4 w-4 mr-1" />
-                                Ver Detalles
+                                <Eye className="h-4 w-4" aria-hidden="true" />
                               </Button>
                             </td>
-                            <td className="px-3 py-2 whitespace-nowrap text-center text-sm font-medium">
+                            <td className="px-3 py-2 text-center">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => eliminarCompletado(embarque)}
+                                disabled={!puedeEliminarCompletado(embarque) || saving}
+                                className={`border-gray-300${!puedeEliminarCompletado(embarque) || saving ? " opacity-50 cursor-not-allowed" : ""}`}
+                                aria-label="Eliminar"
+                                title="Eliminar definitivamente"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </td>
+                            <td className="px-3 py-2 text-center" style={{ display: 'none' }}>
                               <Button
                                 variant="outline"
                                 size="sm"
                                 className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
                                 onClick={async () => {
-                                  const confirmacion = confirm(
-                                    `¿Estás seguro de que deseas restaurar el embarque ${embarque.folio} a la pantalla de asignación?`
-                                  );
+                                  const confirmacion = confirm(`¿Estás seguro de que deseas restaurar el embarque ${embarque.folio} a la pantalla de asignación?`);
                                   if (confirmacion) {
                                     setSaving(true);
                                     try {
                                       const { error } = await supabase
                                         .from("embarques")
-                                        .update({
-                                          estado: "listo-para-asignar",
-                                          updated_at: new Date().toISOString(),
-                                          fecha_finalizacion: null, // Clear finalization date
-                                        })
+                                        .update({ estado: "listo-para-asignar", updated_at: new Date().toISOString(), fecha_finalizacion: null })
                                         .eq("id", embarque.id);
-
                                       if (error) {
-                                        console.error(
-                                          "Error restaurando embarque:",
-                                          error
-                                        );
-                                        alert(
-                                          "Error al restaurar embarque: " +
-                                            error.message
-                                        );
+                                        console.error("Error restaurando embarque:", error);
+                                        alert("Error al restaurar embarque: " + error.message);
                                       } else {
-                                        alert(
-                                          `Embarque ${embarque.folio} restaurado exitosamente.`
-                                        );
-                                        await cargarEmbarquesFinalizados(); // Recargar la lista de finalizados
-                                        await cargarDatos(); // Recargar la lista principal
+                                        alert(`Embarque ${embarque.folio} restaurado exitosamente.`);
+                                        await cargarEmbarquesFinalizados();
+                                        await cargarDatos();
                                       }
                                     } catch (err) {
-                                      console.error(
-                                        "Error general al restaurar:",
-                                        err
-                                      );
-                                      alert(
-                                        "Error general al restaurar embarque."
-                                      );
+                                      console.error("Error general al restaurar:", err);
+                                      alert("Error general al restaurar embarque.");
                                     } finally {
                                       setSaving(false);
                                     }
@@ -4267,18 +4647,8 @@ export default function AsignarOperadoresPage() {
                                   </>
                                 ) : (
                                   <>
-                                    <svg
-                                      className="h-4 w-4 mr-1"
-                                      fill="none"
-                                      stroke="currentColor"
-                                      viewBox="0 0 24 24"
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        strokeWidth={2}
-                                        d="M4 4v5h.582m15.356 2A8.001 8.001 0 004 12v-1m0 0l2.163 2.163a.75.75 0 001.06-.003L9.5 11.5m-4.5 0l2.163-2.163a.75.75 0 011.06.003L12 12.5m-4.5 0l2.163 2.163a.75.75 0 001.06-.003L15 15.5m-4.5 0l2.163-2.163a.75.75 0 001.06-.003L18 18.5m-4.5 0l2.163-2.163a.75.75 0 001.06-.003L21 21.5"
-                                      />
+                                    <svg className="h-4 w-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004 12v-1m0 0l2.163 2.163a.75.75 0 001.06-.003L9.5 11.5m-4.5 0l2.163-2.163a.75.75 0 011.06.003L12 12.5m-4.5 0l2.163 2.163a.75.75 0 001.06-.003L15 15.5m-4.5 0l2.163-2.163a.75.75 0 001.06-.003L18 18.5m-4.5 0l2.163-2.163a.75.75 0 001.06-.003L21 21.5" />
                                     </svg>
                                     Restaurar
                                   </>
@@ -4289,6 +4659,18 @@ export default function AsignarOperadoresPage() {
                         ))}
                       </tbody>
                     </table>
+
+                    {totalCompletadosPaginas > 1 && (
+                      <div className="flex items-center justify-between p-3 text-sm">
+                        <div>
+                          Página {completadosPage} de {totalCompletadosPaginas}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button variant="outline" size="sm" onClick={() => setCompletadosPage((p) => Math.max(1, p - 1))} disabled={completadosPage <= 1}>◀ Anterior</Button>
+                          <Button variant="outline" size="sm" onClick={() => setCompletadosPage((p) => Math.min(totalCompletadosPaginas, p + 1))} disabled={completadosPage >= totalCompletadosPaginas}>Siguiente ▶</Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -4296,6 +4678,60 @@ export default function AsignarOperadoresPage() {
           </div>
         </div>
       )}
+
+      {/* Modal para cancelar embarque (Asignación) */}
+      <Dialog open={showCancelModal} onOpenChange={setShowCancelModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar Embarque</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas cancelar el embarque {cancelingEmbarque?.folio}? 
+              <br />
+              <strong>Esta acción no se puede deshacer.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="cancel-reason-asignar">Justificación de la cancelación *</Label>
+              <Textarea
+                id="cancel-reason-asignar"
+                value={cancelReason}
+                onChange={(e) => setCancelReason(e.target.value)}
+                placeholder="Ingresa la razón por la cual se cancela este embarque..."
+                rows={4}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCancelModal(false);
+                setCancelingEmbarque(null);
+                setCancelReason("");
+              }}
+              disabled={saving}
+            >
+              Cerrar
+            </Button>
+            <Button
+              onClick={cancelarEmbarque}
+              disabled={saving || !cancelReason.trim()}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {saving ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Cancelando...
+                </>
+              ) : (
+                "Confirmar Cancelación"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Visor de Imagen a pantalla completa */}
       {selectedImage && (
