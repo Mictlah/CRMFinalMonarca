@@ -1922,43 +1922,7 @@ export default function EmbarquesPage() {
     );
   }
 
-  const llenarDatosPrueba = () => {
-    const clienteEjemplo = clientes[0]?.id || "";
-    // No preasignar vehículos en datos de prueba: se asignan en fase de asignación
-
-    setFormData({
-      folio: "",
-      cliente_id: clienteEjemplo,
-      camion_id: "",
-      remolque_id: "",
-      contenido: "Mercancía general de prueba",
-      peso: "25000",
-      observaciones: "Embarque de prueba generado automáticamente",
-      direccion_recolecta:
-        "Av. Revolución 1234, Col. Centro, Tijuana, B.C., México",
-      direccion_entrega: "Main Street 5678, Downtown, San Diego, CA, USA",
-      fecha_recolecta: new Date().toISOString().split("T")[0],
-      hora_recolecta: "08:00",
-      fecha_entrega: new Date(Date.now() + 86400000)
-        .toISOString()
-        .split("T")[0],
-      hora_entrega: "16:00",
-      load_number: "LD" + Math.floor(Math.random() * 100000),
-      patente_agente_aduanal: "3087",
-      aduana_cruce: "Tijuana - San Diego",
-      dueno_mercancia: "Empresa Importadora S.A. de C.V.",
-      representante_cliente: "",
-      carta_porte: "CP" + Math.floor(Math.random() * 1000000),
-      tipo_servicio_id: "exportacion-cargada-caja-seca-240",
-      remolque_manual: false,
-      remolque_numero_economico: "",
-      remolque_placa: "",
-    });
-
-    if (clienteEjemplo) {
-      cargarContactos(clienteEjemplo);
-    }
-  };
+  // Botón de "Llenar Datos de Prueba" removido por requerimiento (se elimina helper)
 
   return (
     <MainLayout>
@@ -2874,17 +2838,7 @@ export default function EmbarquesPage() {
                     <CardTitle className="text-lg">
                       Información Básica
                     </CardTitle>
-                    {!embarqueEditando && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={llenarDatosPrueba}
-                        className="bg-yellow-50 border-yellow-200 text-yellow-800 hover:bg-yellow-100"
-                      >
-                        🧪 Llenar Datos de Prueba
-                      </Button>
-                    )}
+                    {/* Botón de datos de prueba removido */}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">

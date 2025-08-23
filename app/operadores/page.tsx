@@ -187,70 +187,7 @@ export default function OperadoresPage() {
     "otro",
   ];
 
-  // Generar datos falsos para pruebas rápidas
-  const generarDatosFalsosOperador = () => {
-    const nombres = ["Juan", "Pedro", "Luis", "Carlos", "Miguel", "Jorge", "Andrés", "Héctor", "Rafael", "Oscar"];
-    const apellidosList = ["García", "Hernández", "López", "Martínez", "Rodríguez", "Sánchez", "Pérez", "Ramírez", "Flores", "Torres"];
-    const aliasList = ["El Rápido", "La Máquina", "El Tigre", "Turbo", "Águila", "El Profe", "Fantasma", "Flecha", "Titan", "Bravo"];
-    const tiposSangre = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
-    const random = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
-
-    const nombre = random(nombres);
-    const apellidos = `${random(apellidosList)} ${random(apellidosList)}`;
-    const alias = random(aliasList);
-    const telefono = `+52 55 ${Math.floor(1000 + Math.random() * 9000)} ${Math.floor(1000 + Math.random() * 9000)}`;
-    const emailBase = `${nombre}.${apellidos.split(" ")[0]}`.toLowerCase().normalize("NFD").replace(/[^a-z.]/g, "");
-    const email = `${emailBase}${Math.floor(Math.random() * 90 + 10)}@correo.com`;
-    const licencia = `LIC${Math.floor(100000 + Math.random() * 900000)}`;
-    const numeroApto = `APTO-${Math.floor(1000 + Math.random() * 9000)}`;
-    const numeroVisa = `VISA${Math.floor(100000 + Math.random() * 900000)}`;
-    const numeroFast = `FAST${Math.floor(1000 + Math.random() * 9000)}`;
-    const curp = (nombre.substring(0,1) + apellidos.split(" ")[0].substring(0,1) + "XX00" + (1990 + Math.floor(Math.random()*10)) + "0101HDFRRN0").toUpperCase().slice(0,18);
-    const rfc = (apellidos.split(" ")[0].substring(0,2) + nombre.substring(0,2) + "901201ABC").toUpperCase().slice(0,13);
-    const nss = Array.from({length:11}, () => Math.floor(Math.random()*10)).join("");
-
-    // Fechas
-    const fechaNacimiento = new Date(1980 + Math.floor(Math.random()*20), Math.floor(Math.random()*12), Math.floor(Math.random()*28)+1);
-    const futureDate = (years: number) => {
-      const d = new Date();
-      d.setFullYear(d.getFullYear() + years);
-      d.setMonth(d.getMonth() + Math.floor(Math.random()*6));
-      return d;
-    };
-    const vencLicencia = futureDate(1 + Math.floor(Math.random()*3));
-    const vencApto = futureDate(1);
-    const vencVisa = futureDate(2);
-    const vencFast = futureDate(1 + Math.floor(Math.random()*2));
-
-    setFormData((prev) => ({
-      ...prev,
-      nombre,
-      apellidos,
-      alias,
-      telefono,
-      email,
-      licencia,
-      numero_apto_medico: numeroApto,
-      fecha_vencimiento_licencia: vencLicencia.toISOString().split("T")[0],
-      fecha_vencimiento_apto_medico: vencApto.toISOString().split("T")[0],
-      numero_visa: numeroVisa,
-      fecha_vencimiento_visa: vencVisa.toISOString().split("T")[0],
-      numero_fast: numeroFast,
-      fecha_vencimiento_fast: vencFast.toISOString().split("T")[0],
-      tipo_sangre: random(tiposSangre),
-      direccion: `Calle ${Math.floor(Math.random()*200)} #${Math.floor(Math.random()*999)}, Col. Centro, CDMX`,
-      fecha_nacimiento: fechaNacimiento.toISOString().split("T")[0],
-      curp,
-      rfc,
-      nss,
-      observaciones: "Operador generado con datos de prueba para validación rápida.",
-    }));
-
-    setContactosEmergencia([
-      { nombre: "María Pérez", relacion: "Esposa", direccion: "Misma dirección", telefono: "+52 55 5555 1111", correo: "maria@example.com" },
-      { nombre: "Luis Gómez", relacion: "Hermano", direccion: "Av. Reforma 123", telefono: "+52 55 5555 2222", correo: "luis@example.com" },
-    ]);
-  };
+  // Botón de auto-llenado removido por requerimiento (se elimina helper de datos de prueba)
 
   // Función para validar RFC
   const validarRFC = (rfc: string): boolean => {
@@ -2094,17 +2031,6 @@ export default function OperadoresPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {!editingId && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={generarDatosFalsosOperador}
-                    className="border-blue-500 text-blue-600 hover:bg-blue-50"
-                  >
-                    Auto Llenar
-                  </Button>
-                )}
                 <Button
                   onClick={() => setShowModal(false)}
                   variant="outline"
