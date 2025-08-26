@@ -22,8 +22,21 @@ export async function subirFotoEmbarque(
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || "Error al subir archivo")
+      // Detect server-provided quota/full signal
+      let errorText = await response.text()
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData?.code === "BLOB_QUOTA_EXCEEDED" || response.status === 507) {
+          throw new Error(
+            errorData?.error ||
+              "El almacenamiento de imágenes está lleno. Avise al administrador para liberar espacio o ampliar el plan."
+          )
+        }
+        throw new Error(errorData?.error || "Error al subir archivo")
+      } catch {
+        // Fallback if response isn't JSON
+        throw new Error(errorText || "Error al subir archivo")
+      }
     }
 
     const result = await response.json()
@@ -85,8 +98,19 @@ export async function uploadFile(fileName: string, file: File): Promise<{ url: s
     })
 
     if (!response.ok) {
-      const errorData = await response.json()
-      throw new Error(errorData.error || "Error al subir archivo")
+      let errorText = await response.text()
+      try {
+        const errorData = JSON.parse(errorText)
+        if (errorData?.code === "BLOB_QUOTA_EXCEEDED" || response.status === 507) {
+          throw new Error(
+            errorData?.error ||
+              "El almacenamiento de imágenes está lleno. Avise al administrador para liberar espacio o ampliar el plan."
+          )
+        }
+        throw new Error(errorData?.error || "Error al subir archivo")
+      } catch {
+        throw new Error(errorText || "Error al subir archivo")
+      }
     }
 
     const result = await response.json()
@@ -179,9 +203,24 @@ export async function subirDocumentoOperador(
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
+      let errorText = await response.text()
       console.error("Error en respuesta del servidor:", errorText)
-      throw new Error(`Error del servidor: ${response.status} - ${errorText}`)
+      try {
+        const parsed = JSON.parse(errorText)
+        if (parsed?.code === "BLOB_QUOTA_EXCEEDED" || response.status === 507) {
+          throw new Error(
+            parsed?.error ||
+              "El almacenamiento de imágenes está lleno. Contacta al administrador para liberar espacio o ampliar el plan."
+          )
+        }
+        throw new Error(parsed?.error || `Error del servidor: ${response.status}`)
+      } catch {
+        // Si no es JSON, usar el texto plano
+        if (response.status === 507 || /quota|storage|insufficient/i.test(errorText)) {
+          throw new Error("El almacenamiento de imágenes está lleno. Contacta al administrador para liberar espacio o ampliar el plan.")
+        }
+        throw new Error(`Error del servidor: ${response.status} - ${errorText}`)
+      }
     }
 
     const result = await response.json()
@@ -198,25 +237,32 @@ export async function subirDocumentoOperador(
 }
 
 // Función para eliminar documento de operador
-export async function eliminarDocumentoOperador(pathname: string): Promise<void> {
+export async function eliminarDocumentoOperador(target: string): Promise<void> {
   try {
-    console.log("Eliminando documento de operador:", pathname)
+    console.log("Eliminando documento de operador:", target)
 
     const response = await fetch("/api/upload", {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ pathname }),
+      body: JSON.stringify(
+        /^https?:\/\//i.test(target)
+          ? { url: target }
+          : { pathname: target }
+      ),
     })
 
     if (!response.ok) {
       const errorText = await response.text()
       console.error("Error eliminando archivo:", errorText)
+      if (response.status === 507) {
+        throw new Error("El almacenamiento está lleno y no se pudo completar la operación.")
+      }
       throw new Error(`Error al eliminar archivo: ${response.status}`)
     }
 
-    console.log("Documento eliminado exitosamente")
+  console.log("Documento eliminado exitosamente")
   } catch (error) {
     console.error("Error al eliminar documento:", error)
     throw error

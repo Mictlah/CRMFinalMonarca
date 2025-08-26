@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { MainLayout } from "@/components/layout/main-layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Settings, Shield, Bell, FileText, User, Trash2, Download, Filter, AlertTriangle, Edit2, Save } from "lucide-react";
-import { getCurrentUser, verifyAuditPassword, listUsers, createUser, resetPassword, getSecuritySettings, setSecuritySettings, verifyCurrentUserPassword } from "@/lib/auth";
+import { getCurrentUser, verifyAuditPassword, listUsers, createUser, resetPassword, getSecuritySettings, setSecuritySettings, verifyCurrentUserPassword, deactivateUser } from "@/lib/auth";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/supabase";
@@ -46,7 +47,9 @@ interface ConfiguracionGeneral {
 }
 
 export default function ConfiguracionPage() {
-  const [activeTab, setActiveTab] = useState("general");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams?.get('tab') || 'general');
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [filtroModulo, setFiltroModulo] = useState("todos");
   const [filtroAccion, setFiltroAccion] = useState("todas");
@@ -91,6 +94,21 @@ export default function ConfiguracionPage() {
   const [retencionRunning, setRetencionRunning] = useState(false)
   const [retencionNextRun, setRetencionNextRun] = useState<string | null>(null)
   const [retencionWarning, setRetencionWarning] = useState<string | null>(null)
+  // Limpieza total: dialogs y estados
+  const [limpiezaDialog1Open, setLimpiezaDialog1Open] = useState(false)
+  const [limpiezaDialog2Open, setLimpiezaDialog2Open] = useState(false)
+  const [limpiezaPwd1, setLimpiezaPwd1] = useState("")
+  const [limpiezaPwd2, setLimpiezaPwd2] = useState("")
+  const [limpiezaFinalOpen, setLimpiezaFinalOpen] = useState(false)
+  const [limpiezaRunning, setLimpiezaRunning] = useState(false)
+  const [limpiezaMsg, setLimpiezaMsg] = useState<string | null>(null)
+  const [limpiezaErr, setLimpiezaErr] = useState<string | null>(null)
+  // Limpieza manual de Blob
+  const [blobRunning, setBlobRunning] = useState(false)
+  const [blobResult, setBlobResult] = useState<string | null>(null)
+  const [blobConfirmOpen, setBlobConfirmOpen] = useState(false)
+  const [blobStart, setBlobStart] = useState<string>("")
+  const [blobEnd, setBlobEnd] = useState<string>("")
 
   // Cargar umbrales de alerta desde Supabase
   const cargarAlertThresholds = async () => {
@@ -469,11 +487,12 @@ export default function ConfiguracionPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="general">General</TabsTrigger>
             <TabsTrigger value="seguridad">Seguridad</TabsTrigger>
             <TabsTrigger value="alertas">Alertas de Vencimiento</TabsTrigger>
             <TabsTrigger value="auditlog">Audit Log</TabsTrigger>
+            <TabsTrigger value="limpieza">Limpieza</TabsTrigger>
           </TabsList>
         <TabsContent value="alertas" className="space-y-4">
           <Card>
@@ -706,14 +725,15 @@ export default function ConfiguracionPage() {
 
                   <div className="overflow-x-auto mt-4">
                     <table className="min-w-full text-sm border">
-                      <thead>
+            <thead>
                         <tr className="bg-gray-100">
                           <th className="px-2 py-1 border text-left">Usuario</th>
                           <th className="px-2 py-1 border text-left">Nombre</th>
                           <th className="px-2 py-1 border text-left">Estado</th>
                           <th className="px-2 py-1 border text-left">Intentos</th>
                           <th className="px-2 py-1 border text-left">Bloqueado hasta</th>
-                          <th className="px-2 py-1 border">Acciones</th>
+              <th className="px-2 py-1 border">Acciones</th>
+              <th className="px-2 py-1 border text-red-700">Eliminar</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -735,6 +755,26 @@ export default function ConfiguracionPage() {
                                 setResetPwd2("")
                                 setResetDialogOpen(true)
                               }}>Resetear contraseña</Button>
+                            </td>
+                            <td className="px-2 py-1 border text-center">
+                              <Button
+                                size="sm"
+                                className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+                                onClick={async () => {
+                                  if (!currentUser || currentUser.role !== 'admin') { alert('Solo el administrador puede eliminar usuarios.'); return }
+                                  const ok = confirm(`¿Eliminar al usuario \"${u.username}\"? Esta acción no afectará documentos pasados; solo desactiva al usuario hacia futuro.`)
+                                  if (!ok) return
+                                  try {
+                                    await deactivateUser(u.id)
+                                    await cargarUsuarios()
+                                    try { await agregarAuditLog('ELIMINAR','Seguridad',`Usuario desactivado: ${u.username}`) } catch {}
+                                  } catch (e:any) {
+                                    alert('No se pudo eliminar: '+(e.message||e))
+                                  }
+                                }}
+                              >
+                                Eliminar
+                              </Button>
                             </td>
                           </tr>
                         ))}
@@ -997,6 +1037,242 @@ export default function ConfiguracionPage() {
 
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="limpieza" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                  <span>Limpieza total de datos</span>
+                </CardTitle>
+                <CardDescription>
+                  Elimina TODOS los registros de Embarques, Audit Logs, Clientes, Remolques, Operadores y Camiones. Esta acción es irreversible.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-3 border border-red-300 bg-red-50 text-red-900 rounded text-sm">
+                  <div className="font-semibold">Advertencia</div>
+                  <div>Esta operación dejará la aplicación limpia pero funcional. No podrá deshacerse.</div>
+                </div>
+                {limpiezaMsg && (
+                  <div className="p-2 rounded border border-green-300 bg-green-50 text-green-800 text-sm">{limpiezaMsg}</div>
+                )}
+                {limpiezaErr && (
+                  <div className="p-2 rounded border border-red-300 bg-red-50 text-red-800 text-sm">{limpiezaErr}</div>
+                )}
+                <Button
+                  className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+                  onClick={()=>{
+                    setLimpiezaErr(null); setLimpiezaMsg(null);
+                    if (!currentUser || currentUser.role !== 'admin') { setLimpiezaErr('Solo el administrador puede ejecutar la limpieza.'); return }
+                    setLimpiezaPwd1(""); setLimpiezaPwd2(""); setLimpiezaDialog1Open(true)
+                  }}
+                >
+                  Ejecutar limpieza total (Irreversible)
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Limpieza manual de archivos en Blob */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <Trash2 className="h-5 w-5 text-red-600" />
+                  <span>Limpieza de almacenamiento de archivos (Blob)</span>
+                </CardTitle>
+                <CardDescription>
+                  Borra archivos públicos almacenados en Blob por prefijo (operadores/ y embarques/). Útil cuando el almacenamiento está lleno.
+                </CardDescription>
+              </CardHeader>
+        <CardContent className="space-y-3">
+                {blobResult && (
+                  <div className="p-2 rounded border border-green-300 bg-green-50 text-green-800 text-sm whitespace-pre-wrap">{blobResult}</div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                  <div className="space-y-1">
+                    <Label>Rango de fechas (opcional)</Label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input type="date" value={blobStart} onChange={(e)=>setBlobStart(e.target.value)} />
+                      <Input type="date" value={blobEnd} onChange={(e)=>setBlobEnd(e.target.value)} />
+                    </div>
+                    <p className="text-xs text-gray-500">Si dejas vacío, se limpia sin filtrar por fecha.</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Acción</Label>
+                    <Button
+                      className="w-full bg-red-600 hover:bg-red-700 text-white border-red-700"
+                      disabled={blobRunning}
+                      onClick={()=>{ setBlobResult(null); setBlobConfirmOpen(true) }}
+                    >
+          {blobRunning ? 'Ejecutando…' : 'Borrar archivos de Blob'}
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            {/* Dialogo 1: Contraseña admin (1/2) */}
+            <Dialog open={limpiezaDialog1Open} onOpenChange={setLimpiezaDialog1Open}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-red-700 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Confirmar identidad de administrador (1/2)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 text-sm">
+                  <div className="p-2 border border-red-200 bg-red-50 text-red-800 rounded text-xs">Esta es una acción sensible. Verifica tu identidad para continuar.</div>
+                  <p>Ingresa tu contraseña de administrador.</p>
+                  <div className="space-y-2">
+                    <Label>Contraseña</Label>
+                    <Input
+                      type="password"
+                      value={limpiezaPwd1}
+                      onChange={e=>setLimpiezaPwd1(e.target.value)}
+                      placeholder="••••••••"
+                      autoComplete="new-password"
+                      autoCorrect="off"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      name="admin-password-1"
+                    />
+                  </div>
+                  {limpiezaErr && <div className="text-red-700 bg-red-50 border border-red-200 rounded p-2">{limpiezaErr}</div>}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>setLimpiezaDialog1Open(false)}>Cancelar</Button>
+                  <Button className="bg-red-600 hover:bg-red-700 text-white border-red-700" onClick={async()=>{
+                    setLimpiezaErr(null)
+                    if (!currentUser || currentUser.role !== 'admin') { setLimpiezaErr('Solo el administrador puede ejecutar la limpieza.'); return }
+                    if (!limpiezaPwd1) { setLimpiezaErr('Ingresa tu contraseña.'); return }
+                    const ok = await verifyCurrentUserPassword(limpiezaPwd1)
+                    if (!ok) { setLimpiezaErr('Contraseña incorrecta.'); return }
+                    setLimpiezaDialog1Open(false)
+                    setLimpiezaPwd2("")
+                    setLimpiezaDialog2Open(true)
+                  }}>Continuar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dialogo 2: Confirmar contraseña nuevamente (2/2) */}
+            <Dialog open={limpiezaDialog2Open} onOpenChange={setLimpiezaDialog2Open}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-red-700 flex items-center gap-2"><AlertTriangle className="h-4 w-4" />Confirmar contraseña (2/2)</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 text-sm">
+                  <div className="p-2 border border-red-200 bg-red-50 text-red-800 rounded text-xs">Por seguridad, vuelve a escribir tu contraseña exactamente igual.</div>
+                  <p>Ingresa nuevamente tu contraseña de administrador para confirmar.</p>
+                  <Input
+                    type="password"
+                    value={limpiezaPwd2}
+                    onChange={e=>setLimpiezaPwd2(e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    autoCorrect="off"
+                    autoCapitalize="none"
+                    spellCheck={false}
+                    name="admin-password-2"
+                  />
+                  {limpiezaErr && <div className="text-red-700 bg-red-50 border border-red-200 rounded p-2">{limpiezaErr}</div>}
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>setLimpiezaDialog2Open(false)}>Cancelar</Button>
+                  <Button className="bg-red-600 hover:bg-red-700 text-white border-red-700" onClick={async()=>{
+                    setLimpiezaErr(null)
+                    if (!limpiezaPwd2) { setLimpiezaErr('Ingresa tu contraseña nuevamente.'); return }
+                    if (limpiezaPwd2 !== limpiezaPwd1) { setLimpiezaErr('Las contraseñas no coinciden.'); return }
+                    setLimpiezaDialog2Open(false)
+                    setLimpiezaFinalOpen(true)
+                  }}>Continuar</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Dialogo 3: Confirmación irreversible */}
+            <Dialog open={limpiezaFinalOpen} onOpenChange={setLimpiezaFinalOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Confirmación final</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-2 text-sm">
+                  <p>Esta acción eliminará todos los datos indicados y no se puede deshacer.</p>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>setLimpiezaFinalOpen(false)}>Cancelar</Button>
+                  <Button className="bg-red-600 hover:bg-red-700 text-white border-red-700" disabled={limpiezaRunning} onClick={async()=>{
+                    setLimpiezaRunning(true)
+                    setLimpiezaErr(null)
+                    try {
+                      const res = await fetch('/api/cleanup', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ confirm: true }) })
+                      const json = await res.json()
+                      if (!res.ok || json?.error) throw new Error(json?.error||'Error de limpieza')
+                      setLimpiezaMsg('Limpieza completada correctamente.')
+                      try { await agregarAuditLog('ELIMINAR','Configuración','Limpieza total ejecutada') } catch {}
+                      setLimpiezaFinalOpen(false)
+                    } catch(e:any) {
+                      setLimpiezaErr(e.message||'Falló la limpieza')
+                    } finally {
+                      setLimpiezaRunning(false)
+                    }
+                  }}>{limpiezaRunning? 'Ejecutando…':'Ejecutar limpieza'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {/* Confirmación limpieza de Blob */}
+      <Dialog open={blobConfirmOpen} onOpenChange={setBlobConfirmOpen}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle className="text-red-700">Confirmar limpieza de Blob</DialogTitle>
+                </DialogHeader>
+                <div className="text-sm space-y-2">
+          <p>Se procederá a borrar archivos bajo los prefijos: operadores/ y embarques/.</p>
+          <div className="p-2 border border-red-200 bg-red-50 text-red-800 rounded text-xs">Esta acción no se puede deshacer.</div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={()=>setBlobConfirmOpen(false)}>Cancelar</Button>
+                  <Button
+                    className="bg-red-600 hover:bg-red-700 text-white border-red-700"
+                    disabled={blobRunning}
+                    onClick={async()=>{
+                      setBlobRunning(true)
+                      setBlobResult(null)
+                      try {
+                        // Health check
+                        const hc = await fetch('/api/upload')
+                        const info = hc.ok ? await hc.json() : null
+                        if (!info?.tokenPresent) { throw new Error('El servidor no tiene BLOB_READ_WRITE_TOKEN configurado.') }
+                        const res = await fetch('/api/blob-cleanup', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+              dryRun: false,
+                            startIso: blobStart ? new Date(`${blobStart}T00:00:00Z`).toISOString() : undefined,
+                            endIso: blobEnd ? new Date(`${blobEnd}T00:00:00Z`).toISOString() : undefined,
+                          })
+                        })
+                        const json = await res.json()
+                        if (!res.ok || json?.error) throw new Error(json?.error||'Error al limpiar')
+                        const lines = [
+                          `Resultado: ${json.ok ? 'OK' : 'FALLO'}`,
+                          `Escaneados: ${json.scanned}`,
+                          `Borrados: ${json.deleted}`,
+                          ...(Array.isArray(json.details) ? json.details.map((d:any)=>`• ${d.prefix} — escaneados ${d.scanned}, borrados ${d.deleted}`) : []),
+                        ]
+                        setBlobResult(lines.join('\n'))
+                        setBlobConfirmOpen(false)
+            try { await agregarAuditLog('ELIMINAR', 'Configuración', 'Borrado de Blob ejecutado') } catch {}
+                      } catch(e:any) {
+                        setBlobResult(`Error: ${e.message||e}`)
+                      } finally {
+                        setBlobRunning(false)
+                      }
+                    }}
+                  >
+          Borrar
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
         </Tabs>
       </div>

@@ -68,6 +68,14 @@ export default function SubirFotosEmbarquePage() {
   const [successMessage, setSuccessMessage] = useState("")
   const [successType, setSuccessType] = useState<"upload" | "delete">("upload")
 
+  // Geolocalización
+  const [latitud, setLatitud] = useState<number | null>(null)
+  const [longitud, setLongitud] = useState<number | null>(null)
+  const [geoStatus, setGeoStatus] = useState<"idle" | "solicitando" | "ok" | "error">("idle")
+
+  // Límite de archivos por embarque
+  const MAX_FILES = 10
+
   useEffect(() => {
     const cargarFotos = async () => {
       if (!embarque?.id) return
@@ -84,6 +92,15 @@ export default function SubirFotosEmbarquePage() {
     cargarDatos()
   }, [embarqueId])
 
+  // Intentar solicitar ubicación al cargar (si el navegador lo permite)
+  useEffect(() => {
+    // No forzar en desktop; el operador normalmente abrirá desde el móvil
+    if (typeof window === "undefined" || !("geolocation" in navigator)) return
+    // Solicitar sólo una vez automáticamente; si falla, el usuario puede reintentar con el botón
+    solicitarUbicacion(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const cargarDatos = async () => {
     try {
       setLoading(true)
@@ -99,6 +116,7 @@ export default function SubirFotosEmbarquePage() {
           *,
           cliente:clientes(nombre),
           operador:operadores(nombre, apellidos),
+          camion:camiones(numero_economico, placas),
           remolque:remolques(numero_economico, placas)
         `)
         .eq("id", embarqueId)
@@ -136,6 +154,31 @@ export default function SubirFotosEmbarquePage() {
     }
   }
 
+  const solicitarUbicacion = (mostrarErrores = true) => {
+    if (!("geolocation" in navigator)) {
+      if (mostrarErrores) setError("Este dispositivo/navegador no soporta geolocalización")
+      setGeoStatus("error")
+      return
+    }
+    setGeoStatus("solicitando")
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitud(pos.coords.latitude)
+        setLongitud(pos.coords.longitude)
+        setGeoStatus("ok")
+      },
+      (err) => {
+        console.error("Geolocalización denegada o con error:", err)
+        if (mostrarErrores)
+          setError(
+            "No se pudo obtener tu ubicación. Actívala en Safari: Ajustes > Privacidad > Localización y vuelve a intentar."
+          )
+        setGeoStatus("error")
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    )
+  }
+
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files || [])
 
@@ -158,8 +201,27 @@ export default function SubirFotosEmbarquePage() {
       return true
     })
 
-    setSelectedFiles((prev) => [...prev, ...archivosValidos])
-    setError("")
+    // Respetar límite global de 10 (existentes + seleccionados + nuevos)
+    const yaExistentes = fotos.length
+    const yaSeleccionados = selectedFiles.length
+    const restante = MAX_FILES - (yaExistentes + yaSeleccionados)
+
+    if (restante <= 0) {
+      setError(`No puedes subir más de ${MAX_FILES} archivos. Elimina alguno para continuar.`)
+      return
+    }
+
+    const paraAgregar = archivosValidos.slice(0, Math.max(0, restante))
+
+    if (paraAgregar.length < archivosValidos.length) {
+      setError(`Solo puedes agregar ${restante} archivo(s) más (máximo ${MAX_FILES}).`)
+    } else {
+      setError("")
+    }
+
+    if (paraAgregar.length > 0) {
+      setSelectedFiles((prev) => [...prev, ...paraAgregar])
+    }
   }
 
   const removeSelectedFile = (index: number) => {
@@ -171,6 +233,18 @@ export default function SubirFotosEmbarquePage() {
 
     if (!operadorNombre.trim()) {
       setError("Por favor ingresa el nombre del operador")
+      return
+    }
+
+    // Requerir ubicación para el operador móvil
+    if (latitud == null || longitud == null) {
+      setError("Activa tu ubicación para continuar. Toca en 'Activar ubicación' y acepta el permiso.")
+      return
+    }
+
+    // Verificar límite antes de subir
+    if (fotos.length + selectedFiles.length > MAX_FILES) {
+      setError(`No puedes subir más de ${MAX_FILES} documentos. Actualmente tienes ${fotos.length} y seleccionaste ${selectedFiles.length}.`)
       return
     }
 
@@ -189,6 +263,10 @@ export default function SubirFotosEmbarquePage() {
       let archivosSubidos = 0
 
       for (const file of selectedFiles) {
+        // Corte de seguridad si se alcanzó el máximo mientras se sube
+        if (fotos.length + archivosSubidos >= MAX_FILES) {
+          break
+        }
         try {
           // Crear nombre único que incluya el folio del embarque
           const timestamp = Date.now()
@@ -206,6 +284,8 @@ export default function SubirFotosEmbarquePage() {
             tipo_mime: file.type,
             subido_por: operadorNombre.trim(),
             tamano_bytes: file.size,
+            latitud: latitud ?? undefined,
+            longitud: longitud ?? undefined,
           })
 
           if (fotoGuardada) {
@@ -375,7 +455,7 @@ export default function SubirFotosEmbarquePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div>
                 <Label className="text-sm font-medium text-gray-600">Cliente</Label>
                 <p className="text-sm">{embarque.cliente?.nombre || "No especificado"}</p>
@@ -387,10 +467,20 @@ export default function SubirFotosEmbarquePage() {
                 </p>
               </div>
               <div>
-                <Label className="text-sm font-medium text-gray-600">Origen → Destino</Label>
-                <p className="text-sm">
-                  {embarque.origen} → {embarque.destino}
-                </p>
+                <Label className="text-sm font-medium text-gray-600">Origen</Label>
+                <p className="text-sm">{embarque.origen || "—"}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-600">Destino</Label>
+                <p className="text-sm">{embarque.destino || "—"}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-600">No. Tractocamión</Label>
+                <p className="text-sm">{embarque.camion?.numero_economico || "No asignado"}</p>
+              </div>
+              <div>
+                <Label className="text-sm font-medium text-gray-600">No. Remolque</Label>
+                <p className="text-sm">{embarque.remolque?.numero_economico || embarque.remolque?.placas || "No asignado"}</p>
               </div>
             </div>
           </CardContent>
@@ -418,6 +508,30 @@ export default function SubirFotosEmbarquePage() {
             <CardDescription>Selecciona las fotos o documentos relacionados con este embarque</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Geolocalización */}
+            <div className="p-3 rounded-md border bg-blue-50">
+              <div className="flex items-center justify-between">
+                <div className="text-sm">
+                  <p className="font-medium text-blue-900">Ubicación del operador</p>
+                  {geoStatus === "ok" && latitud != null && longitud != null ? (
+                    <p className="text-blue-800">Lat: {latitud.toFixed(6)}, Lng: {longitud.toFixed(6)}</p>
+                  ) : geoStatus === "solicitando" ? (
+                    <p className="text-blue-700">Solicitando permiso de ubicación…</p>
+                  ) : (
+                    <p className="text-blue-700">Activa tu ubicación para continuar con la subida.</p>
+                  )}
+                </div>
+                <Button
+                  type="button"
+                  variant="default"
+                  onClick={() => solicitarUbicacion(true)}
+                  disabled={geoStatus === "solicitando"}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {geoStatus === "solicitando" ? "Activando…" : "Activar ubicación"}
+                </Button>
+              </div>
+            </div>
             {/* Confirmación del operador */}
             <div className="space-y-2">
               <Label htmlFor="operador">Nombre del Operador *</Label>
@@ -473,7 +587,7 @@ export default function SubirFotosEmbarquePage() {
             <Button
               onClick={subirArchivos}
               disabled={uploading || selectedFiles.length === 0 || !operadorNombre.trim()}
-              className="w-full"
+              className="w-full bg-green-600 hover:bg-green-700 text-white"
             >
               {uploading ? (
                 <>
@@ -559,6 +673,19 @@ export default function SubirFotosEmbarquePage() {
                       </div>
 
                       {foto.subido_por && <p className="text-xs text-gray-600">Por: {foto.subido_por}</p>}
+
+                      {typeof (foto as any).latitud === "number" && typeof (foto as any).longitud === "number" && (
+                        <p className="text-xs">
+                          <a
+                            className="text-blue-600 hover:underline"
+                            href={`https://maps.google.com/?q=${(foto as any).latitud},${(foto as any).longitud}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            Ver ubicación en Google Maps
+                          </a>
+                        </p>
+                      )}
 
                       <p className="text-xs text-gray-400">
                         {new Date(foto.fecha_subida).toLocaleDateString()} a las{" "}

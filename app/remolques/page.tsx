@@ -333,16 +333,18 @@ export default function RemolquesPage() {
         return;
       }
 
-      // Verificar que el número de serie no esté duplicado (solo si se proporciona)
-      if (formData.numeroSerie) {
+    // Verificar que el número de serie no esté duplicado (solo si se proporciona)
+    const serialTrim = (formData.numeroSerie || '').trim();
+    if (serialTrim) {
         const { data: existingSerial, error: serialError } = await supabase
           .from("remolques")
           .select("id")
-          .eq("numero_serie", formData.numeroSerie);
+      .eq("numero_serie", serialTrim);
 
         if (serialError) {
           console.error("Error verificando número de serie:", serialError);
-          alert("Error al verificar número de serie");
+          const msg = (serialError as any)?.message || (serialError as any)?.hint || JSON.stringify(serialError);
+          alert(`Error al verificar número de serie: ${msg}`);
           return;
         }
 
@@ -351,7 +353,7 @@ export default function RemolquesPage() {
           ? existingSerial?.some((r) => r.id !== editingRemolque.id)
           : existingSerial && existingSerial.length > 0;
 
-        if (serialDuplicateExists) {
+  if (serialDuplicateExists) {
           alert("Ya existe un remolque con ese número de serie");
           return;
         }
@@ -363,7 +365,7 @@ export default function RemolquesPage() {
         marca: formData.marca || null,
         modelo: formData.modelo || null,
         año: formData.año ? Number.parseInt(formData.año) : null,
-        numero_serie: formData.numeroSerie || null,
+  numero_serie: serialTrim || null,
         capacidad: formData.capacidad
           ? Number.parseFloat(formData.capacidad)
           : null,

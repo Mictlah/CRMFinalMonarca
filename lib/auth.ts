@@ -344,6 +344,16 @@ export async function resetPassword(userId: string, newPassword: string) {
   return true
 }
 
+// Desactivar (soft delete) usuario secundario: no afecta registros históricos
+export async function deactivateUser(userId: string) {
+  const { error } = await supabase
+    .from("app_users")
+    .update({ active: false, failed_attempts: 0, locked_until: null })
+    .eq("id", userId)
+  if (error) throw error
+  return true
+}
+
 export async function setSecuritySettings(params: { max_failed_attempts: number; lockout_minutes: number; session_timeout_minutes: number }) {
   const { error } = await supabase
     .from("security_settings")

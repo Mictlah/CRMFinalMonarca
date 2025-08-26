@@ -217,6 +217,21 @@ export interface Embarque {
   precio_quickpaid?: number;
   modificado?: boolean;
   flete_falso?: boolean;
+  // Facturación/envíos al cliente y referencias de pago
+  fecha_envio_cliente?: string;
+  referencia_pago?: string;
+  fecha_envio_cliente_1?: string;
+  fecha_envio_cliente_2?: string;
+  fecha_envio_cliente_3?: string;
+  fecha_envio_cliente_4?: string;
+  fecha_pago_1?: string;
+  fecha_pago_2?: string;
+  fecha_pago_3?: string;
+  fecha_pago_4?: string;
+  referencia_pago_1?: string;
+  referencia_pago_2?: string;
+  referencia_pago_3?: string;
+  referencia_pago_4?: string;
   fecha_finalizacion?: string;
   // Relaciones
   cliente?: Cliente;
@@ -258,6 +273,10 @@ export interface FotoEmbarque {
   tipo_mime?: string;
   fecha_subida: string;
   subido_por?: string;
+  // Campos opcionales del uploader nuevo
+  latitud?: number;
+  longitud?: number;
+  comentario?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -785,12 +804,33 @@ export const guardarFotoEmbarque = async (
   try {
     console.log("📦 Enviando metadata a Supabase:", foto);
 
+    // Construir payload usando nombres EXACTOS de columnas en la BD.
+    // Nota: la columna en BD es "tamaño_bytes" (con ñ), por lo que mapeamos desde foto.tamano_bytes.
+    const payload: any = {
+      embarque_id: (foto as any).embarque_id,
+      nombre_archivo: (foto as any).nombre_archivo,
+      url_blob: (foto as any).url_blob,
+      tipo_mime: (foto as any).tipo_mime ?? null,
+      subido_por: (foto as any).subido_por ?? null,
+      fecha_subida: new Date().toISOString(),
+    };
+
+    if (typeof (foto as any).tamano_bytes === "number") {
+      payload["tamaño_bytes"] = (foto as any).tamano_bytes;
+    }
+    if (typeof (foto as any).latitud === "number") {
+      payload.latitud = (foto as any).latitud;
+    }
+    if (typeof (foto as any).longitud === "number") {
+      payload.longitud = (foto as any).longitud;
+    }
+    if (typeof (foto as any).comentario === "string") {
+      payload.comentario = (foto as any).comentario;
+    }
+
     const { data, error } = await supabase
       .from("fotos_embarques")
-      .insert({
-        ...foto,
-        fecha_subida: new Date().toISOString(),
-      })
+      .insert(payload)
       .select()
       .single();
 

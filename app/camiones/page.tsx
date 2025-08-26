@@ -1642,16 +1642,19 @@ export default function CamionesPage() {
     try {
       // Guardar registro de mantenimiento en la tabla si existe
       if (registrosMantenimientoTableExists) {
-        const registroMantenimiento = {
+        // Normalizar campos y alinear con esquema de la tabla
+        const fechaM = (mantenimientoFormData.fecha_mantenimiento || "").trim();
+        const proxM = (mantenimientoFormData.proximo_mantenimiento || "").trim();
+        const tipoM = (mantenimientoFormData.tipo_mantenimiento || "general").trim();
+        const detalles = mantenimientoFormData.detalles_mantenimiento;
+
+        const registroMantenimiento: any = {
           camion_id: selectedCamionMantenimiento.id,
-          fecha_mantenimiento: mantenimientoFormData.fecha_mantenimiento,
-          tipo_mantenimiento:
-            mantenimientoFormData.tipo_mantenimiento || "general",
-          detalles_mantenimiento: mantenimientoFormData.detalles_mantenimiento,
-          proximo_mantenimiento:
-            mantenimientoFormData.proximo_mantenimiento || null,
+          fecha_mantenimiento: fechaM || null, // DATE
+          tipo_mantenimiento: tipoM,
+          detalles_mantenimiento: detalles,
+          proximo_mantenimiento: proxM || null, // DATE
           kilometraje_actual: selectedCamionMantenimiento.kilometraje,
-          fecha_registro: new Date().toISOString(),
         };
 
         const { error: errorMantenimiento } = await supabase
@@ -1659,12 +1662,9 @@ export default function CamionesPage() {
           .insert(registroMantenimiento);
 
         if (errorMantenimiento) {
-          console.error(
-            "Error guardando registro de mantenimiento:",
-            errorMantenimiento
-          );
-          alert("Error al guardar el registro de mantenimiento");
-          return;
+          console.error("Error guardando registro de mantenimiento:", errorMantenimiento);
+          const msg = (errorMantenimiento as any)?.message || (errorMantenimiento as any)?.hint || JSON.stringify(errorMantenimiento);
+          throw new Error(`Error guardando registro de mantenimiento: ${msg}`);
         }
       }
 
@@ -1690,9 +1690,9 @@ export default function CamionesPage() {
       ) {
         await cargarHistorialMantenimiento(selectedCamionMantenimiento.id);
       }
-    } catch (error) {
+    } catch (error:any) {
       console.error("Error guardando mantenimiento:", error);
-      alert("Error al guardar el mantenimiento");
+      alert(error?.message || "Error al guardar el mantenimiento");
     }
   };
 

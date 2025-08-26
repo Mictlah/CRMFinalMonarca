@@ -1710,14 +1710,12 @@ export default function FacturacionCobranzaPage() {
           .from("creditos_clientes")
           .select("cliente_id, limite_credito_usd, limite_credito_mxn")
           .eq("activo", true);
-
-        if (creditosError && creditosError.code !== "PGRST116") {
-          console.error("Error checking existing credit limit:", creditosError);
-          return;
-        }
-
         if (creditosError) {
-          console.error("Error loading credit limits:", creditosError);
+          // Si la tabla no existe o no hay filas, no bloqueamos la UI; usamos caché local
+          const code = (creditosError as any)?.code;
+          if (code && code !== "PGRST116") {
+            console.error("Error loading credit limits:", creditosError);
+          }
           const creditosGuardados = JSON.parse(
             localStorage.getItem("creditLimits") || "{}"
           );
@@ -1726,10 +1724,11 @@ export default function FacturacionCobranzaPage() {
           const creditLimitsMap: {
             [key: string]: { usd: number; mxn: number };
           } = {};
-          creditosData?.forEach((credito) => {
-            creditLimitsMap[credito.cliente_id] = {
-              usd: credito.limite_credito_usd || 0,
-              mxn: credito.limite_credito_mxn || 0,
+          (creditosData || []).forEach((credito: any) => {
+            if (!credito?.cliente_id) return;
+            creditLimitsMap[String(credito.cliente_id)] = {
+              usd: Number(credito.limite_credito_usd) || 0,
+              mxn: Number(credito.limite_credito_mxn) || 0,
             };
           });
           if (mounted.current) setCreditLimits(creditLimitsMap);
@@ -1898,10 +1897,9 @@ export default function FacturacionCobranzaPage() {
         .select("id")
         .eq("cliente_id", clienteId)
         .single();
-
-      if (selectError && selectError.code !== "PGRST116") {
+      // PGRST116 = no rows; en ese caso seguimos para insertar
+      if (selectError && (selectError as any)?.code !== "PGRST116") {
         console.error("Error checking existing credit limit:", selectError);
-        return;
       }
 
       if (existingRecord) {
@@ -1917,7 +1915,7 @@ export default function FacturacionCobranzaPage() {
         if (updateError) {
           console.error("Error updating credit limits:", updateError);
         }
-      } else {
+  } else {
         const { error: insertError } = await supabase
           .from("creditos_clientes")
           .insert({
@@ -2035,16 +2033,21 @@ export default function FacturacionCobranzaPage() {
     }
     setGuardandoNuevoTipo(true);
     try {
-      const id = normalizarIdDesdeNombre(nuevoTipo.nombre);
-      // Evitar colisión simple en cliente
-      const existe = tiposServicio.some((t) => t.id === id);
-      const finalId = existe ? `${id}-${Date.now().toString().slice(-4)}` : id;
+      // Generar slug legible y evitar colisiones básicas con nombres existentes
+      const baseSlug = normalizarIdDesdeNombre(nuevoTipo.nombre);
+      const existingSlugs = new Set(
+        (tiposServicio || []).map((t) => normalizarIdDesdeNombre(t.nombre))
+      );
+      let finalSlug = baseSlug;
+      if (existingSlugs.has(finalSlug)) {
+        finalSlug = `${baseSlug}-${Date.now().toString().slice(-4)}`;
+      }
 
       const payload = {
-        id: finalId,
+        slug: finalSlug,
         nombre: nuevoTipo.nombre.trim(),
         descripcion: nuevoTipo.descripcion.trim() || null,
-        categoria: nuevoTipo.categoria.trim() || "General",
+        categoria: (nuevoTipo.categoria || "General").trim(),
         subcategoria: nuevoTipo.subcategoria.trim() || null,
         precio_base: Number(nuevoTipo.precio_base) || 0,
         activo: true,
@@ -2052,26 +2055,30 @@ export default function FacturacionCobranzaPage() {
         updated_at: new Date().toISOString(),
       } as any;
 
-      const { error } = await supabase.from("tipos_servicio").insert(payload);
+      const { data: created, error } = await supabase
+        .from("tipos_servicio")
+        .insert(payload)
+        .select("id, slug, nombre, descripcion, categoria, subcategoria, precio_base, activo, orden_visualizacion, orden_display, fecha_creacion, updated_at")
+        .single();
       if (error) {
         console.error("Error creando tipo de servicio:", error);
         alert("No se pudo crear el tipo de servicio: " + (error.message || ""));
         return;
       }
 
-      // Actualizar lista local y cerrar modal
+      // Actualizar lista local con el UUID real
       const nuevo: TipoServicio = {
-        id: payload.id,
-        nombre: payload.nombre,
-        descripcion: payload.descripcion || undefined,
-        categoria: payload.categoria,
-        subcategoria: payload.subcategoria || undefined,
-        precio_base: payload.precio_base,
-        activo: true,
-        orden_visualizacion: payload.orden_display,
-        fecha_creacion: new Date().toISOString(),
-        updated_at: payload.updated_at,
-      };
+        id: created.id,
+        nombre: created.nombre,
+        descripcion: created.descripcion || undefined,
+        categoria: created.categoria,
+        subcategoria: created.subcategoria || undefined,
+        precio_base: created.precio_base,
+        activo: !!created.activo,
+        orden_visualizacion: created.orden_visualizacion ?? created.orden_display,
+        fecha_creacion: created.fecha_creacion || new Date().toISOString(),
+        updated_at: created.updated_at || payload.updated_at,
+      } as TipoServicio;
       if (mounted.current) {
         setTiposServicio((prev) => [...prev, nuevo]);
         setShowCrearTipoModal(false);

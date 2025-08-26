@@ -493,6 +493,67 @@ export default function EmbarquesPage() {
     setShowCreateModal(true);
   };
 
+  // Llena todos los campos del formulario con valores de ejemplo/sensatos
+  const handleFillAllFields = async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const addDays = (d: Date, days: number) =>
+      new Date(d.getTime() + days * 24 * 60 * 60 * 1000);
+    const formatDate = (d: Date) => d.toISOString().slice(0, 10);
+    const formatTime = (h: number, m: number) =>
+      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+
+    const sampleClienteId = clientes[0]?.id || "none";
+    const sampleTipoServicioId = tiposServicio[0]?.id || "";
+    const sampleRemolqueId = remolques[0]?.id || "";
+    const useManualRemolque = remolques.length === 0;
+
+    // Prellenar campos principales
+    setFormData((prev) => ({
+      ...prev,
+      cliente_id: sampleClienteId,
+      tipo_servicio_id: sampleTipoServicioId,
+      representante_cliente: "",
+      direccion_recolecta:
+        "Parque Industrial Norte #100, Col. Centro, Monterrey, NL",
+      fecha_recolecta: formatDate(now),
+      hora_recolecta: formatTime(9, 0),
+      direccion_entrega:
+        "Av. Insurgentes Sur 1234, Col. Del Valle, CDMX, MX",
+      fecha_entrega: formatDate(addDays(now, 1)),
+      hora_entrega: formatTime(17, 0),
+      contenido: "Tarimas con mercancía general",
+      peso: "1250",
+      observaciones:
+        "Entregar antes de las 17:00 horas. Requiere sello en recibo.",
+      load_number: `LD-${year}${month}-001`,
+      patente_agente_aduanal: "1234",
+      aduana_cruce: "Nuevo Laredo, TAMPS",
+      dueno_mercancia: "Cliente Demo SA de CV",
+      carta_porte: `CP-${year}${month}-0001`,
+      remolque_manual: useManualRemolque,
+      remolque_id: useManualRemolque ? "" : sampleRemolqueId,
+      remolque_numero_economico: useManualRemolque ? "RM-001" : "",
+      remolque_placa: useManualRemolque ? "XYZ-123-45" : "",
+    }));
+
+    // Si hay cliente, intenta preseleccionar el primer contacto disponible
+    if (sampleClienteId && sampleClienteId !== "none") {
+      try {
+        const lista = await obtenerContactosCliente(sampleClienteId);
+        const contactId = lista[0]?.id || "none";
+        setContactos(lista);
+        setFormData((prev) => ({
+          ...prev,
+          representante_cliente: contactId,
+        }));
+      } catch (e) {
+        // Ignorar errores silenciosamente para no bloquear el autofill
+      }
+    }
+  };
+
   const handleEdit = async (embarque: Embarque) => {
     setFormData({
       folio: embarque.folio,
@@ -2838,7 +2899,18 @@ export default function EmbarquesPage() {
                     <CardTitle className="text-lg">
                       Información Básica
                     </CardTitle>
-                    {/* Botón de datos de prueba removido */}
+                    {!embarqueEditando && (
+                      <div className="flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="bg-blue-50 text-blue-700 hover:bg-blue-100"
+                          onClick={handleFillAllFields}
+                        >
+                          Llenar todos los campos
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -3536,7 +3608,7 @@ export default function EmbarquesPage() {
             {embarqueDetalle && (
               <div className="space-y-6">
                 <Tabs defaultValue="general" className="w-full">
-                  <TabsList className="grid w-full grid-cols-5">
+                  <TabsList className="grid w-full grid-cols-6">
                     <TabsTrigger value="general">General</TabsTrigger>
                     <TabsTrigger value="direcciones">
                       Direcciones y Fechas
@@ -3546,6 +3618,7 @@ export default function EmbarquesPage() {
                     <TabsTrigger value="contacto">
                       Contacto del Cliente
                     </TabsTrigger>
+                    <TabsTrigger value="archivos">Fotos y Ubicación</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="general" className="space-y-4 mt-6">
@@ -3964,57 +4037,104 @@ export default function EmbarquesPage() {
                   </TabsContent>
 
                   <TabsContent value="archivos" className="space-y-4 mt-6">
-                    <h4 className="font-medium text-gray-900">
-                      Imágenes del Embarque
-                    </h4>
+                    <h4 className="font-medium text-gray-900">Fotos y Ubicaciones</h4>
+
+                    {embarqueFotos.some((f) => typeof (f as any).latitud === "number" && typeof (f as any).longitud === "number") && (
+                      <div className="space-y-3">
+                        <p className="text-sm text-gray-600">
+                          Ubicaciones donde se subieron las fotografías (según confirmación de geolocalización del operador):
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                          {embarqueFotos
+                            .filter((f) => typeof (f as any).latitud === "number" && typeof (f as any).longitud === "number")
+                            .slice(0, 9)
+                            .map((f) => {
+                              const lat = (f as any).latitud as number;
+                              const lng = (f as any).longitud as number;
+                              const mapsEmbed = `https://www.google.com/maps?q=${lat},${lng}&z=16&output=embed`;
+                              const mapsLink = `https://maps.google.com/?q=${lat},${lng}`;
+                              return (
+                                <div key={f.id} className="rounded-lg overflow-hidden border">
+                                  <iframe
+                                    src={mapsEmbed}
+                                    width="100%"
+                                    height="200"
+                                    loading="lazy"
+                                    referrerPolicy="no-referrer-when-downgrade"
+                                  />
+                                  <div className="p-2 text-xs text-gray-600 flex items-center justify-between">
+                                    <span className="truncate">{new Date((f as any).fecha_subida).toLocaleString()}</span>
+                                    <a
+                                      className="text-blue-600 hover:underline ml-2 shrink-0"
+                                      href={mapsLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Abrir en Maps
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                        </div>
+                      </div>
+                    )}
+
                     {embarqueFotos.length > 0 ? (
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {embarqueFotos.map((foto) => (
-                          <div
-                            key={foto.id}
-                            className="relative group overflow-hidden rounded-lg border"
-                          >
-                            <img
-                              src={foto.url_blob || "/placeholder.svg"}
-                              alt={foto.nombre_archivo}
-                              width={200}
-                              height={200}
-                              className="w-full h-32 object-cover"
-                            />
-                            <div className="p-2 text-xs">
-                              <p className="font-medium truncate">
-                                {foto.nombre_archivo}
-                              </p>
-                              <p className="text-gray-500">
-                                Subido por: {foto.subido_por || "Desconocido"}
-                              </p>
-                              <p className="text-gray-500">
-                                {new Date(
-                                  foto.fecha_subida
-                                ).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <a
-                              href={foto.url_blob}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
-                              aria-label={`Ver imagen ${foto.nombre_archivo}`}
+                        {embarqueFotos.map((foto) => {
+                          const hasGeo = typeof (foto as any).latitud === "number" && typeof (foto as any).longitud === "number";
+                          const mapsLink = hasGeo
+                            ? `https://maps.google.com/?q=${(foto as any).latitud},${(foto as any).longitud}`
+                            : undefined;
+                          return (
+                            <div
+                              key={foto.id}
+                              className="relative group overflow-hidden rounded-lg border"
                             >
-                              <ImageIcon className="h-6 w-6" />
-                            </a>
-                          </div>
-                        ))}
+                              <img
+                                src={foto.url_blob || "/placeholder.svg"}
+                                alt={foto.nombre_archivo}
+                                width={200}
+                                height={200}
+                                className="w-full h-32 object-cover"
+                              />
+                              <div className="p-2 text-xs space-y-0.5">
+                                <p className="font-medium truncate">{foto.nombre_archivo}</p>
+                                <p className="text-gray-500">Subido por: {foto.subido_por || "Desconocido"}</p>
+                                <p className="text-gray-500">{new Date(foto.fecha_subida).toLocaleDateString()}</p>
+                                {hasGeo && (
+                                  <p>
+                                    <a
+                                      className="text-blue-600 hover:underline"
+                                      href={mapsLink}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                    >
+                                      Ver ubicación
+                                    </a>
+                                  </p>
+                                )}
+                              </div>
+                              <a
+                                href={foto.url_blob}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                                aria-label={`Ver imagen ${foto.nombre_archivo}`}
+                              >
+                                <ImageIcon className="h-6 w-6" />
+                              </a>
+                            </div>
+                          );
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-8">
                         <ImageIcon className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                        <p className="text-gray-500">
-                          No hay imágenes adjuntas para este embarque.
-                        </p>
+                        <p className="text-gray-500">No hay imágenes adjuntas para este embarque.</p>
                         <p className="text-sm text-gray-400 mt-1">
-                          El operador puede subir fotos a través del enlace de
-                          subida.
+                          El operador puede subir fotos a través del enlace de subida.
                         </p>
                       </div>
                     )}

@@ -41,6 +41,8 @@ import {
   Camera,
   Coins,
   Package,
+  MapPin,
+  FileText,
 } from "lucide-react";
 import { Trash2 } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
@@ -3725,23 +3727,49 @@ export default function AsignarOperadoresPage() {
                         ) : fotosEmbarque.length > 0 ? (
                           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
                             {fotosEmbarque.map((foto) => (
-                              <div
-                                key={foto.id}
-                                className="group relative block cursor-pointer"
-                                onClick={() => setSelectedImage(foto.url_blob)}
-                              >
-                                <img
-                                  src={foto.url_blob || "/placeholder.svg"}
-                                  alt={foto.nombre_archivo}
-                                  className="w-full h-40 object-cover rounded-lg shadow-md transition-transform duration-300 group-hover:scale-105"
-                                />
-                                <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 rounded-lg flex items-center justify-center">
-                                  <Eye className="h-8 w-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                              <div key={foto.id} className="rounded-lg border border-gray-200 bg-white p-2">
+                                {/* Área de vista previa clickable (solo aquí abre el visor) */}
+                                <div
+                                  className="group relative block cursor-pointer"
+                                  onClick={() => setSelectedImage(foto.url_blob)}
+                                >
+                                  {String(foto.tipo_mime || "").startsWith("image/") ? (
+                                    <img
+                                      src={foto.url_blob || "/placeholder.svg"}
+                                      alt={foto.nombre_archivo}
+                                      className="w-full h-40 object-cover rounded-md shadow-sm transition-transform duration-300 group-hover:scale-[1.02]"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-40 rounded-md bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-gray-500">
+                                      <div className="flex flex-col items-center">
+                                        <FileText className="h-8 w-8 mb-1" />
+                                        <span className="text-xs">Documento</span>
+                                      </div>
+                                    </div>
+                                  )}
+                                  <div className="pointer-events-none absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 rounded-md flex items-center justify-center">
+                                    <Eye className="h-7 w-7 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
                                 </div>
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2 rounded-b-lg">
-                                  <p className="text-xs text-white font-semibold truncate">
+                                {/* Pie con nombre y ubicación (no abre el visor) */}
+                                <div className="mt-2">
+                                  <p className="text-xs font-medium text-gray-800 truncate" title={foto.nombre_archivo}>
                                     {foto.nombre_archivo}
                                   </p>
+                                  <div className="mt-1">
+                                    {foto.latitud != null && foto.longitud != null ? (
+                                      <a
+                                        href={`https://www.google.com/maps?q=${foto.latitud},${foto.longitud}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                                      >
+                                        <MapPin className="h-3.5 w-3.5" /> Ver ubicación
+                                      </a>
+                                    ) : (
+                                      <span className="text-[11px] text-gray-400">Sin geolocalización</span>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
                             ))}

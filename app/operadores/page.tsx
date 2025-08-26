@@ -55,6 +55,7 @@ import {
 } from "lucide-react";
 import { exportOperadoresToExcel, exportOperadorDetalleToExcel } from "./excel-export";
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { supabase, type Operador } from "@/lib/supabase";
 import { subirDocumentoOperador, eliminarDocumentoOperador } from "@/lib/blob";
 import { agregarAuditLog } from "@/lib/audit";
@@ -154,6 +155,10 @@ export default function OperadoresPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  // Popup para errores de cuota de almacenamiento
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaMessage, setQuotaMessage] = useState<string>("");
+  const router = useRouter();
 
   // Estados para subida de documentos
   const [uploadingDoc, setUploadingDoc] = useState(false);
@@ -186,6 +191,76 @@ export default function OperadoresPage() {
     "contrato",
     "otro",
   ];
+
+  // =============== Helpers de datos aleatorios (temporal) ===============
+  const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+  const randDigits = (len: number) => Array.from({ length: len }, () => String(randInt(0, 9))).join("");
+  const randDatePast = (yearsFromNowMin = 20, yearsFromNowMax = 50) => {
+    const y = new Date().getFullYear() - randInt(yearsFromNowMin, yearsFromNowMax);
+    const m = randInt(1, 12);
+    const d = randInt(1, 28);
+    return new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10);
+  };
+  const randDateFuture = (daysMin = 30, daysMax = 365) => {
+    const base = new Date();
+    const d = randInt(daysMin, daysMax);
+    const dt = new Date(base.getTime() + d * 24 * 3600 * 1000);
+    return new Date(Date.UTC(dt.getFullYear(), dt.getMonth(), dt.getDate())).toISOString().slice(0, 10);
+  };
+  const randNombre = () => pick(["Juan","María","Luis","Ana","Carlos","Sofía","Pedro","Lucía","Jorge","Laura"]);
+  const randApellidos = () => `${pick(["Pérez","García","López","Martínez","Hernández","González","Rodríguez"]) } ${pick(["Sánchez","Ramírez","Cruz","Flores","Díaz","Torres","Vargas"])}`;
+  const randAlias = () => pick(["El Rápido","Pantera","Cóndor","Titan","Fénix","Norteño","Centella","Águila"]);
+  const randEmail = (nombre: string, apellidos: string) => {
+    const base = (nombre + "." + apellidos.split(" ")[0]).toLowerCase().normalize("NFD").replace(/[^a-z.]/g, "");
+    return `${base}${randInt(1,99)}@correo.com`;
+  };
+  const randTelefonoMX = () => `+52 ${randInt(10,99)} ${randDigits(4)} ${randDigits(4)}`;
+  const randDireccion = () => `${pick(["Calle","Av.","Blvd.","Prol."])} ${pick(["Monarca","Independencia","Juárez","Hidalgo","Reforma","Centro"])} #${randInt(10,999)}, Col. ${pick(["Centro","Norte","Sur","Oriente","Poniente"])}, ${pick(["CDMX","Monterrey","Guadalajara","Querétaro","Puebla"])}.`;
+  const randTexto = () => pick([
+    "Operador con experiencia en rutas largas.",
+    "Requiere seguimiento de vencimientos.",
+    "Disponible para viajes internacionales.",
+    "Excelente récord de seguridad.",
+  ]);
+  const randTipoSangre = () => pick(["A+","A-","B+","B-","AB+","AB-","O+","O-"]);
+  const randRel = () => pick(["padre","madre","esposa","esposo","hijo","hija","hermano","hermana","otro"]);
+
+  const autocompletarAleatorio = () => {
+    const nombre = randNombre();
+    const apellidos = randApellidos();
+    const telefono = randTelefonoMX();
+    const email = randEmail(nombre, apellidos);
+    setFormData({
+      nombre,
+      apellidos,
+      alias: Math.random() < 0.5 ? randAlias() : "",
+      telefono,
+      email,
+      licencia: `LIC-${randDigits(6)}`,
+      numero_apto_medico: `APTO-${randDigits(5)}`,
+      fecha_vencimiento_licencia: randDateFuture(60, 540),
+      fecha_vencimiento_apto_medico: randDateFuture(60, 365),
+      numero_visa: Math.random() < 0.6 ? `VISA-${randDigits(7)}` : "",
+      fecha_vencimiento_visa: Math.random() < 0.6 ? randDateFuture(120, 720) : "",
+      numero_fast: Math.random() < 0.5 ? `FAST-${randDigits(6)}` : "",
+      fecha_vencimiento_fast: Math.random() < 0.5 ? randDateFuture(90, 720) : "",
+      tipo_sangre: randTipoSangre(),
+      direccion: randDireccion(),
+      fecha_nacimiento: randDatePast(25, 45),
+      curp: `CURP${randDigits(10)}`,
+      rfc: `RFC${randDigits(9)}`,
+      nss: `NSS${randDigits(8)}`,
+      telefono_emergencia: randTelefonoMX(),
+      contactos_emergencia: "",
+      observaciones: randTexto(),
+      estado: "activo",
+    });
+    const c1 = { nombre: `${randNombre()} ${pick(["Pérez","López","García"])}`, relacion: randRel(), direccion: randDireccion(), telefono: randTelefonoMX(), correo: randEmail("contacto", "fam") };
+    const c2 = { nombre: `${randNombre()} ${pick(["Sánchez","Díaz","Flores"])}`, relacion: randRel(), direccion: randDireccion(), telefono: randTelefonoMX(), correo: randEmail("contacto", "amigo") };
+    setContactosEmergencia([c1, c2]);
+    setNuevoContacto({ nombre: "", relacion: "", direccion: "", telefono: "", correo: "" });
+  };
 
   // Botón de auto-llenado removido por requerimiento (se elimina helper de datos de prueba)
 
@@ -416,6 +491,7 @@ export default function OperadoresPage() {
       const tempUrl = URL.createObjectURL(file);
       setFotoOperadorUrl(tempUrl);
       setError("");
+  setSuccess("Fotografía seleccionada. Se subirá al guardar el operador.");
     }
   };
 
@@ -458,6 +534,9 @@ export default function OperadoresPage() {
     const tempUrls = files.map((file) => URL.createObjectURL(file));
     setDocumentosBasicosUrls((prev) => [...prev, ...tempUrls]);
     setError("");
+    if (files.length > 0) {
+      setSuccess(`${files.length} documento(s) seleccionados. Se subirán al guardar el operador.`);
+    }
   };
 
   // Función para eliminar documento básico
@@ -471,6 +550,14 @@ export default function OperadoresPage() {
   };
 
   // Función para subir fotografía y documentos (nueva matriz + compatibilidad)
+  const safeStringify = (obj: any) => {
+    try {
+      return JSON.stringify(obj, Object.getOwnPropertyNames(obj || {}), 2);
+    } catch {
+      try { return JSON.stringify(obj); } catch { return String(obj); }
+    }
+  };
+
   const subirFotografiaYDocumentos = async (operadorId: string) => {
     try {
       const resultados: string[] = [];
@@ -482,21 +569,26 @@ export default function OperadoresPage() {
           fotoOperador,
           'fotografia_operador'
         );
-        const { error } = await supabase.from('documentos_operadores').insert({
+        const insertFotoResp = await supabase.from('documentos_operadores').insert({
           operador_id: operadorId,
           tipo_documento: 'fotografia_operador',
-          nombre_archivo: fotoOperador.name,
+          nombre_archivo: fotoOperador.name || null,
           url_blob: fotoUrl,
+          // Compatibilidad con esquemas legados que usan url_archivo NOT NULL
+          url_archivo: fotoUrl,
           pathname: fotoPathname,
-          tamano_bytes: fotoOperador.size,
-          tipo_mime: fotoOperador.type,
+          // Compat con esquemas legados que usan pathname_archivo NOT NULL
+          pathname_archivo: fotoPathname,
+          tamano_bytes: fotoOperador.size || null,
+          tipo_mime: fotoOperador.type || null,
           notas: 'Fotografía del operador',
           subido_por: 'Sistema',
           activo: true,
-        });
-        if (error) {
-          console.error('Error insertando foto en DB:', error);
-          throw error;
+        }).select();
+  if (insertFotoResp.error) {
+          console.error('Error insertando foto en DB (error):', safeStringify(insertFotoResp.error));
+          console.error('Error insertando foto en DB (resp):', safeStringify(insertFotoResp));
+          throw new Error(`Error insertando foto: ${insertFotoResp.error.message || safeStringify(insertFotoResp.error)}`);
         }
         resultados.push('Fotografía subida');
       }
@@ -508,29 +600,44 @@ export default function OperadoresPage() {
           const documento = documentosBasicos[i];
           const tipo = `documento_basico_${i + 1}`;
           const { url: docUrl, pathname: docPathname } = await subirDocumentoOperador(operadorId, documento, tipo);
-          const { error } = await supabase.from('documentos_operadores').insert({
+          const insertDocResp = await supabase.from('documentos_operadores').insert({
             operador_id: operadorId,
             tipo_documento: tipo,
-            nombre_archivo: documento.name,
+            nombre_archivo: documento.name || null,
             url_blob: docUrl,
+            // Compatibilidad con esquemas legados que usan url_archivo NOT NULL
+            url_archivo: docUrl,
             pathname: docPathname,
-            tamano_bytes: documento.size,
-            tipo_mime: documento.type,
+            // Compat legada: pathname_archivo
+            pathname_archivo: docPathname,
+            tamano_bytes: documento.size || null,
+            tipo_mime: documento.type || null,
             notas: `Documento básico ${i + 1}`,
             subido_por: 'Sistema',
             activo: true,
-          });
-          if (error) {
-            console.error('Error insertando documento en DB:', error);
-            throw error;
+          }).select();
+          if (insertDocResp.error) {
+            console.error('Error insertando documento en DB (error):', safeStringify(insertDocResp.error));
+            console.error('Error insertando documento en DB (resp):', safeStringify(insertDocResp));
+            throw new Error(`Error insertando documento: ${insertDocResp.error.message || safeStringify(insertDocResp.error)}`);
           }
         }
         resultados.push(`${Math.min(7, documentosBasicos.length)} documentos subidos`);
       }
       return resultados;
-    } catch (error) {
+  } catch (error) {
       console.error('Error subiendo archivos:', error);
-      throw error;
+      const msg = error instanceof Error ? error.message : String(error);
+      if (/almacenamiento|quota|insufficient|507/i.test(msg)) {
+        setQuotaMessage('El almacenamiento de imágenes está lleno. Contacta al administrador para liberar espacio o ampliar el plan.');
+        setShowQuotaModal(true);
+        // Evitar duplicar alerta superior
+        setError("");
+        return [];
+      } else {
+        setError(`Error subiendo archivos: ${msg}`);
+        throw error;
+      }
     } finally {
       setUploadingFoto(false);
       setUploadingDocumentos(false);
@@ -557,7 +664,7 @@ export default function OperadoresPage() {
         if (ids.length > 0) {
           const { data: fotosData, error: fotosError } = await supabase
             .from("documentos_operadores")
-            .select("operador_id,url_blob,tipo_documento")
+            .select("operador_id,url_blob,url_archivo,tipo_documento")
             .in("operador_id", ids)
             .eq("tipo_documento", "fotografia_operador")
             .eq("activo", true);
@@ -566,7 +673,8 @@ export default function OperadoresPage() {
             console.warn("Error cargando fotos operadores:", fotosError);
           } else if (fotosData) {
             fotosMap = (fotosData || []).reduce((acc: Record<string, string>, f: any) => {
-              if (f?.operador_id && f?.url_blob) acc[f.operador_id] = f.url_blob;
+              const url = f?.url_blob || f?.url_archivo || '';
+              if (f?.operador_id && url) acc[f.operador_id] = url;
               return acc;
             }, {});
           }
@@ -1225,24 +1333,29 @@ export default function OperadoresPage() {
       );
 
       // Guardar información en la base de datos
-      const { error } = await supabase.from("documentos_operadores").insert({
+      const insertResp = await supabase.from("documentos_operadores").insert({
         operador_id: operadorDetalle.id,
         tipo_documento: tipoDocumento,
         numero_documento: numeroDocumento || null,
         nombre_archivo: selectedFile.name,
         url_blob: url,
+  // Compatibilidad con esquemas legados que usan url_archivo NOT NULL
+  url_archivo: url,
         pathname: pathname,
+        // Compatibilidad legada: pathname_archivo
+        pathname_archivo: pathname,
         tamano_bytes: selectedFile.size,
         tipo_mime: selectedFile.type,
         fecha_vencimiento: fechaVencimiento || null,
         notas: notasDocumento || null,
         subido_por: "Sistema",
         activo: true,
-      });
+      }).select();
 
-      if (error) {
-        console.error("Error guardando documento:", error);
-        setError("Error al guardar la información del documento");
+      if (insertResp.error) {
+        console.error("Error guardando documento (error):", safeStringify(insertResp.error));
+        console.error("Error guardando documento (resp):", safeStringify(insertResp));
+        setError(`Error al guardar la información del documento: ${insertResp.error.message || safeStringify(insertResp.error)}`);
         return;
       }
 
@@ -1251,15 +1364,19 @@ export default function OperadoresPage() {
       await cargarDocumentosOperador(operadorDetalle.id);
     } catch (error) {
       console.error("Error subiendo documento:", error);
-      setError(
-        `Error al subir documento: ${
-          error instanceof Error ? error.message : "Error desconocido"
-        }`
-      );
+      const msg = error instanceof Error ? error.message : String(error);
+      if (/almacenamiento|quota|insufficient|507/i.test(msg)) {
+        setQuotaMessage('El almacenamiento de imágenes está lleno. Contacta al administrador para liberar espacio o ampliar el plan.');
+        setShowQuotaModal(true);
+        setError("");
+      } else {
+        setError(`Error al subir documento: ${msg}`);
+      }
     } finally {
       setUploadingDoc(false);
     }
   };
+
 
   const eliminarDocumento = async (documento: DocumentoOperador) => {
     try {
@@ -1351,6 +1468,34 @@ export default function OperadoresPage() {
   return (
     <MainLayout>
       <div className="space-y-4">
+        {/* Aviso de cuota llena: redirige a Configuración > Limpieza */}
+        <AlertDialog open={showQuotaModal} onOpenChange={(open) => {
+          setShowQuotaModal(open);
+        }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="sr-only">Almacenamiento de imágenes lleno</AlertDialogTitle>
+              <Alert className="bg-red-50 text-red-800 border-red-200">
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  <span className="font-medium">Almacenamiento de imágenes lleno.</span>
+                  <span className="ml-1">{quotaMessage || 'No hay espacio disponible para subir más archivos.'}</span>
+                </AlertDescription>
+              </Alert>
+            </AlertDialogHeader>
+            <div className="text-sm text-gray-700 mt-2">
+              Ve a Configuración &gt; Limpieza para borrar archivos por rango de fechas y liberar espacio.
+            </div>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Salir</AlertDialogCancel>
+              <AlertDialogAction className="bg-red-600 hover:bg-red-700 text-white" onClick={() => {
+                setShowQuotaModal(false);
+                router.push('/configuracion?tab=limpieza');
+              }}>Ir a Limpieza</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
@@ -2031,6 +2176,18 @@ export default function OperadoresPage() {
                 )}
               </div>
               <div className="flex items-center gap-2">
+                {!editingId && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="border-dashed"
+                    title="Autocompletar aleatorio (temporal)"
+                    onClick={autocompletarAleatorio}
+                  >
+                    Autocompletar aleatorio
+                  </Button>
+                )}
                 <Button
                   onClick={() => setShowModal(false)}
                   variant="outline"
@@ -2917,7 +3074,7 @@ export default function OperadoresPage() {
                           <p className="text-sm mt-1">Los archivos cargados en el registro aparecerán aquí</p>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                           {/* Mostrar primero imágenes, luego otros archivos */}
                           {documentos
                             .sort((a, b) => {
@@ -2932,9 +3089,9 @@ export default function OperadoresPage() {
                               return (
                                 <div
                                   key={documento.id}
-                                  className={`border rounded-lg p-4 space-y-3 bg-white hover:shadow-md transition-shadow ${esPrincipal ? 'border-green-500 ring-2 ring-green-400' : ''}`}
+                                  className={`border rounded-lg p-3 space-y-2 bg-white hover:shadow-md transition-shadow ${esPrincipal ? 'border-green-500 ring-2 ring-green-400' : ''}`}
                                 >
-                                  <div className="aspect-square bg-gray-100 rounded-lg overflow-hidden relative group flex items-center justify-center">
+                                  <div className="aspect-square max-w-[180px] w-full mx-auto bg-gray-100 rounded-lg overflow-hidden relative group flex items-center justify-center">
                                     {esImagen ? (
                                       <img
                                         src={documento.url_blob || '/placeholder.svg'}
@@ -2945,8 +3102,8 @@ export default function OperadoresPage() {
                                       />
                                     ) : (
                                       <div className="flex flex-col items-center justify-center w-full h-full text-gray-400">
-                                        <FileText className="h-10 w-10 mb-2" />
-                                        <span className="text-xs">{documento.nombre_archivo}</span>
+                                        <FileText className="h-8 w-8 mb-2" />
+                                        <span className="text-[10px]">{documento.nombre_archivo}</span>
                                       </div>
                                     )}
                                     {esPrincipal && (
@@ -2954,21 +3111,21 @@ export default function OperadoresPage() {
                                     )}
                                     <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 flex items-center justify-center opacity-0 group-hover:opacity-100">
                                       <div className="text-white text-center">
-                                        <Eye className="h-6 w-6 mx-auto mb-1" />
-                                        <span className="text-xs">Click para ver</span>
+                                        <Eye className="h-5 w-5 mx-auto mb-1" />
+                                        <span className="text-[10px]">Click para ver</span>
                                       </div>
                                     </div>
                                   </div>
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <Badge className={esPrincipal ? 'bg-green-100 text-green-800 text-xs' : esImagen ? 'bg-blue-100 text-blue-800 text-xs' : 'bg-gray-100 text-gray-800 text-xs'}>
+                                      <Badge className={esPrincipal ? 'bg-green-100 text-green-800 text-[10px]' : esImagen ? 'bg-blue-100 text-blue-800 text-[10px]' : 'bg-gray-100 text-gray-800 text-[10px]'}>
                                         {esPrincipal ? 'FOTOGRAFÍA PRINCIPAL' : esImagen ? 'IMAGEN' : 'ARCHIVO'}
                                       </Badge>
-                                      <span className="text-xs text-gray-500">{documento.tamano_bytes && formatFileSize(documento.tamano_bytes)}</span>
+                                      <span className="text-[10px] text-gray-500">{documento.tamano_bytes && formatFileSize(documento.tamano_bytes)}</span>
                                     </div>
-                                    <p className="text-sm font-medium truncate">{documento.nombre_archivo}</p>
-                                    <p className="text-xs text-gray-400">{new Date(documento.fecha_subida).toLocaleDateString()} a las {new Date(documento.fecha_subida).toLocaleTimeString()}</p>
-                                    {documento.notas && (<p className="text-xs text-gray-600 bg-gray-50 p-2 rounded">{documento.notas}</p>)}
+                                    <p className="text-xs font-medium truncate">{documento.nombre_archivo}</p>
+                                    <p className="text-[10px] text-gray-400">{new Date(documento.fecha_subida).toLocaleDateString()} a las {new Date(documento.fecha_subida).toLocaleTimeString()}</p>
+                                    {documento.notas && (<p className="text-[10px] text-gray-600 bg-gray-50 p-2 rounded">{documento.notas}</p>)}
                                     <div className="flex space-x-2 pt-2">
                                       <Button variant="outline" size="sm" className="flex-1 bg-transparent" onClick={() => window.open(documento.url_blob, '_blank')}>
                                         <Eye className="h-3 w-3 mr-1" /> Ver
@@ -3435,7 +3592,7 @@ export default function OperadoresPage() {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {fotos.map(f => (
                           <div key={f.id} className="border rounded-lg overflow-hidden group bg-white shadow-sm hover:shadow-md transition-shadow">
-                            <div className="aspect-square bg-gray-100 relative">
+                            <div className="aspect-square max-w-[200px] w-full mx-auto bg-gray-100 relative">
                               <img
                                 src={f.url_blob || '/placeholder.svg'}
                                 alt={f.nombre_archivo}

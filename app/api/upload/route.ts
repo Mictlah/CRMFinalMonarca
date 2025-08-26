@@ -1,8 +1,23 @@
+// Keep only one implementation to avoid redeclarations below
 import { put, del } from "@vercel/blob"
 import { NextResponse } from "next/server"
 
 // Forzar runtime dinámico para asegurar lectura de variables de entorno en cada request
 export const dynamic = "force-dynamic"
+
+// Health-check sencillo: verificar si existe el token y el modo de simulación
+export async function GET(): Promise<NextResponse> {
+  const token = process.env.BLOB_READ_WRITE_TOKEN || ""
+  const tokenPresent = Boolean(token)
+  const tail = token ? token.slice(-6) : null
+  return NextResponse.json({
+    ok: true,
+    tokenPresent,
+    tokenTail: tail, // solo para diagnóstico (no revela el token completo)
+    simulateQuota: process.env.SIMULATE_BLOB_QUOTA === '1',
+    nodeEnv: process.env.NODE_ENV,
+  })
+}
 
 export async function POST(request: Request): Promise<NextResponse> {
   try {
@@ -11,11 +26,25 @@ export async function POST(request: Request): Promise<NextResponse> {
     const formData = await request.formData()
     const file = formData.get("file") as File | null
     const customFilename = formData.get("fileName") as string | null
+  const simulateFlag = formData.get("simulate") as string | null
 
-    if (!file) {
+  if (!file) {
       console.error("No se proporcionó archivo")
       return NextResponse.json({ error: "No se proporcionó ningún archivo." }, { status: 400 })
     }
+    // Simulación opcional de cuota llena (solo en desarrollo y controlada por variable)
+    if (process.env.NODE_ENV !== 'production' && (process.env.SIMULATE_BLOB_QUOTA === '1' || simulateFlag === 'quota')) {
+      console.warn('[SIMULATE] Enviando 507 BLOB_QUOTA_EXCEEDED por simulación controlada')
+      return NextResponse.json(
+        {
+          error: "Almacenamiento de imágenes lleno.",
+          code: "BLOB_QUOTA_EXCEEDED",
+          simulated: true,
+        },
+        { status: 507 },
+      )
+    }
+
 
     console.log("Archivo recibido:", {
       name: file.name,
@@ -78,12 +107,14 @@ export async function POST(request: Request): Promise<NextResponse> {
     })
   } catch (error: any) {
     console.error("Error al subir al blob:", error)
-    return NextResponse.json(
-      {
-        error: `Error del servidor: ${error.message || "Error desconocido"}`,
-      },
-      { status: 500 },
-    )
+    const msg = String(error?.message || "")
+    const quotaLike = /quota|limit|storage|space|exceed/i.test(msg)
+    const status = quotaLike ? 507 : 500 // 507 Insufficient Storage
+    const code = quotaLike ? "BLOB_QUOTA_EXCEEDED" : "BLOB_UPLOAD_ERROR"
+    const friendly = quotaLike
+      ? "El almacenamiento de imágenes está lleno. Contacta al administrador para liberar espacio o ampliar el plan."
+      : `Error del servidor: ${msg || "Error desconocido"}`
+    return NextResponse.json({ error: friendly, code, original: msg }, { status })
   }
 }
 
@@ -91,11 +122,14 @@ export async function DELETE(request: Request): Promise<NextResponse> {
   try {
     console.log("Iniciando eliminación de archivo...")
 
-    const { pathname } = await request.json()
+    const body = await request.json()
+    const pathname: string | undefined = body?.pathname
+    const url: string | undefined = body?.url
+    const target = url || pathname
 
-    if (!pathname) {
-      console.error("No se proporcionó pathname")
-      return NextResponse.json({ error: "No se proporcionó el pathname del archivo." }, { status: 400 })
+    if (!target) {
+      console.error("No se proporcionó url ni pathname")
+      return NextResponse.json({ error: "Falta url o pathname del archivo." }, { status: 400 })
     }
 
     // Verificar token de Blob
@@ -104,9 +138,9 @@ export async function DELETE(request: Request): Promise<NextResponse> {
       return NextResponse.json({ error: "Configuración de almacenamiento no disponible", hint: "Defina BLOB_READ_WRITE_TOKEN" }, { status: 500 })
     }
 
-    console.log("Eliminando archivo de Blob:", pathname)
+    console.log("Eliminando archivo de Blob:", target)
 
-    await del(pathname, {
+    await del(target, {
       token: process.env.BLOB_READ_WRITE_TOKEN,
     })
 
