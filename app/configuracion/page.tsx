@@ -1202,7 +1202,7 @@ export default function ConfiguracionPage() {
                     setLimpiezaRunning(true)
                     setLimpiezaErr(null)
                     try {
-                      const res = await fetch('/api/cleanup', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ confirm: true }) })
+                      const res = await fetch('pages/api/cleanup', { method: 'POST', headers: { 'Content-Type':'application/json' }, body: JSON.stringify({ confirm: true }) })
                       const json = await res.json()
                       if (!res.ok || json?.error) throw new Error(json?.error||'Error de limpieza')
                       setLimpiezaMsg('Limpieza completada correctamente.')
